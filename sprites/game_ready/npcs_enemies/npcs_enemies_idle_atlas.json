@@ -1,0 +1,764 @@
+{
+  "frame_width": 32,
+  "frame_height": 32,
+  "frames_per_animation": 8,
+  "frame_duration_ms": 150,
+  "fps": 6.67,
+  "pivot": {
+    "x": 16,
+    "y": 31,
+    "note": "bottom-center, standing point"
+  },
+  "animations": {
+    "bandit_idle": {
+      "atlas_row": 0,
+      "x": 0,
+      "y": 0,
+      "frames": 8,
+      "loop": true,
+      "group": "townsfolk",
+      "name": "Bandit",
+      "variant": "A"
+    },
+    "bandit_b_idle": {
+      "atlas_row": 1,
+      "x": 0,
+      "y": 32,
+      "frames": 8,
+      "loop": true,
+      "group": "townsfolk",
+      "name": "Bandit",
+      "variant": "B"
+    },
+    "bandit_c_idle": {
+      "atlas_row": 2,
+      "x": 0,
+      "y": 64,
+      "frames": 8,
+      "loop": true,
+      "group": "townsfolk",
+      "name": "Bandit",
+      "variant": "C"
+    },
+    "bandit_d_idle": {
+      "atlas_row": 3,
+      "x": 0,
+      "y": 96,
+      "frames": 8,
+      "loop": true,
+      "group": "townsfolk",
+      "name": "Bandit",
+      "variant": "D"
+    },
+    "desperado_idle": {
+      "atlas_row": 4,
+      "x": 0,
+      "y": 128,
+      "frames": 8,
+      "loop": true,
+      "group": "townsfolk",
+      "name": "Desperado",
+      "variant": "A"
+    },
+    "desperado_b_idle": {
+      "atlas_row": 5,
+      "x": 0,
+      "y": 160,
+      "frames": 8,
+      "loop": true,
+      "group": "townsfolk",
+      "name": "Desperado",
+      "variant": "B"
+    },
+    "desperado_c_idle": {
+      "atlas_row": 6,
+      "x": 0,
+      "y": 192,
+      "frames": 8,
+      "loop": true,
+      "group": "townsfolk",
+      "name": "Desperado",
+      "variant": "C"
+    },
+    "miner_idle": {
+      "atlas_row": 7,
+      "x": 0,
+      "y": 224,
+      "frames": 8,
+      "loop": true,
+      "group": "townsfolk",
+      "name": "Miner",
+      "variant": "A"
+    },
+    "miner_b_idle": {
+      "atlas_row": 8,
+      "x": 0,
+      "y": 256,
+      "frames": 8,
+      "loop": true,
+      "group": "townsfolk",
+      "name": "Miner",
+      "variant": "B"
+    },
+    "miner_c_idle": {
+      "atlas_row": 9,
+      "x": 0,
+      "y": 288,
+      "frames": 8,
+      "loop": true,
+      "group": "townsfolk",
+      "name": "Miner",
+      "variant": "C"
+    },
+    "barkeep_idle": {
+      "atlas_row": 10,
+      "x": 0,
+      "y": 320,
+      "frames": 8,
+      "loop": true,
+      "group": "townsfolk",
+      "name": "Barkeep",
+      "variant": "A"
+    },
+    "barkeep_b_idle": {
+      "atlas_row": 11,
+      "x": 0,
+      "y": 352,
+      "frames": 8,
+      "loop": true,
+      "group": "townsfolk",
+      "name": "Barkeep",
+      "variant": "B"
+    },
+    "barkeep_c_idle": {
+      "atlas_row": 12,
+      "x": 0,
+      "y": 384,
+      "frames": 8,
+      "loop": true,
+      "group": "townsfolk",
+      "name": "Barkeep",
+      "variant": "C"
+    },
+    "cowboy_idle": {
+      "atlas_row": 13,
+      "x": 0,
+      "y": 416,
+      "frames": 8,
+      "loop": true,
+      "group": "townsfolk",
+      "name": "Cowboy",
+      "variant": "A"
+    },
+    "cowboy_b_idle": {
+      "atlas_row": 14,
+      "x": 0,
+      "y": 448,
+      "frames": 8,
+      "loop": true,
+      "group": "townsfolk",
+      "name": "Cowboy",
+      "variant": "B"
+    },
+    "cowboy_c_idle": {
+      "atlas_row": 15,
+      "x": 0,
+      "y": 480,
+      "frames": 8,
+      "loop": true,
+      "group": "townsfolk",
+      "name": "Cowboy",
+      "variant": "C"
+    },
+    "cowgirl_idle": {
+      "atlas_row": 16,
+      "x": 0,
+      "y": 512,
+      "frames": 8,
+      "loop": true,
+      "group": "townsfolk",
+      "name": "Cowgirl",
+      "variant": "A"
+    },
+    "cowgirl_b_idle": {
+      "atlas_row": 17,
+      "x": 0,
+      "y": 544,
+      "frames": 8,
+      "loop": true,
+      "group": "townsfolk",
+      "name": "Cowgirl",
+      "variant": "B"
+    },
+    "cowgirl_c_idle": {
+      "atlas_row": 18,
+      "x": 0,
+      "y": 576,
+      "frames": 8,
+      "loop": true,
+      "group": "townsfolk",
+      "name": "Cowgirl",
+      "variant": "C"
+    },
+    "sheriff_idle": {
+      "atlas_row": 19,
+      "x": 0,
+      "y": 608,
+      "frames": 8,
+      "loop": true,
+      "group": "townsfolk",
+      "name": "Sheriff",
+      "variant": "A"
+    },
+    "sheriff_b_idle": {
+      "atlas_row": 20,
+      "x": 0,
+      "y": 640,
+      "frames": 8,
+      "loop": true,
+      "group": "townsfolk",
+      "name": "Sheriff",
+      "variant": "B"
+    },
+    "sheriff_c_idle": {
+      "atlas_row": 21,
+      "x": 0,
+      "y": 672,
+      "frames": 8,
+      "loop": true,
+      "group": "townsfolk",
+      "name": "Sheriff",
+      "variant": "C"
+    },
+    "singer_idle": {
+      "atlas_row": 22,
+      "x": 0,
+      "y": 704,
+      "frames": 8,
+      "loop": true,
+      "group": "townsfolk",
+      "name": "Saloon singer",
+      "variant": "A"
+    },
+    "singer_b_idle": {
+      "atlas_row": 23,
+      "x": 0,
+      "y": 736,
+      "frames": 8,
+      "loop": true,
+      "group": "townsfolk",
+      "name": "Saloon singer",
+      "variant": "B"
+    },
+    "singer_c_idle": {
+      "atlas_row": 24,
+      "x": 0,
+      "y": 768,
+      "frames": 8,
+      "loop": true,
+      "group": "townsfolk",
+      "name": "Saloon singer",
+      "variant": "C"
+    },
+    "undertaker_idle": {
+      "atlas_row": 25,
+      "x": 0,
+      "y": 800,
+      "frames": 8,
+      "loop": true,
+      "group": "townsfolk",
+      "name": "Undertaker",
+      "variant": "A"
+    },
+    "undertaker_b_idle": {
+      "atlas_row": 26,
+      "x": 0,
+      "y": 832,
+      "frames": 8,
+      "loop": true,
+      "group": "townsfolk",
+      "name": "Undertaker",
+      "variant": "B"
+    },
+    "undertaker_c_idle": {
+      "atlas_row": 27,
+      "x": 0,
+      "y": 864,
+      "frames": 8,
+      "loop": true,
+      "group": "townsfolk",
+      "name": "Undertaker",
+      "variant": "C"
+    },
+    "snakeoil_idle": {
+      "atlas_row": 28,
+      "x": 0,
+      "y": 896,
+      "frames": 8,
+      "loop": true,
+      "group": "townsfolk",
+      "name": "Snake-oil seller",
+      "variant": "A"
+    },
+    "snakeoil_b_idle": {
+      "atlas_row": 29,
+      "x": 0,
+      "y": 928,
+      "frames": 8,
+      "loop": true,
+      "group": "townsfolk",
+      "name": "Snake-oil seller",
+      "variant": "B"
+    },
+    "snakeoil_c_idle": {
+      "atlas_row": 30,
+      "x": 0,
+      "y": 960,
+      "frames": 8,
+      "loop": true,
+      "group": "townsfolk",
+      "name": "Snake-oil seller",
+      "variant": "C"
+    },
+    "prospector_idle": {
+      "atlas_row": 31,
+      "x": 0,
+      "y": 992,
+      "frames": 8,
+      "loop": true,
+      "group": "townsfolk",
+      "name": "Prospector",
+      "variant": "A"
+    },
+    "prospector_b_idle": {
+      "atlas_row": 32,
+      "x": 0,
+      "y": 1024,
+      "frames": 8,
+      "loop": true,
+      "group": "townsfolk",
+      "name": "Prospector",
+      "variant": "B"
+    },
+    "prospector_c_idle": {
+      "atlas_row": 33,
+      "x": 0,
+      "y": 1056,
+      "frames": 8,
+      "loop": true,
+      "group": "townsfolk",
+      "name": "Prospector",
+      "variant": "C"
+    },
+    "drunk_idle": {
+      "atlas_row": 34,
+      "x": 0,
+      "y": 1088,
+      "frames": 8,
+      "loop": true,
+      "group": "townsfolk",
+      "name": "Town drunk",
+      "variant": "A"
+    },
+    "drunk_b_idle": {
+      "atlas_row": 35,
+      "x": 0,
+      "y": 1120,
+      "frames": 8,
+      "loop": true,
+      "group": "townsfolk",
+      "name": "Town drunk",
+      "variant": "B"
+    },
+    "drunk_c_idle": {
+      "atlas_row": 36,
+      "x": 0,
+      "y": 1152,
+      "frames": 8,
+      "loop": true,
+      "group": "townsfolk",
+      "name": "Town drunk",
+      "variant": "C"
+    },
+    "kid_idle": {
+      "atlas_row": 37,
+      "x": 0,
+      "y": 1184,
+      "frames": 8,
+      "loop": true,
+      "group": "townsfolk",
+      "name": "Kid w/ big hat",
+      "variant": "A"
+    },
+    "kid_b_idle": {
+      "atlas_row": 38,
+      "x": 0,
+      "y": 1216,
+      "frames": 8,
+      "loop": true,
+      "group": "townsfolk",
+      "name": "Kid w/ big hat",
+      "variant": "B"
+    },
+    "kid_c_idle": {
+      "atlas_row": 39,
+      "x": 0,
+      "y": 1248,
+      "frames": 8,
+      "loop": true,
+      "group": "townsfolk",
+      "name": "Kid w/ big hat",
+      "variant": "C"
+    },
+    "rattlesnake_idle": {
+      "atlas_row": 40,
+      "x": 0,
+      "y": 1280,
+      "frames": 8,
+      "loop": true,
+      "group": "enemies",
+      "name": "Rattlesnake",
+      "variant": "A"
+    },
+    "rattlesnake_b_idle": {
+      "atlas_row": 41,
+      "x": 0,
+      "y": 1312,
+      "frames": 8,
+      "loop": true,
+      "group": "enemies",
+      "name": "Rattlesnake",
+      "variant": "B"
+    },
+    "rattlesnake_c_idle": {
+      "atlas_row": 42,
+      "x": 0,
+      "y": 1344,
+      "frames": 8,
+      "loop": true,
+      "group": "enemies",
+      "name": "Rattlesnake",
+      "variant": "C"
+    },
+    "rattlesnake_d_idle": {
+      "atlas_row": 43,
+      "x": 0,
+      "y": 1376,
+      "frames": 8,
+      "loop": true,
+      "group": "enemies",
+      "name": "Rattlesnake",
+      "variant": "D"
+    },
+    "lizard_idle": {
+      "atlas_row": 44,
+      "x": 0,
+      "y": 1408,
+      "frames": 8,
+      "loop": true,
+      "group": "enemies",
+      "name": "Gila lizard",
+      "variant": "A"
+    },
+    "lizard_b_idle": {
+      "atlas_row": 45,
+      "x": 0,
+      "y": 1440,
+      "frames": 8,
+      "loop": true,
+      "group": "enemies",
+      "name": "Gila lizard",
+      "variant": "B"
+    },
+    "lizard_c_idle": {
+      "atlas_row": 46,
+      "x": 0,
+      "y": 1472,
+      "frames": 8,
+      "loop": true,
+      "group": "enemies",
+      "name": "Gila lizard",
+      "variant": "C"
+    },
+    "lizard_d_idle": {
+      "atlas_row": 47,
+      "x": 0,
+      "y": 1504,
+      "frames": 8,
+      "loop": true,
+      "group": "enemies",
+      "name": "Gila lizard",
+      "variant": "D"
+    },
+    "scorpion_idle": {
+      "atlas_row": 48,
+      "x": 0,
+      "y": 1536,
+      "frames": 8,
+      "loop": true,
+      "group": "enemies",
+      "name": "Scorpion",
+      "variant": "A"
+    },
+    "scorpion_b_idle": {
+      "atlas_row": 49,
+      "x": 0,
+      "y": 1568,
+      "frames": 8,
+      "loop": true,
+      "group": "enemies",
+      "name": "Scorpion",
+      "variant": "B"
+    },
+    "scorpion_c_idle": {
+      "atlas_row": 50,
+      "x": 0,
+      "y": 1600,
+      "frames": 8,
+      "loop": true,
+      "group": "enemies",
+      "name": "Scorpion",
+      "variant": "C"
+    },
+    "tarantula_idle": {
+      "atlas_row": 51,
+      "x": 0,
+      "y": 1632,
+      "frames": 8,
+      "loop": true,
+      "group": "enemies",
+      "name": "Tarantula",
+      "variant": "A"
+    },
+    "tarantula_b_idle": {
+      "atlas_row": 52,
+      "x": 0,
+      "y": 1664,
+      "frames": 8,
+      "loop": true,
+      "group": "enemies",
+      "name": "Tarantula",
+      "variant": "B"
+    },
+    "tarantula_c_idle": {
+      "atlas_row": 53,
+      "x": 0,
+      "y": 1696,
+      "frames": 8,
+      "loop": true,
+      "group": "enemies",
+      "name": "Tarantula",
+      "variant": "C"
+    },
+    "coyote_idle": {
+      "atlas_row": 54,
+      "x": 0,
+      "y": 1728,
+      "frames": 8,
+      "loop": true,
+      "group": "enemies",
+      "name": "Coyote",
+      "variant": "A"
+    },
+    "coyote_b_idle": {
+      "atlas_row": 55,
+      "x": 0,
+      "y": 1760,
+      "frames": 8,
+      "loop": true,
+      "group": "enemies",
+      "name": "Coyote",
+      "variant": "B"
+    },
+    "coyote_c_idle": {
+      "atlas_row": 56,
+      "x": 0,
+      "y": 1792,
+      "frames": 8,
+      "loop": true,
+      "group": "enemies",
+      "name": "Coyote",
+      "variant": "C"
+    },
+    "vulture_idle": {
+      "atlas_row": 57,
+      "x": 0,
+      "y": 1824,
+      "frames": 8,
+      "loop": true,
+      "group": "enemies",
+      "name": "Vulture",
+      "variant": "A"
+    },
+    "vulture_b_idle": {
+      "atlas_row": 58,
+      "x": 0,
+      "y": 1856,
+      "frames": 8,
+      "loop": true,
+      "group": "enemies",
+      "name": "Vulture",
+      "variant": "B"
+    },
+    "vulture_c_idle": {
+      "atlas_row": 59,
+      "x": 0,
+      "y": 1888,
+      "frames": 8,
+      "loop": true,
+      "group": "enemies",
+      "name": "Vulture",
+      "variant": "C"
+    },
+    "armadillo_idle": {
+      "atlas_row": 60,
+      "x": 0,
+      "y": 1920,
+      "frames": 8,
+      "loop": true,
+      "group": "enemies",
+      "name": "Armadillo",
+      "variant": "A"
+    },
+    "armadillo_b_idle": {
+      "atlas_row": 61,
+      "x": 0,
+      "y": 1952,
+      "frames": 8,
+      "loop": true,
+      "group": "enemies",
+      "name": "Armadillo",
+      "variant": "B"
+    },
+    "armadillo_c_idle": {
+      "atlas_row": 62,
+      "x": 0,
+      "y": 1984,
+      "frames": 8,
+      "loop": true,
+      "group": "enemies",
+      "name": "Armadillo",
+      "variant": "C"
+    },
+    "jackalope_idle": {
+      "atlas_row": 63,
+      "x": 0,
+      "y": 2016,
+      "frames": 8,
+      "loop": true,
+      "group": "enemies",
+      "name": "Jackalope",
+      "variant": "A"
+    },
+    "jackalope_b_idle": {
+      "atlas_row": 64,
+      "x": 0,
+      "y": 2048,
+      "frames": 8,
+      "loop": true,
+      "group": "enemies",
+      "name": "Jackalope",
+      "variant": "B"
+    },
+    "jackalope_c_idle": {
+      "atlas_row": 65,
+      "x": 0,
+      "y": 2080,
+      "frames": 8,
+      "loop": true,
+      "group": "enemies",
+      "name": "Jackalope",
+      "variant": "C"
+    },
+    "skeleton_idle": {
+      "atlas_row": 66,
+      "x": 0,
+      "y": 2112,
+      "frames": 8,
+      "loop": true,
+      "group": "enemies",
+      "name": "Skeleton outlaw",
+      "variant": "A"
+    },
+    "skeleton_b_idle": {
+      "atlas_row": 67,
+      "x": 0,
+      "y": 2144,
+      "frames": 8,
+      "loop": true,
+      "group": "enemies",
+      "name": "Skeleton outlaw",
+      "variant": "B"
+    },
+    "skeleton_c_idle": {
+      "atlas_row": 68,
+      "x": 0,
+      "y": 2176,
+      "frames": 8,
+      "loop": true,
+      "group": "enemies",
+      "name": "Skeleton outlaw",
+      "variant": "C"
+    },
+    "cactus_idle": {
+      "atlas_row": 69,
+      "x": 0,
+      "y": 2208,
+      "frames": 8,
+      "loop": true,
+      "group": "enemies",
+      "name": "Cactus fiend",
+      "variant": "A"
+    },
+    "cactus_b_idle": {
+      "atlas_row": 70,
+      "x": 0,
+      "y": 2240,
+      "frames": 8,
+      "loop": true,
+      "group": "enemies",
+      "name": "Cactus fiend",
+      "variant": "B"
+    },
+    "cactus_c_idle": {
+      "atlas_row": 71,
+      "x": 0,
+      "y": 2272,
+      "frames": 8,
+      "loop": true,
+      "group": "enemies",
+      "name": "Cactus fiend",
+      "variant": "C"
+    },
+    "sandworm_idle": {
+      "atlas_row": 72,
+      "x": 0,
+      "y": 2304,
+      "frames": 8,
+      "loop": true,
+      "group": "enemies",
+      "name": "Sandworm",
+      "variant": "A"
+    },
+    "sandworm_b_idle": {
+      "atlas_row": 73,
+      "x": 0,
+      "y": 2336,
+      "frames": 8,
+      "loop": true,
+      "group": "enemies",
+      "name": "Sandworm",
+      "variant": "B"
+    },
+    "sandworm_c_idle": {
+      "atlas_row": 74,
+      "x": 0,
+      "y": 2368,
+      "frames": 8,
+      "loop": true,
+      "group": "enemies",
+      "name": "Sandworm",
+      "variant": "C"
+    }
+  }
+}
