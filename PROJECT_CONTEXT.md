@@ -20,7 +20,7 @@ Two related pieces of work:
 | `app/dustmap_src.html` | Same page with the sprite data replaced by a `__SHEETS__` placeholder. **Edit this one.** |
 | `app/build_dustmap.py` | Rebuilds `dustmap.html` from the source by inlining the four sprite sheets |
 | `app/tests/verify_partial_redraw.js` | Playwright test: makes edits, then checks the partial redraw matches a full redraw pixel-for-pixel |
-| `app/tests/mine_scene_smoke_test.js` | Playwright test: builds a mine scene (stone, cave wall, rails, props, grid, stamp, token drag) |
+| `app/tests/mine_scene_smoke_test.js` | Playwright test: builds a mine scene (stone, raised-stone cave wall, rails, props, grid, stamp, token drag) |
 | `sprites/game_ready/` | Final 32×32 sprite sheets (8 frames each), combined atlas + JSON, lineup GIF |
 | `sprites/per_character/` | Every intermediate deliverable per character (pose mockups, size variants, eye/cigarette/palm variants, idle GIFs) |
 | `sprites/generator_scripts/` | The Python (Pillow + NumPy) scripts that drew each sprite. Sibling-script loads and `standardize/std.py` paths are repo-relative; other outputs go to the current directory. |
@@ -47,13 +47,13 @@ All are tiny pixel art, hand-placed on a character grid for the smallest size, t
 - **Map:** 16 px = one 5 ft square. Sizes from 20×14 up to 60×40 squares (Settings dropdown, or zoom out and click the + tabs on each edge to add 10 squares on that side). Resizing keeps content in place and can be undone.
 - **Camera:** trackpad two-finger scroll pans and pinch zooms; mouse wheel zooms in steps; right-drag, Space-drag, Pan tool (H) or dragging empty ground in Select pans; touch pinch/pan; `+` `−` zoom, `0` fits.
 - **Tools:** Shape (D, click polygon points), Brush (B), Sculpt (E), Select (V), Objects (O), Measure (M), Pointer (P), Pan (H).
-- **Terrain (Terrain tab):** Sand, Scrub, Mesa, Water, Badlands, Road, Town, Stone floor, Cave wall, Mine rail.
-  - Water gets foam, a wet-sand band and depth shading. Mesa and Cave wall get rock faces on their south side, outlines and cast shadows.
+- **Terrain (Terrain tab):** Sand, Scrub, Mesa, Water, Badlands, Road, Town, Stone, Mine rail.
+  - Water gets foam, a wet-sand band and depth shading. Mesa gets rock faces on its south side, outlines and cast shadows. Stone is one material: flat it is cave floor; raised (Elevation or Sculpt) it becomes a cave wall with the dark wall texture on top and dark gray rock faces.
   - Roads get wheel ruts computed from the *merged* road shape (so crossings join cleanly). A road can only climb or drop one elevation level at a time; larger jumps are skipped and the road resumes beyond them; where it crosses a one-level cliff it renders as a ramp.
   - Town fills itself with small/medium/large buildings (shack 3×3, saloon 5×5, hotel 7×6 squares, true scale) plus barrels, crates and troughs; buildings avoid roads, so a road through a town becomes a street.
   - Mine rail draws ties and two rails along the stroke path.
-- **Elevation (Elevation tab):** Hill, High hill, Cliff, High cliff, Lower, Deepest, Flatten. Raised cliffs get rock faces coloured by the ground underneath; lowered land renders as a recessed pit (inner wall, shadow, darker floor); lowered water just gets darker.
-- **Sculpt:** in one motion, drag over an area, hold still about 0.38 s (a ring fills) or press Shift, then drag up/down to raise or lower it in whole levels (−2…+3) relative to the most common height under it. Hill/Cliff edge toggle.
+- **Elevation (Elevation tab):** Hill, High hill, Cliff, High cliff, Lower, Deepest, Flatten. Raised cliffs get rock faces coloured by the ground underneath (red for mesa, purple for badlands, dark gray for stone, tan otherwise); hills get a graded south slope, lit north/west edges, a shaded east edge and a soft cast shadow; lowered land renders as a recessed pit (inner wall, shadow, darker floor); lowered water just gets darker.
+- **Sculpt:** in one motion, drag over an area, hold still about 0.38 s (a ring fills) or press Shift, then drag up/down to step it along one ladder: Deepest, Lower, Flat, Hill, Cliff, High cliff, Towering cliff (`SLAD`), starting from the most common level under it. One step up from flat is a hill; further steps are cliffs. There is no separate Hill/Cliff toggle.
 - **Brush:** small gaps fully enclosed inside a single stroke fill automatically (up to about 8·r² px).
 - **Objects:** buildings, well, wagon, trough, barrels, crates, boulder, cactus, rock, dead tree, ore cart, lantern (glow), timber supports, rubble, crystals (glow). Grid picker (Google-Docs-style 6×6) places arrays with adjustable spacing; arrays move as a group (Alt grabs one).
 - **Select:** click to select; a terrain shape only moves when dragged *after* it is selected (otherwise the drag pans). Drag corners to reshape. Auto-placed buildings, props, cacti and rocks can be picked up individually (they become normal objects and the generator leaves the spot empty). Shift-click / Shift-drag box for multi-select; **Save as stamp** stores the selection as a reusable stamp (saved per browser).
@@ -82,7 +82,7 @@ st = {
 ```
 Older saves are migrated (`migrate()`); stamps live separately in `localStorage['dustmap-stamps']`.
 
-Terrain indices: 0 sand, 1 scrub, 2 mesa, 3 water, 4 badlands, 5 road, 6 town, 7 stone floor, 8 cave wall, 9 mine rail.
+Terrain indices: 0 sand, 1 scrub, 2 mesa, 3 water, 4 badlands, 5 road, 6 town, 7 stone, 8 retired (old Cave wall; `migrate()` turns each such op into Stone plus a two-level cliff over the same shape), 9 mine rail.
 
 ### Rendering pipeline
 

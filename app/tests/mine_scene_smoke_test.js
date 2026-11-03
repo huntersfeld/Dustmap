@@ -14,10 +14,11 @@ const z=await p.evaluate(()=>parseInt(document.getElementById('zlabel').textCont
 const mapW=640*z,mapH=448*z,mx=box.x+(box.width-mapW)/2,my=box.y+(box.height-mapH)/2;const m=(x,y)=>[mx+x*z,my+y*z];
 const shape=async pts=>{for(const q of pts){const [a,c]=m(...q);await p.mouse.click(a,c);await p.waitForTimeout(330)}await p.keyboard.press('Enter');await p.waitForTimeout(400)};
 await p.keyboard.press('d');await p.keyboard.press('8');await shape([[60,60],[400,50],[420,300],[80,320]]);           // stone floor
-await p.keyboard.press('9');await shape([[60,60],[400,50],[400,110],[260,100],[180,125],[60,110]]);                    // cave wall band at top
+// cave walls are raised stone: Elevation tab, High cliff (key 4)
+await p.click('#tab-height');await p.keyboard.press('4');await shape([[60,60],[400,50],[400,110],[260,100],[180,125],[60,110]]);   // cave wall band at top
 await shape([[300,200],[360,190],[380,250],[330,270],[290,240]]);                                                        // rock pillar
 // rail via brush
-await p.click('#t-brush');await p.click('#p-g9');
+await p.click('#t-brush');await p.click('#tab-ground');await p.click('#p-g9');
 let [a,c]=m(90,280);await p.mouse.move(a,c);await p.mouse.down();for(const q of [[150,250],[220,240],[260,200],[250,150]]){const [x,y]=m(...q);await p.mouse.move(x,y,{steps:8})}await p.mouse.up();await p.waitForTimeout(500);
 // objects
 await p.keyboard.press('o');

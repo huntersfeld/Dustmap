@@ -111,13 +111,6 @@ select{background:var(--raised);color:var(--fg);border:1px solid var(--line);bor
       </div>
       <div class="list" id="paints"></div>
     </div>
-    <div class="sec" id="sec-sculpt" hidden>
-      <span class="label">Sculpt edge</span>
-      <div class="tabs" role="tablist">
-        <button class="tab" role="tab" id="sc-hill" aria-selected="false">Hill</button>
-        <button class="tab" role="tab" id="sc-cliff" aria-selected="true">Cliff</button>
-      </div>
-    </div>
     <div class="sec" id="sec-brush">
       <label class="label" for="bsize">Brush size</label>
       <input type="range" id="bsize" min="2" max="28" step="1" value="6">
@@ -165,12 +158,17 @@ const TERR=[
  {name:'Sand',key:'1',sub:'Pebbles, ripples, cacti'},{name:'Scrub',key:'2',sub:'Grass tufts'},{name:'Mesa',key:'3',sub:'Rock plateau with cliffs'},
  {name:'Water',key:'4',sub:'Shoreline and foam'},{name:'Badlands',key:'5',sub:'Purple rock, boulders'},
  {name:'Road',key:'6',sub:'Climbs one level at a time'},{name:'Town',key:'7',sub:'Fills with buildings'},
- {name:'Stone floor',key:'8',sub:'Cave or mine floor, cracks'},{name:'Cave wall',key:'9',sub:'Solid rock with a face'},{name:'Mine rail',key:'',sub:'Track that follows your stroke'}];
+ {name:'Stone',key:'8',sub:'Cave floor; raise it for rock walls'},{name:'Cave wall',key:'',hidden:true},{name:'Mine rail',key:'9',sub:'Track that follows your stroke'}];
+// index 8 (old "Cave wall") is retired: migrate() turns it into Stone raised two levels.
 const ELEV=[
  {name:'Hill',h:1,s:0,sub:'Soft slope'},{name:'High hill',h:2,s:0,sub:'Two levels up'},
  {name:'Cliff',h:1,s:1,sub:'Rock face'},{name:'High cliff',h:2,s:1,sub:'Tall rock face'},
  {name:'Lower',h:-1,s:1,sub:'Pit, or deeper water'},{name:'Deepest',h:-2,s:1,sub:'Deep pit or abyss'},
  {name:'Flatten',h:0,s:0,sub:'Back to ground level'}];
+// Sculpt steps through one ladder of levels; a single step up from flat ground is a hill, further steps are cliffs.
+const SLAD=[{h:-2,s:1,name:'Deepest',sh:'Deep'},{h:-1,s:1,name:'Lower',sh:'Low'},{h:0,s:0,name:'Flat',sh:'Flat'},{h:1,s:0,name:'Hill',sh:'Hill'},
+ {h:1,s:1,name:'Cliff',sh:'Cliff'},{h:2,s:1,name:'High cliff',sh:'Cliff 2'},{h:3,s:1,name:'Towering cliff',sh:'Cliff 3'}],SLAD0=2;
+const sladIdx=(h,s)=>h<=0?Math.max(0,h+SLAD0):h===1&&!s?3:Math.min(SLAD.length-1,h+3);
 const OBJ=[
  {k:'shack',name:'Shack',sub:'Small · 3×3 squares',g:'Buildings'},{k:'saloon',name:'Saloon',sub:'Medium · 5×5 squares',g:'Buildings'},{k:'hotel',name:'Hotel',sub:'Large · 7×6 squares',g:'Buildings'},
  {k:'well',name:'Well',g:'Props'},{k:'wagon',name:'Wagon',g:'Props'},{k:'trough',name:'Trough',g:'Props'},{k:'barrels',name:'Barrels',g:'Props'},
@@ -211,7 +209,9 @@ const example=()=>({v:3,cols:40,rows:28,seed:7,rag:5,ops:[
  {kind:'stroke',layer:'ground',t:5,r:9,pts:[[0,410],[110,404],[220,384],[264,330],[380,318],[470,312],[560,290],[640,254]]}],
  objects:[{k:'wagon',x:150,y:392,v:0},{k:'boulder',x:40,y:150,v:0},{k:'tree',x:186,y:70,v:0},{k:'tree',x:20,y:420,v:0},{k:'well',x:240,y:290,v:0}],
  tokens:[{s:3,x:200,y:382,o:0},{s:0,x:216,y:382,o:3},{s:1,x:232,y:366,o:5},{s:2,x:184,y:366,o:2}]});
-function migrate(s){if(!s)return null;if((s.v===2||s.v===3)&&s.ops){s.cols=s.cols||20;s.rows=s.rows||14;return s}
+// Old "Cave wall" ground ops (t 8) become Stone (t 7) plus a two-level cliff over the same shape, in the same place in the op order.
+function migrateCave(s){if(s&&s.ops&&s.ops.some(o=>o.layer==='ground'&&o.t===8))s.ops=s.ops.flatMap(o=>{if(o.layer!=='ground'||o.t!==8)return[o];const{t,...rest}=o;return[{...rest,t:7},{...rest,layer:'height',h:2,s:1}]});return s}
+function migrate(s){if(!s)return null;if((s.v===2||s.v===3)&&s.ops){s.cols=s.cols||20;s.rows=s.rows||14;return migrateCave(s)}
   if(s.regions)return{v:2,cols:20,rows:14,seed:s.seed||7,rag:s.rag??5,ops:s.regions.map(r=>({kind:'poly',layer:'ground',t:r.t,pts:r.pts,sid:r.sid})),objects:[],tokens:s.tokens||[]};return null}
 function load(){try{const a=localStorage.getItem('dustmap-v2');if(a)return migrate(JSON.parse(a));return migrate(JSON.parse(localStorage.getItem('dustmap-v1')))}catch(e){return null}}
 function save(){try{localStorage.setItem('dustmap-v2',JSON.stringify(st))}catch(e){}}
@@ -222,7 +222,7 @@ const saveStamps=()=>{try{localStorage.setItem('dustmap-stamps',JSON.stringify(s
 const selList=()=>!sel?[]:sel.type==='obj'?[sel.i]:sel.type==='objs'?sel.list:[];
 const setObjSel=list=>{sel=!list.length?null:list.length===1?{type:'obj',i:list[0]}:{type:'objs',list}};
 let pointer=null,draft=[],stroke=null,hover=null,sel=null,drag=null,hist=[],frame=0,armedClear=false,measure=null,pings=[];
-let dirty=true,objDirty=true,lastR=null,lastGen=[],sculpt=null,sculptS=1;
+let dirty=true,objDirty=true,lastR=null,lastGen=[],sculpt=null;
 const $=id=>document.getElementById(id);
 function push(){hist.push(JSON.stringify(st));if(hist.length>80)hist.shift();updUndo()}
 function undo(){if(!hist.length)return;const old=st;st=JSON.parse(hist.pop());
@@ -391,7 +391,7 @@ function paintMap(img,R,seed,opts={}){
   const sv=new Float32Array(W*H);for(let i=0;i<W*H;i++)sv[i]=hash(i%W+OX,((i/W)|0)+OY,seed+999);
   const is=t=>{const m=new Uint8Array(W*H);for(let i=0;i<W*H;i++)m[i]=L[i]===t?1:0;return m};
   const not=m=>{const o=new Uint8Array(W*H);for(let i=0;i<W*H;i++)o[i]=1-m[i];return o};
-  const mW=is(3),mS=is(1),mM=is(2),mB=is(4),mR=is(5),mT=is(6),mSt=is(7),mCw=is(8);
+  const mW=is(3),mS=is(1),mM=is(2),mB=is(4),mR=is(5),mT=is(6),mSt=is(7);
   const dW=distIn(mW),dWo=distIn(not(mW)),dSo=distIn(not(mS)),dB=distIn(mB),dRo=distIn(not(mR)),dTo=distIn(not(mT)),dR=distIn(mR),dStO=distIn(not(mSt));
   // ruts follow the merged road shape, so crossings and junctions join up cleanly
   const localMax=(x,y)=>{let m=0;for(let j=-4;j<=4;j++)for(let i=-4;i<=4;i++){const xx=x+i,yy=y+j;if(xx>=0&&yy>=0&&xx<W&&yy<H){const v=dR[yy*W+xx];if(v>m)m=v}}return m};
@@ -402,13 +402,8 @@ function paintMap(img,R,seed,opts={}){
   for(let y=0;y<H;y++)for(let x=0;x<W;x++){const i=y*W+x;if(MC(x,y))continue;let o=0;
     for(let dy=-1;dy<=1&&!o;dy++)for(let dx=-1;dx<=1;dx++)if(MC(x+dx,y+dy)){o=1;break}
     if(o){ol[i]=1;continue}for(let d=1;d<=4;d++)if(MC(x-d,y-(d>>1))){shad[i]=1;break}}
-  // cave wall: a solid rock mass with a face on its south side, an outline and a shadow on the floor
-  const wallF=new Uint8Array(W*H),wallO=new Uint8Array(W*H),wallS=new Uint8Array(W*H);
-  for(let y=0;y<H;y++)for(let x=0;x<W;x++){const i=y*W+x;if(mCw[i])continue;for(let k=1;k<=7;k++){if(y-k>=0&&mCw[i-k*W]){wallF[i]=k;break}}}
-  const WC=(x,y)=>x>=0&&y>=0&&x<W&&y<H&&(mCw[y*W+x]||wallF[y*W+x]);
-  for(let y=0;y<H;y++)for(let x=0;x<W;x++){const i=y*W+x;if(WC(x,y))continue;let o=0;
-    for(let dy=-1;dy<=1&&!o;dy++)for(let dx=-1;dx<=1;dx++)if(WC(x+dx,y+dy)){o=1;break}
-    if(o){wallO[i]=1;continue}for(let d=1;d<=5;d++)if(WC(x-d,y-(d>>1))){wallS[i]=1;break}}
+  // raised stone is solid rock: dark cave-wall texture on top, with a lighter rim where it drops away
+  const rockTop=i=>L[i]===7&&Hm[i]>0;
   const cr2=field(7,seed+61);
   // ---- ground colours ----
   for(let y=0;y<H;y++)for(let x=0;x<W;x++){const i=y*W+x,s=sv[i],t=L[i];let c=C.sand;
@@ -423,16 +418,15 @@ function paintMap(img,R,seed,opts={}){
     if(t!==3&&dWo[i]<=2)c=C.wet;
     if(t===3){const d=dW[i];c=d<=1?C.foam:d<=3?C.water2:d<=8?C.water:C.deep}
     if(t===4){c=C.bad;if(bn[i]>.68&&s>.3)c=C.badl;else if(bn[i]<.26&&s>.3)c=C.badd;if(dB[i]<=1)c=C.badd}
-    if(t===7){c=C.stone1;if(n[i]>.64&&s>.3)c=C.stone3;else if(n[i]<.3&&s>.3)c=C.stone2;if(s>.975)c=C.dust;if(Math.abs(cr2[i]-.5)<.016)c=C.crack}
+    if(t===7&&Hm[i]>0){c=C.wall;if(n[i]>.62)c=C.walll;else if(n[i]<.3)c=C.walld;if(s>.93)c=C.walll;
+      const lv=Hm[i],edge=q=>!rockTop(q)||Hm[q]<lv;if((y>0&&edge(i-W))||(x>0&&edge(i-1))||(x<W-1&&edge(i+1)))c=C.wallrim}
+    else if(t===7){c=C.stone1;if(n[i]>.64&&s>.3)c=C.stone3;else if(n[i]<.3&&s>.3)c=C.stone2;if(s>.975)c=C.dust;if(Math.abs(cr2[i]-.5)<.016)c=C.crack}
     else if((t===0||t===1)&&dStO[i]<=1&&s>.5)c=C.stone2;
     if(shad[i]&&t!==3)c=C.shadow;
     if(t===2){const band=(y+OY+Math.floor(mb[i]*8))%10;c=C.mesa;if(band===0)c=C.mesad;else if(band===5&&s>.3)c=C.mesal;
       if(cr[i]>.8&&s>.6)c=C.mesad;if((y>0&&!mM[i-W])||(x>0&&!mM[i-1])||(x<W-1&&!mM[i+1]))c=C.mesal}
     if(cliff[i])c=((y+OY)%3===0)?C.cliffd:C.cliff;
     if(ol[i])c=C.out;
-    if(t===8){c=C.wall;if(n[i]>.62)c=C.walll;else if(n[i]<.3)c=C.walld;if(s>.93)c=C.walll;if((y>0&&!mCw[i-W])||(x>0&&!mCw[i-1])||(x<W-1&&!mCw[i+1]))c=C.wallrim}
-    if(wallF[i]){const k=wallF[i];c=k===7?C.out:k===1?mix(C.wface,LIGHT,.12):((y+OY)%3===0?C.wfaced:C.wface)}
-    if(wallO[i])c=C.out;else if(wallS[i]&&t!==8&&!wallF[i])c=mix(c,DARK,.28);
     set(i,c)}
   // ---- elevation ----
   // An edge takes the style of whichever side is "built": a raised area uses its own style, a pit uses the pit's.
@@ -442,16 +436,20 @@ function paintMap(img,R,seed,opts={}){
   if(anyH){
     for(let y=0;y<H;y++)for(let x=0;x<W;x++){const j=y*W+x;
       for(let k=1;k<=9&&y-k>=0;k++){const up=j-k*W;if(Hm[up]===Hm[j])continue;if(Hm[up]<Hm[j])break;
-        const diff=Hm[up]-Hm[j],s2=sty(up,j),len=s2?Math.min(9,4*diff):3;if(k<=len){face[j]=k;fS[j]=s2;fT[j]=L[up];fL[j]=len}break}}
-    const faceCol=t=>t===2?[C.cliff,C.cliffd]:t===4?[[88,70,112],[66,52,88]]:[[194,138,108],[164,110,84]];
+        const diff=Hm[up]-Hm[j],s2=sty(up,j),len=s2?Math.min(9,4*diff):Math.min(9,3+2*diff);if(k<=len){face[j]=k;fS[j]=s2;fT[j]=L[up];fL[j]=len}break}}
+    const faceCol=t=>t===2?[C.cliff,C.cliffd]:t===4?[[88,70,112],[66,52,88]]:t===7?[C.wface,C.wfaced]:[[194,138,108],[164,110,84]];
     for(let y=0;y<H;y++)for(let x=0;x<W;x++){const i=y*W+x,lv=Hm[i],t=L[i],road=t===5;let c=get(i);
       if(t===3){if(lv===-1&&dW[i]>1)c=C.deeper;if(lv<=-2&&dW[i]>1)c=C.abyss;if(lv>0)c=mix(c,LIGHT,.06*lv);
         if(lv<0&&dW[i]>1&&((x+y+OX+OY)&1)){const nb=[i-1,i+1,i-W,i+W].some(q=>q>=0&&q<W*H&&L[q]===3&&Hm[q]>lv);if(nb)c=lv===-1?C.deep:C.deeper}}
-      else{if(lv>0)c=mix(c,LIGHT,.05*lv);if(lv<0)c=mix(c,DARK,.11*-lv);if(y>0&&Hm[i-W]<lv)c=mix(c,LIGHT,.18)}
+      else{if(lv>0)c=mix(c,LIGHT,(t===7?.02:Sm[i]?.05:.1)*lv);if(lv<0)c=mix(c,DARK,.11*-lv);if(y>0&&Hm[i-W]<lv)c=mix(c,LIGHT,.18);
+        if(lv>0&&!Sm[i]){   // hills: lit north and west slopes, shaded east slope, so the rise reads from every side
+          const lo=q=>Hm[q]<lv;if(y>1&&!lo(i-W)&&lo(i-2*W))c=mix(c,LIGHT,.1);
+          if(x>0&&lo(i-1))c=mix(c,LIGHT,.16);else if(x>1&&lo(i-2))c=mix(c,LIGHT,.08);
+          if(x<W-1&&lo(i+1))c=mix(c,DARK,.2);else if(x<W-2&&lo(i+2))c=mix(c,DARK,(x+y+OX+OY)&1?.12:.06)}}
       const k=face[i];
       if(k&&fT[i]!==3){
         if(fS[i]&&!road){const fc=faceCol(fT[i]);c=k===fL[i]?C.out:((y+OY)%3===0?fc[1]:fc[0]);if(k===1)c=mix(fc[0],LIGHT,.1);if(lv<0)c=mix(c,DARK,.2)}
-        else{const a=k===1?.26:k===2?((x+y+OX+OY)&1?.18:.1):((x+y+OX+OY)&1?.1:.03);c=mix(c,DARK,road?a*.7:a)}}   // roads become ramps
+        else{const f=1-(k-1)/fL[i],a=.05+.27*f+((x+y+OX+OY)&1?.05:0);c=mix(c,DARK,road?a*.7:a)}}   // hills: a soft graded slope; roads become ramps
       else if(i+W<W*H&&face[i+W]===1&&fT[i+W]!==3&&t!==3){c=(fS[i+W]&&L[i+W]!==5&&!road)?C.out:mix(c,LIGHT,.16)}
       else if(t!==3){
         const hl=x>0&&Hm[i-1]>lv,hr=x<W-1&&Hm[i+1]>lv,hd=i+W<W*H&&Hm[i+W]>lv;
@@ -462,7 +460,8 @@ function paintMap(img,R,seed,opts={}){
         else if(lv<0&&x>1&&Hm[i-2]>lv&&sty(i-2,i)&&!road)c=mix(faceCol(L[i-2])[1],DARK,.25);   // west inner wall of a pit
         else if(hl||hr||hd)c=mix(c,DARK,.24);
         else if(x>1&&Hm[i-2]>lv)c=mix(c,DARK,.14);
-        else{for(let d=1;d<=4;d++){const xx=x-d,yy=y-(d>>1);if(xx<0||yy<0)break;const q=yy*W+xx;if((face[q]&&fS[q])||(Hm[q]>lv&&sty(q,i))){c=mix(c,DARK,lv<0?.22:.14);break}}}}
+        else{for(let d=1;d<=4;d++){const xx=x-d,yy=y-(d>>1);if(xx<0||yy<0)break;const q=yy*W+xx;if((face[q]&&fS[q])||(Hm[q]>lv&&sty(q,i))){c=mix(c,DARK,lv<0?.22:.14);break}
+          if(d<=3&&(face[q]||Hm[q]>lv)){c=mix(c,DARK,(x+y+OX+OY)&1?.1:.06);break}}}}
       set(i,c)}}
   // water ripples
   {const cw=14,ch=7;for(let v=Math.floor(OY/ch);v<=Math.floor((OY+H)/ch);v++)for(let u=Math.floor(OX/cw);u<=Math.floor((OX+W)/cw);u++){
@@ -479,7 +478,7 @@ function paintMap(img,R,seed,opts={}){
     walk((x,y,nx,ny)=>{for(const side of [-3,3]){P2(x+nx*side,y+ny*side+1,C.raild);P2(x+nx*side,y+ny*side,C.rail)}})});
   if(opts.noScatter)return gen;
   const emit=(pre,o)=>{const key=`${pre}:${Math.round(o.x+OX)}:${Math.round(o.y+OY)}`;gen.push({key,o:{...o,x:o.x+OX,y:o.y+OY}});if(!skip.has(key))drawObject(data,W,H,o)};
-  const blocked=i=>mW[i]||dWo[i]<=2||mM[i]||cliff[i]||ol[i]||face[i]||mR[i]||dRo[i]<=1||mCw[i]||wallF[i]||wallO[i]||rail[i];
+  const blocked=i=>mW[i]||dWo[i]<=2||mM[i]||cliff[i]||ol[i]||face[i]||mR[i]||dRo[i]<=1||rockTop(i)||rail[i];
   // ---- towns: each town shape fills with S/M/L buildings and props ----
   const towns=new Set();for(let i=0;i<W*H;i++)if(mT[i])towns.add(own[i]);
   towns.forEach(oi=>{
@@ -554,7 +553,7 @@ function sampleMap(ops,noScatter){return withSize(48,48,()=>{const img=new Image
 const full=[[0,0],[48,0],[48,48],[0,48]],top=[[0,0],[48,0],[48,24],[0,24]];
 function groundSwatch(t){
   if(t===5)return sampleMap([{kind:'stroke',layer:'ground',t:5,r:9,pts:[[0,25],[48,25]]}],true);
-  if(t===8)return sampleMap([{kind:'poly',layer:'ground',t:7,pts:full},{kind:'poly',layer:'ground',t:8,pts:[[0,0],[48,0],[48,22],[0,22]]}],true);
+  if(t===7)return sampleMap([{kind:'poly',layer:'ground',t:7,pts:full},{kind:'poly',layer:'height',h:2,s:1,pts:[[0,0],[48,0],[48,20],[0,20]]}],true);
   if(t===9)return sampleMap([{kind:'poly',layer:'ground',t:7,pts:full},{kind:'stroke',layer:'ground',t:9,r:5,pts:[[0,28],[48,22]]}],true);
   return sampleMap([{kind:'poly',layer:'ground',t,pts:full}],t!==1)}
 function elevSwatch(e){const g=e.h<0?[{kind:'poly',layer:'ground',t:3,pts:full}]:[];
@@ -568,7 +567,7 @@ function itemBtn(id,cv,name,sub,key,on){const b=document.createElement('button')
   if(key){const k=document.createElement('kbd');k.className='tk';k.textContent=key;b.append(k)}b.onclick=on;return b}
 const swCache={};
 function buildPaints(){const box=$('paints');box.replaceChildren();
-  if(tab==='ground')TERR.forEach((t,i)=>{swCache['g'+i]=swCache['g'+i]||groundSwatch(i);box.append(itemBtn('p-g'+i,swCache['g'+i],t.name,t.sub,t.key,()=>pickPaint({layer:'ground',t:i})))});
+  if(tab==='ground')TERR.forEach((t,i)=>{if(t.hidden)return;swCache['g'+i]=swCache['g'+i]||groundSwatch(i);box.append(itemBtn('p-g'+i,swCache['g'+i],t.name,t.sub,t.key,()=>pickPaint({layer:'ground',t:i})))});
   else ELEV.forEach((e,i)=>{swCache['h'+i]=swCache['h'+i]||elevSwatch(e);box.append(itemBtn('p-h'+i,swCache['h'+i],e.name,e.sub,String(i+1),()=>pickPaint({layer:'height',h:e.h,s:e.s})))});
   syncUI()}
 function placementItems(cx,cy){
@@ -677,14 +676,16 @@ function draw(ts){
         const held=performance.now()-sculpt.t;
         if(held>110){const f=Math.min(1,(held-110)/(DWELL-110));ctx.beginPath();ctx.arc(cx,cy,r+8,-Math.PI/2,-Math.PI/2+f*Math.PI*2);ctx.strokeStyle='#f2c49f';ctx.lineWidth=4;ctx.stroke()}
         ctx.beginPath();ctx.arc(cx,cy,r,0,7);ctx.strokeStyle='rgba(255,255,255,.9)';ctx.lineWidth=2;ctx.stroke()}
-      else{const lv=sculpt.base+sculpt.delta,d=sculpt.delta,lift=Math.max(0,d)*6;
-        const col=lv>sculpt.base?(sculptS?'rgba(150,70,46,.62)':'rgba(255,236,190,.6)'):lv<sculpt.base?'rgba(24,34,80,.6)':'rgba(255,255,255,.2)';
-        if(d>0){pathPoly(p);ctx.lineWidth=r*2;ctx.strokeStyle=sculptS?'rgba(90,36,24,.6)':'rgba(120,80,60,.35)';ctx.stroke()}
+      else{const li=sculpt.base+sculpt.delta,L2=SLAD[li],d=sculpt.delta,lift=Math.max(0,d)*6,cl=L2.h>0&&L2.s;
+        const col=li>sculpt.base?(cl?'rgba(150,70,46,.62)':'rgba(255,236,190,.6)'):li<sculpt.base?'rgba(24,34,80,.6)':'rgba(255,255,255,.2)';
+        if(d>0){pathPoly(p);ctx.lineWidth=r*2;ctx.strokeStyle=cl?'rgba(90,36,24,.6)':'rgba(120,80,60,.35)';ctx.stroke()}
         ctx.save();ctx.translate(0,-lift);pathPoly(p);ctx.lineWidth=r*2;ctx.strokeStyle=col;ctx.stroke();ctx.restore();
         // level gauge
-        const gx=cx+r+18,top=cy-3*22;
-        for(let l=3;l>=-2;l--){const yy=cy-l*22;const on=l===lv;ctx.fillStyle=on?'#f2c49f':'rgba(29,27,34,.85)';ctx.beginPath();ctx.roundRect(gx,yy-9,on?54:34,18,5);ctx.fill();
-          ctx.fillStyle=on?'#1d1b22':'#cfc8d6';ctx.font=(on?'700 ':'500 ')+'12px "Work Sans", system-ui, sans-serif';ctx.fillText((l>0?'+':l<0?'−':'')+Math.abs(l)+(on?(l===0?' flat':l>0?(sculptS?' cliff':' hill'):' low'):''),gx+6,yy+4)}}}
+        const gx=cx+r+18;
+        for(let l=SLAD.length-1;l>=0;l--){const yy=cy-(l-SLAD0)*22,on=l===li,lb=on?SLAD[l].name:SLAD[l].sh;
+          ctx.font=(on?'700 ':'500 ')+'12px "Work Sans", system-ui, sans-serif';const tw=ctx.measureText(lb).width;
+          ctx.fillStyle=on?'#f2c49f':'rgba(29,27,34,.85)';ctx.beginPath();ctx.roundRect(gx,yy-9,tw+12,18,5);ctx.fill();
+          ctx.fillStyle=on?'#1d1b22':'#cfc8d6';ctx.fillText(lb,gx+6,yy+4)}}}
     else if(hover){const [cx,cy]=sc(hover);ctx.beginPath();ctx.arc(cx,cy,r,0,7);ctx.strokeStyle='rgba(255,255,255,.9)';ctx.lineWidth=2;ctx.setLineDash([6,5]);ctx.stroke();ctx.setLineDash([])}}
   // measure
   if(measure){const a=sc(measure.a),b=sc(measure.b);ctx.lineCap='round';
@@ -711,9 +712,9 @@ function draw(ts){
 function handle(q){ctx.fillStyle='#fff';ctx.strokeStyle='#1d1b22';ctx.lineWidth=2;ctx.fillRect(q[0]-6,q[1]-6,12,12);ctx.strokeRect(q[0]-6,q[1]-6,12,12)}
 const DWELL=380;
 function toRaise(){if(!sculpt||sculpt.phase!=='paint')return;
-  // base level = the most common height under the painted area
-  const cnt={};if(lastR)sculpt.pts.forEach(q=>{const v=lastR.Hm[Math.min(H-1,q[1]|0)*W+Math.min(W-1,q[0]|0)];cnt[v]=(cnt[v]||0)+1});
-  let base=0,best=-1;for(const k in cnt)if(cnt[k]>best){best=cnt[k];base=+k}
+  // base = the most common level (height + hill/cliff) under the painted area, as a step on the sculpt ladder
+  const cnt={};if(lastR)sculpt.pts.forEach(q=>{const j=Math.min(H-1,q[1]|0)*W+Math.min(W-1,q[0]|0),v=sladIdx(lastR.Hm[j],lastR.Sm[j]);cnt[v]=(cnt[v]||0)+1});
+  let base=SLAD0,best=-1;for(const k in cnt)if(cnt[k]>best){best=cnt[k];base=+k}
   Object.assign(sculpt,{phase:'raise',y0:sculpt.cy,base,delta:0});syncHint()}
 let last=0;const reduce=matchMedia('(prefers-reduced-motion: reduce)');
 function loop(ts){if(sculpt&&sculpt.phase==='paint'&&performance.now()-sculpt.t>DWELL)toRaise();if($('anim').checked&&!reduce.matches&&ts-last>150){frame=(frame+1)%8;last=ts}draw(ts);requestAnimationFrame(loop)}
@@ -796,7 +797,7 @@ cv.addEventListener('pointermove',e=>{if(boxSel){boxSel.b=toMap(e);return}
   if(tool==='ping'&&pointer&&pointer.down){pointer.trail.push({x:p[0],y:p[1],t:performance.now()});return}
   if(tool==='sculpt'&&sculpt){sculpt.cy=e.clientY;
     if(sculpt.phase==='paint'){const lp=sculpt.pts[sculpt.pts.length-1];if(dist(lp,p)>=1.5){sculpt.pts.push(clamp(p));sculpt.t=performance.now()}}
-    else{const d=Math.round((sculpt.y0-e.clientY)/34);const nd=Math.max(-2-sculpt.base,Math.min(3-sculpt.base,d));if(nd!==sculpt.delta){sculpt.delta=nd;syncHint()}}
+    else{const d=Math.round((sculpt.y0-e.clientY)/34);const nd=Math.max(-sculpt.base,Math.min(SLAD.length-1-sculpt.base,d));if(nd!==sculpt.delta){sculpt.delta=nd;syncHint()}}
     return}
   if(!drag)return;
   if(drag.kind==='vertex'){markOp(st.ops[drag.i]);st.ops[drag.i].pts[drag.v]=clamp(p);markOp(st.ops[drag.i])}
@@ -810,9 +811,9 @@ function up(){
   if(panning){panning=null;cv.style.cursor='';return}
   if(tool==='brush'&&stroke){push();if(paint.t===9&&paint.layer==='ground'){const sp=[];stroke.pts.forEach((q,k)=>{if(!sp.length||k===stroke.pts.length-1||dist(sp[sp.length-1],q)>=10)sp.push(q)});stroke.pts=sp}
     st.ops.push({kind:'stroke',...paint,r:paint.t===9&&paint.layer==='ground'?5:stroke.r,pts:stroke.pts.map(q=>[Math.round(q[0]*2)/2,Math.round(q[1]*2)/2]),sid:Math.floor(Math.random()*1000)});markOp(st.ops[st.ops.length-1]);stroke=null;save();return}
-  if(tool==='sculpt'&&sculpt){const sp=sculpt;sculpt=null;if(sp.phase==='raise'&&sp.delta!==0){push();const lv=sp.base+sp.delta;
+  if(tool==='sculpt'&&sculpt){const sp=sculpt;sculpt=null;if(sp.phase==='raise'&&sp.delta!==0){push();const lv=SLAD[sp.base+sp.delta];
       const pts=[];sp.pts.forEach(q=>{if(!pts.length||dist(pts[pts.length-1],q)>=Math.max(1.5,bsize/3))pts.push(q.map(v=>Math.round(v*2)/2))});
-      st.ops.push({kind:'stroke',layer:'height',h:lv,s:lv<0?1:sculptS,r:bsize,pts,sid:Math.floor(Math.random()*1000)});markOp(st.ops[st.ops.length-1]);save()}syncHint();return}
+      st.ops.push({kind:'stroke',layer:'height',h:lv.h,s:lv.s,r:bsize,pts,sid:Math.floor(Math.random()*1000)});markOp(st.ops[st.ops.length-1]);save()}syncHint();return}
   if(measure)measure.down=false;
   if(pointer&&pointer.down){pointer.down=false;pointer.end=performance.now();const h=pointer.trail[pointer.trail.length-1];pings.push({x:h.x,y:h.y,t0:pointer.end})}
   if(!drag)return;
@@ -853,7 +854,6 @@ clr.onclick=()=>{if(!armedClear){armedClear=true;clr.textContent='Click again to
 $('rag').oninput=e=>{st.rag=+e.target.value;dirty=true};$('rag').onchange=save;
 $('bsize').oninput=e=>{bsize=+e.target.value};
 $('ogap').oninput=e=>{objGap=+e.target.value};
-$('sc-hill').onclick=()=>{sculptS=0;syncUI()};$('sc-cliff').onclick=()=>{sculptS=1;syncUI()};
 $('tab-ground').onclick=()=>setTab('ground');$('tab-height').onclick=()=>setTab('height');
 $('snap').onclick=()=>{const s=Math.max(1,Math.min(3,Math.floor(2400/W)));const c=document.createElement('canvas');c.width=W*s;c.height=H*s;const g=c.getContext('2d');g.setTransform(s,0,0,s,0,0);drawWorld(g,s);
   $('snapimg').src=c.toDataURL('image/png');$('modal').hidden=false};
@@ -873,7 +873,7 @@ window.addEventListener('keydown',e=>{const tg=e.target;if(tg.tagName==='INPUT'&
   if(e.key==='['){bsize=Math.max(2,bsize-1);$('bsize').value=bsize;return}if(e.key===']'){bsize=Math.min(28,bsize+1);$('bsize').value=bsize;return}
   const k=e.key.toUpperCase();const t=TOOLS.find(t=>t.key===k);if(t){setTool(t.id);return}
   if(k==='G'){$('grid').checked=!$('grid').checked;return}
-  const n=parseInt(e.key,10);if(n>=1){if(tab==='ground'&&n<=TERR.length&&TERR[n-1].key)pickPaint({layer:'ground',t:n-1});else if(tab==='height'&&n<=ELEV.length)pickPaint({layer:'height',h:ELEV[n-1].h,s:ELEV[n-1].s})}});
+  const n=parseInt(e.key,10);if(n>=1){const ti=TERR.findIndex(t=>t.key===e.key);if(tab==='ground'&&ti>=0)pickPaint({layer:'ground',t:ti});else if(tab==='height'&&n<=ELEV.length)pickPaint({layer:'height',h:ELEV[n-1].h,s:ELEV[n-1].s})}});
 
 // ================= UI sync =================
 function syncUI(){
@@ -887,8 +887,8 @@ function syncUI(){
   $('ogap').value=objGap;$('gridlbl').textContent=objKind.startsWith('stamp:')?'Stamp':`${objGrid[0]} × ${objGrid[1]}`;
   $('sec-paint').hidden=!(tool==='draw'||tool==='brush'||(tool==='select'&&sel&&sel.type==='op'));
   $('paint-label').textContent=tool==='select'?'Change paint':'Paint';
-  $('sec-brush').hidden=!(tool==='brush'||tool==='sculpt');$('sec-sculpt').hidden=tool!=='sculpt';
-  $('sc-hill').setAttribute('aria-selected',sculptS===0);$('sc-cliff').setAttribute('aria-selected',sculptS===1);$('sec-obj').hidden=tool!=='object';
+  $('sec-brush').hidden=!(tool==='brush'||tool==='sculpt');
+  $('sec-obj').hidden=tool!=='object';
   $('rag').value=st.rag;$('bsize').value=bsize;syncHint()}
 function paintName(){return paint.layer==='ground'?TERR[paint.t].name:ELEV.find(e=>e.h===paint.h&&e.s===paint.s).name}
 function syncHint(){const h=$('hint');h.replaceChildren();
@@ -902,7 +902,7 @@ function syncHint(){const h=$('hint');h.replaceChildren();
   else if(tool==='brush'){pill(paintName());add('Click and drag to paint. Small gaps you miss inside a stroke fill in automatically. <kbd>[</kbd> <kbd>]</kbd> change the size. Roads skip ground more than one level up or down.')}
   else if(tool==='sculpt'){
     if(sculpt&&sculpt.phase==='paint'){pill('Selecting');add('Drag over the area, then <b>hold still</b> for a moment (or press <kbd>Shift</kbd>) to start raising.')}
-    else if(sculpt){const lv=sculpt.base+sculpt.delta;pill(lv===sculpt.base?'No change':(lv>0?(sculptS?'Cliff':'Hill'):lv<0?'Lower':'Flat')+' '+(lv>0?'+':lv<0?'−':'')+Math.abs(lv));add('Drag <b>up to raise</b> or <b>down to lower</b>, release to place. <kbd>Esc</kbd> cancels.')}
+    else if(sculpt){pill(sculpt.delta===0?'No change':SLAD[sculpt.base+sculpt.delta].name);add('Drag <b>up to raise</b> (one step is a hill, more steps are cliffs) or <b>down to lower</b>, release to place. <kbd>Esc</kbd> cancels.')}
     else add('Press and drag over an area, <b>pause</b>, then drag up or down to raise or lower it, all in one motion. For a single spot, press, hold, then drag. <kbd>[</kbd> <kbd>]</kbd> change the size.')}
   else if(tool==='object'){const st0=objKind.startsWith('stamp:');pill(st0?(stamps[+objKind.slice(6)]||{name:'Stamp'}).name:OBJ.find(o=>o.k===objKind).name+(objGrid[0]*objGrid[1]>1?` · ${objGrid[0]} × ${objGrid[1]}`:''));
     add(st0?'Click to stamp it. Its objects move together; hold <kbd>Alt</kbd> in Select to grab just one.':'Click to place. Pick a grid size to place rows of them at once. In <b>Select</b>, Shift-drag a box to grab several and save them as a stamp.')}
