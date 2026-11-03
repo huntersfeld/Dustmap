@@ -1,0 +1,12 @@
+{
+  "name": "dustmap",
+  "private": true,
+  "description": "Pixel-art Western battle-map editor for tabletop D&D sessions",
+  "scripts": {
+    "build": "python3 app/build_dustmap.py",
+    "test": "npm run build && node app/tests/verify_partial_redraw.js && node app/tests/mine_scene_smoke_test.js"
+  },
+  "devDependencies": {
+    "playwright": "^1.63.0"
+  }
+}
