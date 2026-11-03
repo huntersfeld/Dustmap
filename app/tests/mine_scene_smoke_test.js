@@ -24,7 +24,9 @@ await p.keyboard.press('o');
 const place=async(k,x,y)=>{await p.click('#o-'+k);await p.evaluate(()=>window.scrollTo(0,0));await p.waitForTimeout(100);const [q,r]=m(x,y);await p.mouse.click(q,r);await p.waitForTimeout(150)};
 await place('lantern',120,160);await place('lantern',230,150);await place('cart',236,190);await place('crystals',360,140);await place('timber',150,128);await place('rubble',330,170);
 // 4x2 crates grid
-await p.click('#o-crates');await p.click('#gridpick span[data-c="4"][data-r="2"]');await p.evaluate(()=>window.scrollTo(0,0));[a,c]=m(140,215);await p.mouse.click(a,c);await p.waitForTimeout(200);
+await p.click('#o-crates');{const cell=async(c,r)=>{const bb=await (await p.$(`#gridpick span[data-c="${c}"][data-r="${r}"]`)).boundingBox();return[bb.x+bb.width/2,bb.y+bb.height/2]};
+ const [s1,s2]=await cell(1,1),[e1,e2]=await cell(4,2);await p.mouse.move(s1,s2);await p.mouse.down();await p.mouse.move(e1,e2,{steps:6});await p.mouse.up()}   // drag-fill 4 x 2
+await p.evaluate(()=>window.scrollTo(0,0));[a,c]=m(140,215);await p.mouse.click(a,c);await p.waitForTimeout(200);
 // box-select the crates + rubble? select crates group by clicking one then save stamp
 await p.keyboard.press('v');[a,c]=m(122,209);await p.mouse.click(a,c);await p.waitForTimeout(200);
 const hint1=await p.textContent('#hint');console.log('HINT',hint1.slice(0,80));
