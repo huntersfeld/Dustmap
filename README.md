@@ -13,7 +13,7 @@ For the full design notes, state format, rendering pipeline and roadmap, read [P
 | `app/dustmap_src.html` | The editor source. **Edit this one.** Sprite data is a `__SHEETS__` placeholder. |
 | `app/dustmap.html` | The built, runnable page (what gets published). Generated; don't edit by hand. |
 | `app/build_dustmap.py` | Inlines the four sprite sheets into the source to produce `dustmap.html`. |
-| `app/tests/` | Playwright checks (partial redraw vs. full redraw, mine scene smoke test). |
+| `app/tests/` | Playwright checks (partial redraw vs. full redraw, mine scene smoke test, map library). |
 | `sprites/game_ready/` | Final 32×32, 8-frame idle sheets, combined atlas + JSON, lineup GIF. |
 | `sprites/per_character/` | Intermediate art per character (pose mockups, size and detail variants, idle GIFs). |
 | `sprites/generator_scripts/` | Python (Pillow + NumPy) scripts that draw each sprite. |
@@ -30,7 +30,7 @@ npm run build               # app/dustmap_src.html -> app/dustmap.html
 npm test                    # build, then run both browser checks
 ```
 
-Open `app/dustmap.html` directly in a browser to use the editor. Screenshots from the tests land in `app/tests/output/`.
+Open `app/dustmap.html` directly in a browser to use the editor. The **Map** button in the header holds the map library: switch maps, and export or import them as `.dustmap.json` files. When publishing as a claude.ai artifact, declare `capabilities: {downloads: true}` so Export can save files. Screenshots from the tests land in `app/tests/output/`.
 
 `verify_partial_redraw.js` must keep passing: edits only repaint the changed area, and that repaint has to be pixel-identical to a full redraw. Any new noise, parity or `%` term in the paint code must use absolute map coordinates (`x+OX`, `y+OY`).
 
