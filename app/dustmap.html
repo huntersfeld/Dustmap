@@ -165,10 +165,11 @@ const ELEV=[
  {name:'Cliff',h:1,s:1,sub:'Rock face'},{name:'High cliff',h:2,s:1,sub:'Tall rock face'},
  {name:'Lower',h:-1,s:1,sub:'Pit, or deeper water'},{name:'Deepest',h:-2,s:1,sub:'Deep pit or abyss'},
  {name:'Flatten',h:0,s:0,sub:'Back to ground level'}];
-// Sculpt steps through one ladder of levels; a single step up from flat ground is a hill, further steps are cliffs.
-const SLAD=[{h:-2,s:1,name:'Deepest',sh:'Deep'},{h:-1,s:1,name:'Lower',sh:'Low'},{h:0,s:0,name:'Flat',sh:'Flat'},{h:1,s:0,name:'Hill',sh:'Hill'},
- {h:1,s:1,name:'Cliff',sh:'Cliff'},{h:2,s:1,name:'High cliff',sh:'Cliff 2'},{h:3,s:1,name:'Towering cliff',sh:'Cliff 3'}],SLAD0=2;
-const sladIdx=(h,s)=>h<=0?Math.max(0,h+SLAD0):h===1&&!s?3:Math.min(SLAD.length-1,h+3);
+// Sculpt raises or lowers in whole cliff levels, −3…+3 (hills live on the Elevation tab).
+const SLAD=[-3,-2,-1,0,1,2,3].map(h=>({h,s:h?1:0,sh:h>0?'+'+h:h<0?'−'+-h:'Flat'})),SLAD0=3;
+const sladIdx=h=>Math.max(0,Math.min(SLAD.length-1,h+SLAD0));
+// A raised area is moved up by the height of its cliff face, so the foot of the cliff sits where you painted.
+const sculptLift=(h,base)=>h>0&&h>base?Math.min(9,4*(h-base)):0;
 const OBJ=[
  {k:'shack',name:'Shack',sub:'Small · 3×3 squares',g:'Buildings'},{k:'saloon',name:'Saloon',sub:'Medium · 5×5 squares',g:'Buildings'},{k:'hotel',name:'Hotel',sub:'Large · 7×6 squares',g:'Buildings'},
  {k:'well',name:'Well',g:'Props'},{k:'wagon',name:'Wagon',g:'Props'},{k:'trough',name:'Trough',g:'Props'},{k:'barrels',name:'Barrels',g:'Props'},
@@ -676,13 +677,13 @@ function draw(ts){
         const held=performance.now()-sculpt.t;
         if(held>110){const f=Math.min(1,(held-110)/(DWELL-110));ctx.beginPath();ctx.arc(cx,cy,r+8,-Math.PI/2,-Math.PI/2+f*Math.PI*2);ctx.strokeStyle='#f2c49f';ctx.lineWidth=4;ctx.stroke()}
         ctx.beginPath();ctx.arc(cx,cy,r,0,7);ctx.strokeStyle='rgba(255,255,255,.9)';ctx.lineWidth=2;ctx.stroke()}
-      else{const li=sculpt.base+sculpt.delta,L2=SLAD[li],d=sculpt.delta,lift=Math.max(0,d)*6,cl=L2.h>0&&L2.s;
+      else{const li=sculpt.base+sculpt.delta,L2=SLAD[li],d=sculpt.delta,lift=sculptLift(L2.h,SLAD[sculpt.base].h)*Z,cl=L2.h>0;
         const col=li>sculpt.base?(cl?'rgba(150,70,46,.62)':'rgba(255,236,190,.6)'):li<sculpt.base?'rgba(24,34,80,.6)':'rgba(255,255,255,.2)';
         if(d>0){pathPoly(p);ctx.lineWidth=r*2;ctx.strokeStyle=cl?'rgba(90,36,24,.6)':'rgba(120,80,60,.35)';ctx.stroke()}
         ctx.save();ctx.translate(0,-lift);pathPoly(p);ctx.lineWidth=r*2;ctx.strokeStyle=col;ctx.stroke();ctx.restore();
         // level gauge
         const gx=cx+r+18;
-        for(let l=SLAD.length-1;l>=0;l--){const yy=cy-(l-SLAD0)*22,on=l===li,lb=on?SLAD[l].name:SLAD[l].sh;
+        for(let l=SLAD.length-1;l>=0;l--){const yy=cy-(l-SLAD0)*22,on=l===li,lb=SLAD[l].sh;
           ctx.font=(on?'700 ':'500 ')+'12px "Work Sans", system-ui, sans-serif';const tw=ctx.measureText(lb).width;
           ctx.fillStyle=on?'#f2c49f':'rgba(29,27,34,.85)';ctx.beginPath();ctx.roundRect(gx,yy-9,tw+12,18,5);ctx.fill();
           ctx.fillStyle=on?'#1d1b22':'#cfc8d6';ctx.fillText(lb,gx+6,yy+4)}}}
@@ -713,7 +714,7 @@ function handle(q){ctx.fillStyle='#fff';ctx.strokeStyle='#1d1b22';ctx.lineWidth=
 const DWELL=380;
 function toRaise(){if(!sculpt||sculpt.phase!=='paint')return;
   // base = the most common level (height + hill/cliff) under the painted area, as a step on the sculpt ladder
-  const cnt={};if(lastR)sculpt.pts.forEach(q=>{const j=Math.min(H-1,q[1]|0)*W+Math.min(W-1,q[0]|0),v=sladIdx(lastR.Hm[j],lastR.Sm[j]);cnt[v]=(cnt[v]||0)+1});
+  const cnt={};if(lastR)sculpt.pts.forEach(q=>{const j=Math.min(H-1,q[1]|0)*W+Math.min(W-1,q[0]|0),v=sladIdx(lastR.Hm[j]);cnt[v]=(cnt[v]||0)+1});
   let base=SLAD0,best=-1;for(const k in cnt)if(cnt[k]>best){best=cnt[k];base=+k}
   Object.assign(sculpt,{phase:'raise',y0:sculpt.cy,base,delta:0});syncHint()}
 let last=0;const reduce=matchMedia('(prefers-reduced-motion: reduce)');
@@ -812,7 +813,7 @@ function up(){
   if(tool==='brush'&&stroke){push();if(paint.t===9&&paint.layer==='ground'){const sp=[];stroke.pts.forEach((q,k)=>{if(!sp.length||k===stroke.pts.length-1||dist(sp[sp.length-1],q)>=10)sp.push(q)});stroke.pts=sp}
     st.ops.push({kind:'stroke',...paint,r:paint.t===9&&paint.layer==='ground'?5:stroke.r,pts:stroke.pts.map(q=>[Math.round(q[0]*2)/2,Math.round(q[1]*2)/2]),sid:Math.floor(Math.random()*1000)});markOp(st.ops[st.ops.length-1]);stroke=null;save();return}
   if(tool==='sculpt'&&sculpt){const sp=sculpt;sculpt=null;if(sp.phase==='raise'&&sp.delta!==0){push();const lv=SLAD[sp.base+sp.delta];
-      const pts=[];sp.pts.forEach(q=>{if(!pts.length||dist(pts[pts.length-1],q)>=Math.max(1.5,bsize/3))pts.push(q.map(v=>Math.round(v*2)/2))});
+      const up=sculptLift(lv.h,SLAD[sp.base].h),pts=[];sp.pts.forEach(q=>{if(!pts.length||dist(pts[pts.length-1],q)>=Math.max(1.5,bsize/3))pts.push([Math.round(q[0]*2)/2,Math.round((q[1]-up)*2)/2])});
       st.ops.push({kind:'stroke',layer:'height',h:lv.h,s:lv.s,r:bsize,pts,sid:Math.floor(Math.random()*1000)});markOp(st.ops[st.ops.length-1]);save()}syncHint();return}
   if(measure)measure.down=false;
   if(pointer&&pointer.down){pointer.down=false;pointer.end=performance.now();const h=pointer.trail[pointer.trail.length-1];pings.push({x:h.x,y:h.y,t0:pointer.end})}
@@ -902,7 +903,7 @@ function syncHint(){const h=$('hint');h.replaceChildren();
   else if(tool==='brush'){pill(paintName());add('Click and drag to paint. Small gaps you miss inside a stroke fill in automatically. <kbd>[</kbd> <kbd>]</kbd> change the size. Roads skip ground more than one level up or down.')}
   else if(tool==='sculpt'){
     if(sculpt&&sculpt.phase==='paint'){pill('Selecting');add('Drag over the area, then <b>hold still</b> for a moment (or press <kbd>Shift</kbd>) to start raising.')}
-    else if(sculpt){pill(sculpt.delta===0?'No change':SLAD[sculpt.base+sculpt.delta].name);add('Drag <b>up to raise</b> (one step is a hill, more steps are cliffs) or <b>down to lower</b>, release to place. <kbd>Esc</kbd> cancels.')}
+    else if(sculpt){const lv=SLAD[sculpt.base+sculpt.delta];pill(sculpt.delta===0?'No change':lv.h===0?'Flatten':(lv.h>0?'Raise ':'Lower ')+lv.sh);add('Drag <b>up to raise</b> or <b>down to lower</b>, release to place. <kbd>Esc</kbd> cancels.')}
     else add('Press and drag over an area, <b>pause</b>, then drag up or down to raise or lower it, all in one motion. For a single spot, press, hold, then drag. <kbd>[</kbd> <kbd>]</kbd> change the size.')}
   else if(tool==='object'){const st0=objKind.startsWith('stamp:');pill(st0?(stamps[+objKind.slice(6)]||{name:'Stamp'}).name:OBJ.find(o=>o.k===objKind).name+(objGrid[0]*objGrid[1]>1?` · ${objGrid[0]} × ${objGrid[1]}`:''));
     add(st0?'Click to stamp it. Its objects move together; hold <kbd>Alt</kbd> in Select to grab just one.':'Click to place. Pick a grid size to place rows of them at once. In <b>Select</b>, Shift-drag a box to grab several and save them as a stamp.')}
