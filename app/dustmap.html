@@ -1254,9 +1254,64 @@ function mpCleanSess(d){if(!d||typeof d!=='object')return null;const assign={};
   if(d.assign&&typeof d.assign==='object')for(const[k,v]of Object.entries(d.assign))if(/^\d+$/.test(k)&&typeof v==='string')assign[k]=v;
   return{live:!!d.live,dm:typeof d.dm==='string'?d.dm:null,assign}}
 
+// ---- Firebase: the same db / room / user shapes, for the page hosted outside claude.ai ----
+// Set by build_dustmap.py from app/firebase_config.json (public web config; access is enforced by firebase/database.rules.json).
+// A room lives at rooms/<id>, named in the link (#room=<id>). Whoever first starts a session in a room owns it;
+// the owner and the DM they pick write the shared documents (d/*), everyone signed in reads, each person writes only their own presence and name.
+const FIREBASE=null;
+const FBV='10.12.2';
+const loadScript=src=>new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=()=>rej(new Error('load '+src));document.head.append(s)});
+let mpName0='';try{mpName0=localStorage.getItem('dustmap-name')||''}catch(e){}
+async function fbRuntime(cfg){
+  for(const f of['app','auth','database'])await loadScript(`https://cdn.jsdelivr.net/npm/firebase@${FBV}/firebase-${f}-compat.js`);
+  const fb=window.firebase,T=window.__fbTest;fb.initializeApp(cfg);const fdb=fb.database();let me;
+  if(T){fdb.useEmulator(T.host,T.port,{mockUserToken:{user_id:T.uid}});me=T.uid}   // tests: local emulator, fixed user
+  else{const auth=fb.auth();me=await new Promise((res,rej)=>{const off=auth.onAuthStateChanged(u=>{if(u){off();res(u.uid)}else auth.signInAnonymously().catch(rej)})})}
+  let room=(location.hash.match(/room=([A-Za-z0-9_-]{6,40})/)||[])[1];const joined=!!room;
+  if(!room){room=Math.random().toString(36).slice(2,8)+Math.random().toString(36).slice(2,8);history.replaceState(null,'','#room='+room)}
+  const R=fdb.ref('rooms/'+room);let owner=(await R.child('owner').get()).val();
+  R.child('owner').on('value',s=>{owner=s.val()});
+  const err=e=>({code:/permission/i.test(String(e&&(e.code||e.message)))?'invalid_argument':'unavailable',message:String(e&&e.message||e)});
+  const snapOf=(id,v)=>({id,exists:!!(v&&typeof v.j==='string'),data:()=>{try{return JSON.parse(v.j)}catch(e){return undefined}},metadata:{fromCache:false,hasPendingWrites:false}});
+  // RTDB nests children inside their parent, so writing live/map would wipe live/map/parts: keep every
+  // collection flat instead, at d/<collection path with ~ for />/<doc id>
+  const node=p=>{const a=p.split('/'),id=a.pop();return R.child('d').child(a.join('~')).child(id)},colNode=p=>R.child('d').child(p.split('/').join('~'));
+  const docRef=p=>({id:p.split('/').pop(),path:p,
+    get:async()=>snapOf(p.split('/').pop(),(await node(p).get()).val()),
+    set:async d=>{try{
+      if(p==='live/session'){if(!owner){await R.child('owner').set(me);owner=me}
+        if(owner===me&&typeof d.dm==='string')await R.child('dm').set(d.dm)}
+      await node(p).set({j:JSON.stringify(d)})}catch(e){throw err(e)}},
+    onSnapshot:(next,onErr)=>{const cb=s=>next(snapOf(p.split('/').pop(),s.val()));node(p).on('value',cb,e=>onErr&&onErr(err(e)));return()=>node(p).off('value',cb)},
+    collection:c=>colRef(p+'/'+c)});
+  const colRef=p=>({path:p,doc:i=>docRef(p+'/'+i),
+    onSnapshot:(next,onErr)=>{const cb=s=>{const docs=[];s.forEach(ch=>{docs.push(snapOf(ch.key,ch.val()))});next({docs,size:docs.length,empty:!docs.length,docChanges:()=>[],metadata:{fromCache:false,hasPendingWrites:false}})};
+      colNode(p).on('value',cb,e=>onErr&&onErr(err(e)));return()=>colNode(p).off('value',cb)}});
+  // presence: one node per open tab, removed by the server when the tab goes away
+  const tab=me+'_'+Math.random().toString(36).slice(2,8),P=R.child('presence/'+tab);P.onDisconnect().remove();
+  let mine={},ptimer=0,peers=Object.freeze([]);const peerL=[];
+  const flush=()=>{ptimer=0;P.set({by:me,p:JSON.stringify(mine)}).catch(()=>{})};
+  R.child('presence').on('value',s=>{const old=new Map(peers.map(p=>[p.peer,p])),list=[];
+    s.forEach(ch=>{const v=ch.val()||{};let pr={};try{pr=JSON.parse(v.p)||{}}catch(e){}const o=old.get(ch.key);
+      list.push(o&&JSON.stringify(o.presence)===v.p?o:Object.freeze({peer:ch.key,by:typeof v.by==='string'?v.by:null,isMe:v.by===me,sameTab:ch.key===tab,kind:'viewer',guest:false,presence:Object.freeze(pr),updatedAt:Date.now()}))});
+    const keys=new Set(list.map(p=>p.peer)),joinedP=list.filter(p=>!old.has(p.peer)),left=[...old.values()].filter(p=>!keys.has(p.peer));
+    peers=Object.freeze(list);peerL.forEach(f=>f({peers,joined:joinedP,left,updated:list.filter(p=>old.has(p.peer)&&old.get(p.peer)!==p)}))});
+  const roomNs={presence:async patch=>{for(const[k,v]of Object.entries(patch)){if(v===null)delete mine[k];else mine[k]=v}if(!ptimer)ptimer=setTimeout(flush,60)},
+    onPeers:f=>{peerL.push(f);setTimeout(()=>f({peers,joined:peers,left:[],updated:[]}),0);return()=>{}},peers:()=>peers,emit:async()=>{},on:()=>()=>{},connected:()=>true};
+  flush();
+  // names: everyone writes their own under people/<uid>
+  let people={};const nameL=[];R.child('people').on('value',s=>{people=s.val()||{};nameL.forEach(f=>f())});
+  const setName=n=>{n=String(n||'').replace(/\s+/g,' ').trim().slice(0,40);if(!n)return;try{localStorage.setItem('dustmap-name',n)}catch(e){}mpName0=n;R.child('people/'+me).set({name:n}).catch(()=>{})};
+  if(mpName0)setName(mpName0);
+  const user={id:async()=>me,isOwner:async()=>!owner||owner===me,canEdit:async()=>!owner||owner===me,can:async()=>null,
+    profiles:async ids=>{const r={};(Array.isArray(ids)?ids:[ids]).forEach(i=>{const n=people[i]&&people[i].name;r[i]={id:i,name:typeof n==='string'?n:'',avatarUrl:'',color:'',email:null,isMe:i===me,guest:false}});return r},
+    setName,onNames:f=>nameL.push(f),joined,link:()=>location.href.split('#')[0]+'#room='+room};
+  return{use:async n=>({db:{doc:docRef,collection:colRef},room:roomNs,user})[n]||null,firebase:true}}
+
 async function mpInit(){
-  let c=window.claude;for(let i=0;i<50&&!(c&&typeof c.use==='function');i++){await new Promise(r=>setTimeout(r,100));c=window.claude}
-  if(!c||typeof c.use!=='function')return;
+  // on claude.ai the page runtime provides db/room/user; anywhere else, Firebase does if it's configured
+  let c=window.claude;for(let i=0;i<(FIREBASE?10:50)&&!(c&&typeof c.use==='function');i++){await new Promise(r=>setTimeout(r,100));c=window.claude}
+  if(!c||typeof c.use!=='function'){if(!FIREBASE)return;try{c=await fbRuntime(FIREBASE)}catch(e){console.warn('Firebase unavailable',e);$('mpbtn').hidden=false;mp.err='Live play can’t connect right now. Check your internet connection and reload.';mpUI();return}mp.fb=true}
   $('mpbtn').hidden=false;
   const use=n=>Promise.resolve(c.use(n)).catch(()=>null);
   const[db,room,user]=await Promise.all([use('db'),use('room'),use('user')]);
@@ -1270,6 +1325,7 @@ async function mpInit(){
   db.doc('live/tokens').onSnapshot(sn=>{mp.ready.tok=true;mp.tok=sn.exists?sn.data():null;
     if(mp.tok&&Array.isArray(mp.tok.list))mp.tok.list.forEach(t=>{if(t&&typeof t.id==='string'&&fin(t.r))mp.tokR[t.id]=Math.max(mp.tokR[t.id]||0,+t.r)});mpTryTokens()},mpFail);
   room.onPeers(mpPeers);
+  if(mp.fb){user.onNames(()=>{mpProfKey='';mpUI()});if(user.joined&&!mpName0)$('mpbtn').click()}   // arrived by a room link: ask their name
   mpUI()}
 function mpFail(e){mp.err=e&&e.code==='revoked'?'Access to the shared map was withdrawn.':'The shared map can’t be reached right now.';mpUI()}
 
@@ -1302,7 +1358,7 @@ async function mpPush(){if(mp.role!=='dm'||!mp.db)return;
       await mp.db.doc('live/tokens').set({rev,list:st.tokens.map(t=>({id:t.id,s:t.s,x:t.x,y:t.y,o:t.o||0,r:mp.tokR[t.id]||0}))});
       mp.tokApplied=rev;mp.pushed.tok=tj;mp.lastPos=new Map(st.tokens.map(t=>[t.id,[t.x,t.y]]))}
     if(mp.err){mp.err='';mpUI()}}
-  catch(e){mp.err=e&&e.code==='invalid_argument'?'Your changes aren’t reaching the players: running a session needs Editor access to this page.':e&&e.code==='quota_exceeded'?'The shared map is too big to send.':'Your latest change hasn’t reached the players yet. It will go with the next one.';mpUI()}
+  catch(e){mp.err=e&&e.code==='invalid_argument'?(mp.fb?'Your changes aren’t reaching the players: only the room’s owner or DM can change the shared map.':'Your changes aren’t reaching the players: running a session needs Editor access to this page.'):e&&e.code==='quota_exceeded'?'The shared map is too big to send.':'Your latest change hasn’t reached the players yet. It will go with the next one.';mpUI()}
   finally{mp.busy=false;if(mp.again){mp.again=false;mpPush()}}}
 
 // ---- players: take the shared map and tokens ----
@@ -1371,12 +1427,18 @@ function mpUI(){const b=$('mpbtn');b.replaceChildren();b.classList.toggle('live'
   const key=JSON.stringify([mp.avail,mp.sess,mp.role,ids,[...here],mp.err,st.tokens.map(t=>t.s)]);if(key!==mpKey){mpKey=key;mpRender()}}
 function mpSay(t){$('mpmsg').textContent=t||''}
 async function mpWrite(d){mpSay('');try{await mp.db.doc('live/session').set(d)}
-  catch(e){mpSay(e&&e.code==='invalid_argument'?'That needs Editor access to this page.':'That didn’t go through. Try again in a moment.')}}
+  catch(e){mpSay(e&&e.code==='invalid_argument'?(mp.fb?'Only the room’s owner or DM can do that.':'That needs Editor access to this page.'):'That didn’t go through. Try again in a moment.')}}
 function mpRender(){if($('mpmodal').hidden)return;const box=$('mpbody');box.replaceChildren();const s=mp.sess,live=s&&s.live;
   const para=(html,cls)=>{const p=document.createElement('p');if(cls)p.className=cls;p.innerHTML=html;box.append(p);return p};
   const button=(t,cls,fn,parent)=>{const x=document.createElement('button');x.className='btn '+(cls||'');x.textContent=t;x.onclick=fn;(parent||box).append(x);return x};
   $('mpsub').textContent=live?'Session on':'';
-  const invite='Invite your group with this page’s <b>Share</b> button, by email. Everyone needs to be signed in to claude.ai. Give Editor access to anyone who should be able to run the game as DM.';
+  const invite=mp.fb?'Anyone with the room link can join and watch. Only you and the DM you pick can change the map, and players move only the cowboy you hand them.':'Invite your group with this page’s <b>Share</b> button, by email. Everyone needs to be signed in to claude.ai. Give Editor access to anyone who should be able to run the game as DM.';
+  if(mp.fb){   // no accounts here: everyone picks the name the others see
+    const row=document.createElement('label');row.className='row';row.innerHTML='<span class="note" style="flex:none">Your name</span>';
+    const inp=document.createElement('input');inp.id='mpname';inp.maxLength=40;inp.placeholder='How the table sees you';inp.value=mpName0;inp.autocomplete='nickname';
+    inp.style.cssText='flex:1;min-width:0;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:6px 8px;font:inherit';
+    inp.onchange=()=>mp.user.setName(inp.value);inp.onkeydown=e=>{if(e.key==='Enter')inp.blur()};row.append(inp);box.append(row)}
+  if(!mp.avail&&mp.fb){para(mp.err||'Connecting…');return}
   if(!mp.avail){para('Live play works when this page is open on claude.ai and you’re signed in to an account it’s been shared with. Opened from a public link, it works as a map editor for just you.');para(invite,'note');return}
   if(mp.err)para(mp.err,'note');
   if(!live){
@@ -1399,8 +1461,10 @@ function mpRender(){if($('mpmodal').hidden)return;const box=$('mpbody');box.repl
       [['','Watching'],...chars.map(c=>[String(c),tokName(c)])].forEach(([v,t])=>{const o=document.createElement('option');o.value=v;o.textContent=t;sl.append(o)});
       sl.value=Object.keys(s.assign).find(k=>s.assign[k]===id)||'';
       sl.onchange=()=>{const a={...s.assign};Object.keys(a).forEach(k=>{if(a[k]===id)delete a[k]});if(sl.value!=='')a[sl.value]=id;mpWrite({...s,assign:a})};row.append(sl)}
-    if(mp.owner&&id!==s.dm){button(id===mp.me?'Take over as DM':'Make DM','',()=>mpWrite({...s,dm:id}),row).title=id===mp.me?'':'They need Editor access to this page to change the map'}
+    if(mp.owner&&id!==s.dm){button(id===mp.me?'Take over as DM':'Make DM','',()=>mpWrite({...s,dm:id}),row).title=id===mp.me||mp.fb?'':'They need Editor access to this page to change the map'}
     list.append(row)});
+  if(mp.fb){const a=document.createElement('div');a.className='mpacts';box.append(a);const link=mp.user.link();
+    button('Copy room link','primary',async e=>{const b=e.currentTarget;try{await navigator.clipboard.writeText(link);b.textContent='Copied'}catch(err){mpSay('Copy this link: '+link)}setTimeout(()=>b.textContent='Copy room link',1500)},a)}
   if(amDM||mp.owner){const a=document.createElement('div');a.className='mpacts';box.append(a);button('End session','warn',()=>mpWrite({...s,live:false}),a)}
   para(invite,'note')}
 $('mpbtn').onclick=()=>{$('mpmodal').hidden=false;mpKey='';mpSay('');mpUI();mpRender()};
@@ -1408,7 +1472,7 @@ $('mpclose').onclick=()=>$('mpmodal').hidden=true;
 $('mpmodal').onclick=e=>{if(e.target.id==='mpmodal')e.currentTarget.hidden=true};
 $('mpmodal').addEventListener('keydown',e=>{if(e.key==='Escape')$('mpmodal').hidden=true;e.stopPropagation()});
 // read-only peek for the tests
-window.__dustmap=()=>({st,role:mp.role,cam:{...cam},Z,pings:pings.map(p=>({x:p.x,y:p.y,rgb:p.rgb||null})),tool,peers:mp.peers.length});
+window.__dustmap=()=>({st,role:mp.role,cam:{...cam},Z,pings:pings.map(p=>({x:p.x,y:p.y,rgb:p.rgb||null})),tool,peers:mp.peers.length,busy:mp.busy,err:mp.err,again:mp.again});
 libInit();mpInit();
 buildTools();buildObjs();buildToks();updUndo();sizeCanvas();syncUI();requestAnimationFrame(loop);
 setTimeout(buildPaints,0);

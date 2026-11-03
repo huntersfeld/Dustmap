@@ -21,6 +21,7 @@ Two related pieces of work:
 | `app/build_dustmap.py` | Rebuilds `dustmap.html` from the source by inlining the four sprite sheets |
 | `app/tests/verify_partial_redraw.js` | Playwright test: makes edits, then checks the partial redraw matches a full redraw pixel-for-pixel |
 | `app/tests/mine_scene_smoke_test.js` | Playwright test: builds a mine scene (stone, raised-stone cave wall, rails, props, grid, stamp, token drag) |
+| `app/tests/firebase_multiplayer_test.js` | Playwright test: live session over Firebase against the local Realtime Database emulator, including the security rules |
 | `app/tests/multiplayer_test.js` | Playwright test: three browsers in a live session (DM + two players) through `app/tests/mock_claude_runtime.js`, a stand-in for claude.ai's db/room/user |
 | `app/tests/map_library_test.js` | Playwright test: map library (new, rename, switch, export to file, import, delete, reload) |
 | `sprites/game_ready/` | Final 32×32 sprite sheets (8 frames each), combined atlas + JSON, lineup GIF. `npcs_enemies/` holds the 24 NPC/enemy tokens and their colour variants (75 idle loops) |
@@ -156,15 +157,21 @@ Planned role details for Phase 4: the artifact owner is DM by default and can ma
 
 ## Multiplayer (Phase 4, "Play together")
 
-Built on the artifact's own claude.ai capabilities, no outside server. The page must be published with
-`capabilities: {db:{rules:[{path:"",read:"view",write:"admin"}]}, room:{}, user:{scopes:["profile"]}, downloads:true}`.
+One session/roles layer (`mp*` functions in `dustmap_src.html`) runs on either of two transports with the same db / room / user shapes:
 
-- **Who can join:** people signed in to claude.ai and invited to the artifact by email (Share). Someone arriving by a public link can't join the room, so the page stays a single-player editor for them. Only the owner and Editors can write the shared db, so only they can start a session or be DM.
-- **Session:** an Editor/owner clicks *Play together → Start session*. The DM's page is the source of truth: the open map (minus tokens) goes to `live/map` + `live/map/parts/p<i>` in ~150 KB text chunks, tokens to `live/tokens`, roles to `live/session {live, dm, assign:{<sheet>:<user id>}}`. Switching maps in the DM's library sends the new map.
-- **Players** never write db. Their cursor, pointer trail, measure, live token drag, pings and finished moves go in room presence. The DM's page checks a finished move (`mv`) against the assignment and commits it; a move made from a stale view (base rev older than the token's last change `r`) is dropped.
-- **Player view:** tools limited to Select (own cowboy only), Measure, Pointer, Pan; editing controls hidden (`.dmonly`, `body.mp-player`). The shared map never overwrites the player's own saved maps, and ending the session brings their own map back.
-- **Roles:** cowboys are assigned per character (sheet index), so assignments survive map switches. The owner can make another Editor DM (that person's page saves the shared map into their library as "Session map" and carries on from it) and take it back.
-- Tokens carry a stable `id` (added when a session starts).
+1. **Firebase (the main way to play, chosen by Hunter).** The page is hosted on GitHub Pages (`.github/workflows/pages.yml`, https://huntersfeld.github.io/Dustmap/) because claude.ai artifacts can't reach outside servers. `app/firebase_config.json` (the public web config) is inlined by `build_dustmap.py`; with no config file the page is a solo editor. Anonymous sign-in, Realtime Database, rules in `firebase/database.rules.json`.
+   - A room is `rooms/<id>`, named in the link (`#room=<id>`; a bare visit makes a fresh room). Whoever first starts a session owns the room (`owner`), and the owner picks the DM (`dm`). Only those two can write the shared documents under `d/`. Everyone signed in reads. Each person writes only their own `people/<uid>/name` and `presence/<uid>_<tab>` (removed on disconnect).
+   - Documents are stored flat as `d/<collection path with ~>/<doc id> = {j: JSON text}` (RTDB nests children, so `live/map` would otherwise wipe `live/map/parts`).
+   - Ownership is tied to the browser's anonymous Firebase sign-in: clearing site data or another device means a new room.
+2. **claude.ai built-in** (when the page runs as an artifact): `db` + `room` + `user` capabilities. Publish with `capabilities: {db:{rules:[{path:"",read:"view",write:"admin"}]}, room:{}, user:{scopes:["profile"]}, downloads:true}`. Players must be signed in and invited by email.
+
+Shared documents: `live/session {live, dm, assign:{<sheet>:<user id>}}`, `live/map {rev,n,name}` + `live/map/parts/p<i> {rev,s}` (the map minus tokens as ~150 KB text chunks), `live/tokens {rev, list:[{id,s,x,y,o,r}]}`.
+
+- **DM's page is the source of truth**: edits, token moves and library map switches are pushed (debounced 250 ms).
+- **Players** never write shared documents. Cursor, pointer trail, measure, live token drag, pings and finished moves go in presence. The DM's page checks a finished move (`mv`) against the assignment and commits it; a move made from a stale view (base rev older than the token's last change `r`) is dropped.
+- **Player view:** Select (own cowboy only), Measure, Pointer, Pan; editing controls hidden (`.dmonly`, `body.mp-player`). The shared map never overwrites the player's own saved maps; ending the session brings theirs back.
+- **Roles:** assignments are per character (sheet index), so they survive map switches. The owner can make someone else DM (their page saves the shared map as "Session map" in their library and carries on) and take it back.
+- Tests: `multiplayer_test.js` (claude.ai transport, mocked) and `firebase_multiplayer_test.js` (Firebase transport + rules, against the local database emulator: `java -jar firebase-database-emulator-*.jar --port 9000`, with `FIREBASE_SDK` pointing at an installed `firebase@10.12.2`).
 
 ## Known limitations
 
