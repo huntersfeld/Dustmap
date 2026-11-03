@@ -21,6 +21,7 @@ Two related pieces of work:
 | `app/build_dustmap.py` | Rebuilds `dustmap.html` from the source by inlining the four sprite sheets |
 | `app/tests/verify_partial_redraw.js` | Playwright test: makes edits, then checks the partial redraw matches a full redraw pixel-for-pixel |
 | `app/tests/mine_scene_smoke_test.js` | Playwright test: builds a mine scene (stone, raised-stone cave wall, rails, props, grid, stamp, token drag) |
+| `app/tests/multiplayer_test.js` | Playwright test: three browsers in a live session (DM + two players) through `app/tests/mock_claude_runtime.js`, a stand-in for claude.ai's db/room/user |
 | `app/tests/map_library_test.js` | Playwright test: map library (new, rename, switch, export to file, import, delete, reload) |
 | `sprites/game_ready/` | Final 32×32 sprite sheets (8 frames each), combined atlas + JSON, lineup GIF |
 | `sprites/per_character/` | Every intermediate deliverable per character (pose mockups, size variants, eye/cigarette/palm variants, idle GIFs) |
@@ -143,17 +144,30 @@ Full redraws still happen for: load, Reroll, roughness, resize, and undo that ch
 | 2 | Stone / cave / mine terrain and props | Done |
 | 2 | Object grid placement and reusable stamps | Done |
 | 3 | Map library: named maps saved in the page, switch between them, export/import as a file (needed to "build locally, then load into a session") | Done |
-| 4 | **Multiplayer core**: sessions, DM + player roles, shared live map, players move only their own token, shared pointer/measure/ping | **Next** |
-| 5 | Hidden areas (fog of war) painted by the DM, revealable mid-session | To do |
+| 4 | Multiplayer core: sessions, DM + player roles, shared live map, players move only their own token, shared pointer/measure/ping | Done |
+| 5 | **Hidden areas** (fog of war) painted by the DM, revealable mid-session | **Next** |
 | 6 | DM animation paths (token walks a drawn path at a set speed) | To do |
 | 6 | Interactive objects (click a door to load another map; more actions later) | To do |
 | — | Physics engine | Parked |
 
 Planned role details for Phase 4: the artifact owner is DM by default and can make someone else DM. DM: full editing, add/move/remove any token, load maps, assign tokens to players, hide areas. Players: view, move their own token, Pointer and Measure. Players must be signed in and given access via the page's Share menu.
 
+## Multiplayer (Phase 4, "Play together")
+
+Built on the artifact's own claude.ai capabilities, no outside server. The page must be published with
+`capabilities: {db:{rules:[{path:"",read:"view",write:"admin"}]}, room:{}, user:{scopes:["profile"]}, downloads:true}`.
+
+- **Who can join:** people signed in to claude.ai and invited to the artifact by email (Share). Someone arriving by a public link can't join the room, so the page stays a single-player editor for them. Only the owner and Editors can write the shared db, so only they can start a session or be DM.
+- **Session:** an Editor/owner clicks *Play together → Start session*. The DM's page is the source of truth: the open map (minus tokens) goes to `live/map` + `live/map/parts/p<i>` in ~150 KB text chunks, tokens to `live/tokens`, roles to `live/session {live, dm, assign:{<sheet>:<user id>}}`. Switching maps in the DM's library sends the new map.
+- **Players** never write db. Their cursor, pointer trail, measure, live token drag, pings and finished moves go in room presence. The DM's page checks a finished move (`mv`) against the assignment and commits it; a move made from a stale view (base rev older than the token's last change `r`) is dropped.
+- **Player view:** tools limited to Select (own cowboy only), Measure, Pointer, Pan; editing controls hidden (`.dmonly`, `body.mp-player`). The shared map never overwrites the player's own saved maps, and ending the session brings their own map back.
+- **Roles:** cowboys are assigned per character (sheet index), so assignments survive map switches. The owner can make another Editor DM (that person's page saves the shared map into their library as "Session map" and carries on from it) and take it back.
+- Tokens carry a stable `id` (added when a session starts).
+
 ## Known limitations
 
 - Full redraws are slow on 60×40 maps; maps above 60×40 are disabled.
 - Stamps are per browser, not per map.
 - Picked-up auto items are tied to the current layout; Reroll or reshaping a town can bring generated items back elsewhere.
+- Live sessions: the DM's page must be open for players' token moves to be committed. New token kinds need a name in `TOKNAMES` to show nicely in the assign list.
 - Snapshot can't download directly (artifact sandbox); the user right-clicks the image.
