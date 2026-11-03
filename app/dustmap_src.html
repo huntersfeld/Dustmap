@@ -80,6 +80,21 @@ select{background:var(--raised);color:var(--fg);border:1px solid var(--line);bor
 .modal{position:fixed;inset:0;background:rgba(10,8,12,.82);display:flex;align-items:center;justify-content:center;padding:max(16px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) max(16px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));z-index:20}
 .modal .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:12px;max-width:min(1000px,100%);max-height:100%;overflow:auto}
 .modal img{width:100%;height:auto;image-rendering:pixelated;border-radius:6px}
+/* Map library */
+#libbtn{max-width:260px}
+#libname{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.lib{width:min(620px,100%)}
+.lib .acts{display:flex;gap:8px;flex-wrap:wrap}
+.libmaps{display:flex;flex-direction:column;gap:6px}
+.libmap{display:flex;align-items:center;gap:8px;flex-wrap:wrap;border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+.libmap.cur{border-color:var(--accent);background:var(--raised)}
+.libmap .nm{flex:1 1 180px;min-width:0;display:flex;flex-direction:column;gap:2px}
+.libmap .nm b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.libmap .nm input{background:var(--bg);color:var(--fg);border:1px solid var(--accent);border-radius:5px;padding:4px 6px;font:inherit}
+.libmap .btn{padding:5px 9px;font-size:12px}
+.lib.drop{outline:2px dashed var(--accent);outline-offset:-6px}
+#libtext{width:100%;min-height:110px;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:8px;font:12px/1.4 ui-monospace,monospace;resize:vertical}
+#libmsg:empty{display:none}
 @media (max-width:820px){
   .app{grid-template-columns:minmax(0,1fr)}
   aside{flex-direction:row;flex-wrap:wrap;gap:14px}
@@ -91,6 +106,7 @@ select{background:var(--raised);color:var(--fg);border:1px solid var(--line);bor
 <div class="app">
   <header>
     <span class="brand">Dustmap</span>
+    <button class="btn" id="libbtn" title="Map library: switch, add, import and export maps">Map: <span id="libname"></span></button>
     <span class="mapname" id="mapname"></span>
     <div class="hbtns">
       <button class="btn" id="undo" title="Undo (Ctrl+Z)">Undo</button>
@@ -151,7 +167,7 @@ select{background:var(--raised);color:var(--fg);border:1px solid var(--line);bor
       <label class="check" for="grid"><input type="checkbox" id="grid" checked> Show 5 ft grid</label>
       <label class="check" for="anim"><input type="checkbox" id="anim" checked> Animate tokens</label>
     </div>
-    <p class="note">Your map saves in this browser automatically.</p>
+    <p class="note">Your maps save in this browser automatically. Use <b>Map</b> at the top to switch maps or export them to a file.</p>
   </aside>
 
   <main>
@@ -165,6 +181,27 @@ select{background:var(--raised);color:var(--fg);border:1px solid var(--line);bor
   <div class="card">
     <div class="row"><b>Snapshot</b><span class="note" style="margin-left:auto">Right-click or long-press the image to save it.</span><button class="btn" id="mclose">Close</button></div>
     <img id="snapimg" alt="Rendered map snapshot">
+  </div>
+</div>
+
+<div class="modal" id="libmodal" hidden>
+  <div class="card lib" id="libcard" role="dialog" aria-labelledby="libtitle">
+    <div class="row"><b id="libtitle">Maps</b><span class="note">Saved in this browser</span><button class="btn" id="libclose" style="margin-left:auto">Close</button></div>
+    <div class="acts">
+      <button class="btn primary" id="libnew">New map</button>
+      <button class="btn" id="libimport">Import file…</button>
+      <button class="btn" id="libexportall">Export all maps</button>
+      <input type="file" id="libfile" accept=".json,application/json" multiple hidden>
+    </div>
+    <div class="libmaps" id="libmaps"></div>
+    <p class="note" id="libmsg" role="status"></p>
+    <details id="libtx">
+      <summary class="note">Move maps as text instead of files</summary>
+      <p class="note">Export puts the map here when files can't be saved. To import, paste a map's text and press Import text.</p>
+      <textarea id="libtext" spellcheck="false" aria-label="Map file text"></textarea>
+      <div class="acts"><button class="btn" id="libpaste">Import text</button></div>
+    </details>
+    <p class="note">You can also drop <b>.dustmap.json</b> files here.</p>
   </div>
 </div>
 
@@ -226,7 +263,7 @@ const example=()=>({v:3,cols:40,rows:28,seed:7,rag:5,ops:[
 function migrate(s){if(!s)return null;if((s.v===2||s.v===3)&&s.ops){s.cols=s.cols||20;s.rows=s.rows||14;return s}
   if(s.regions)return{v:2,cols:20,rows:14,seed:s.seed||7,rag:s.rag??5,ops:s.regions.map(r=>({kind:'poly',layer:'ground',t:r.t,pts:r.pts,sid:r.sid})),objects:[],tokens:s.tokens||[]};return null}
 function load(){try{const a=localStorage.getItem('dustmap-v2');if(a)return migrate(JSON.parse(a));return migrate(JSON.parse(localStorage.getItem('dustmap-v1')))}catch(e){return null}}
-function save(){try{localStorage.setItem('dustmap-v2',JSON.stringify(st))}catch(e){}}
+function save(){const j=JSON.stringify(st);try{localStorage.setItem('dustmap-v2',j)}catch(e){}libSaved(j)}
 let st=load()||example();W=st.cols*GRID;H=st.rows*GRID;
 let tool='draw',paint={layer:'ground',t:3},tab='ground',objKind='saloon',bsize=6,objCells=new Set(['1,1']),objMix=false,mixKinds=new Set(),scatDens=70,scatSeed=1,objGap=2,boxSel=null;
 let stamps=(()=>{try{return JSON.parse(localStorage.getItem('dustmap-stamps'))||[]}catch(e){return[]}})();
@@ -958,6 +995,137 @@ function syncHint(){const h=$('hint');h.replaceChildren();
       add('Drag to move. <kbd>Shift</kbd>-click to add or remove, <kbd>Shift</kbd>-drag a box to grab more.');btn('Save as stamp','primary',saveStamp);btn('Delete','warn',delSel)}
     else{pill((st.ops[sel.i].layer==='ground'?TERR[st.ops[sel.i].t].name:ELEV.find(e=>e.h===st.ops[sel.i].h&&e.s===st.ops[sel.i].s).name)+' selected');
       add(sel.type==='obj'?'Drag to move.':'Drag it again to move it, drag its corners to reshape it, or pick a paint to change it.');btn('Delete','warn',delSel)}}}
+// ================= map library (Phase 3) =================
+// The open map is always st, saved to 'dustmap-v2' as before. Every map, the open one
+// included, is also kept under 'dustmap-map:<id>'; 'dustmap-library' lists them:
+// { cur: id, maps: [{ id, name, cols, rows, updated }] }.
+// Files: { format:'dustmap', kind:'map', version:1, name, exported, map: st }
+//    or  { format:'dustmap', kind:'library', version:1, exported, maps: [{ name, map }] }.
+// A bare st object (anything with ops) also imports.
+var lib=null;
+const LIBKEY='dustmap-library',MAPKEY='dustmap-map:',FILEVER=1;
+const libId=()=>'m'+Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const libMeta=s=>({cols:s.cols,rows:s.rows,updated:Date.now()});
+const libCur=()=>lib.maps.find(m=>m.id===lib.cur);
+function libStore(){try{localStorage.setItem(LIBKEY,JSON.stringify(lib));return true}catch(e){return false}}
+function libPut(id,j){try{localStorage.setItem(MAPKEY+id,j);return true}catch(e){return false}}
+function libGet(id){try{return libClean(JSON.parse(localStorage.getItem(MAPKEY+id)))}catch(e){return null}}
+function libSaved(j){if(!lib)return;const m=libCur();if(!m)return;Object.assign(m,libMeta(st));
+  if(!(libPut(m.id,j)&&libStore()))libSay('Browser storage is full, so the latest change was not saved. Export maps you want to keep, then delete some.')}
+function libUniq(name){name=(String(name||'').replace(/\s+/g,' ').trim()||'Untitled map').slice(0,60);
+  const taken=new Set(lib.maps.map(m=>m.name));if(!taken.has(name))return name;
+  for(let i=2;;i++){const n=`${name} (${i})`;if(!taken.has(n))return n}}
+const num=(v,d)=>Number.isFinite(+v)&&v!==null&&v!==''?+v:d;
+const pt=q=>Array.isArray(q)&&q.length>=2&&Number.isFinite(+q[0])&&Number.isFinite(+q[1]);
+// accept a saved or imported map only if its shape is sound; unknown extra fields are kept
+function libClean(s){s=migrate(s&&typeof s==='object'?s:null);if(!s||!Array.isArray(s.ops))return null;
+  s.v=3;s.cols=Math.max(1,Math.min(60,Math.round(num(s.cols,20))));s.rows=Math.max(1,Math.min(40,Math.round(num(s.rows,14))));
+  s.seed=Math.round(num(s.seed,7));s.rag=Math.max(0,Math.min(9,Math.round(num(s.rag,5))));
+  s.ops=s.ops.filter(o=>o&&(o.kind==='poly'||o.kind==='stroke')&&(o.layer==='ground'||o.layer==='height')&&Array.isArray(o.pts)&&o.pts.length&&o.pts.every(pt)
+    &&(o.layer==='ground'?Number.isInteger(o.t)&&o.t>=0&&o.t<TERR.length:Number.isFinite(o.h)));
+  s.objects=(Array.isArray(s.objects)?s.objects:[]).filter(o=>o&&OBJ.some(q=>q.k===o.k)&&Number.isFinite(o.x)&&Number.isFinite(o.y));
+  s.tokens=(Array.isArray(s.tokens)?s.tokens:[]).filter(t=>t&&Number.isInteger(t.s)&&t.s>=0&&t.s<SHEETS.length&&Number.isFinite(t.x)&&Number.isFinite(t.y));
+  s.skip=(Array.isArray(s.skip)?s.skip:[]).filter(k=>typeof k==='string');return s}
+function blankMap(){const ex=example();return{v:3,cols:40,rows:28,seed:Math.floor(Math.random()*100000),rag:5,ops:[],objects:[],tokens:ex.tokens,skip:[]}}
+function libInit(){try{lib=JSON.parse(localStorage.getItem(LIBKEY))}catch(e){lib=null}
+  if(!lib||!Array.isArray(lib.maps))lib={cur:null,maps:[]};
+  lib.maps=lib.maps.filter(m=>m&&typeof m.id==='string');lib.maps.forEach(m=>m.name=String(m.name||'Untitled map').slice(0,60));
+  if(!libCur()){const id=libId();lib.maps.unshift({id,name:libUniq(lib.maps.length?'Recovered map':'My first map'),...libMeta(st)});lib.cur=id}
+  const m=libCur();m.cols=st.cols;m.rows=st.rows;m.updated=m.updated||Date.now();
+  const j=JSON.stringify(st);try{localStorage.setItem('dustmap-v2',j)}catch(e){}libPut(m.id,j);libStore();libLabel()}
+function libLabel(){const m=libCur();$('libname').textContent=m?m.name:'';document.title=m?`${m.name} · Dustmap`:'Dustmap'}
+// replace the open map with s (already cleaned); undo history belongs to the old map
+function libOpen(id,s){if(!s){libSay('That map could not be read.');return false}
+  const old=libCur();if(old)libPut(old.id,JSON.stringify(st));
+  st=s;lib.cur=id;hist=[];updUndo();sel=null;draft=[];stroke=null;sculpt=null;drag=null;measure=null;pings=[];
+  try{localStorage.setItem('dustmap-v2',JSON.stringify(st))}catch(e){}libStore();
+  applySize();fit();syncUI();libLabel();return true}
+function libAdd(name,s,open){const id=libId(),m={id,name:libUniq(name),...libMeta(s)};lib.maps.push(m);
+  if(!libPut(id,JSON.stringify(s))){lib.maps.pop();libSay('Browser storage is full, so the map was not added.');return null}
+  libStore();if(open)libOpen(id,s);return m}
+
+// ---- dialog ----
+let libRename=null,libArmed=null,libArmT=0;
+function libSay(t){$('libmsg').textContent=t||''}
+function ago(t){const s=(Date.now()-t)/1000;if(!(s>=0)||s<45)return'just now';if(s<3600)return Math.round(s/60)+' min ago';if(s<86400)return Math.round(s/3600)+' h ago';
+  return new Date(t).toLocaleDateString(undefined,{month:'short',day:'numeric',year:new Date(t).getFullYear()===new Date().getFullYear()?undefined:'numeric'})}
+function libRender(){const box=$('libmaps');box.replaceChildren();
+  [...lib.maps].sort((a,b)=>(b.id===lib.cur)-(a.id===lib.cur)||b.updated-a.updated).forEach(m=>{
+    const row=document.createElement('div');row.className='libmap'+(m.id===lib.cur?' cur':'');
+    const nm=document.createElement('div');nm.className='nm';
+    if(libRename===m.id){const inp=document.createElement('input');inp.value=m.name;inp.maxLength=60;inp.setAttribute('aria-label','Map name');
+      // blur commits in place without rebuilding the list, so a click on another button still lands
+      const done=(keep,redraw)=>{if(libRename!==m.id)return;libRename=null;const v=inp.value.replace(/\s+/g,' ').trim();
+        if(keep&&v&&v!==m.name){m.name='';m.name=libUniq(v);libStore();libLabel()}
+        if(redraw)libRender();else{const b=document.createElement('b');b.textContent=m.name;inp.replaceWith(b)}};
+      inp.onkeydown=e=>{if(e.key==='Enter')done(true,true);else if(e.key==='Escape'){e.stopPropagation();done(false,true)}};inp.onblur=()=>done(true,false);
+      nm.append(inp);setTimeout(()=>{inp.focus();inp.select()},0)}
+    else{const b=document.createElement('b');b.textContent=m.name;nm.append(b)}
+    const meta=document.createElement('span');meta.className='note';meta.textContent=`${m.cols} × ${m.rows} squares · edited ${ago(m.updated)}`;nm.append(meta);row.append(nm);
+    const btn=(t,fn,cls)=>{const b=document.createElement('button');b.className='btn'+(cls?' '+cls:'');b.textContent=t;b.onclick=fn;row.append(b);return b};
+    if(m.id===lib.cur){const p=document.createElement('span');p.className='pill';p.textContent='Open';row.insertBefore(p,nm.nextSibling)}
+    else btn('Open',()=>{libSay('');if(libOpen(m.id,libGet(m.id)))libHide()},'primary');
+    btn('Rename',()=>{libRename=m.id;libRender()});
+    btn('Duplicate',()=>{const s=m.id===lib.cur?libClean(JSON.parse(JSON.stringify(st))):libGet(m.id);if(!s)return libSay('That map could not be read.');
+      if(libAdd(m.name+' copy',s,false)){libSay(`Made a copy of “${m.name}”.`);libRender()}});
+    btn('Export',()=>libExport([m]));
+    const del=btn(libArmed===m.id?'Click again to delete':'Delete',()=>{
+      if(lib.maps.length<2)return libSay('This is your only map. Add another before deleting it.');
+      if(libArmed!==m.id){libArmed=m.id;clearTimeout(libArmT);libArmT=setTimeout(()=>{libArmed=null;libRender()},3000);libRender();return}
+      libArmed=null;const was=m.id===lib.cur;lib.maps=lib.maps.filter(q=>q!==m);try{localStorage.removeItem(MAPKEY+m.id)}catch(e){}
+      if(was){const next=[...lib.maps].sort((a,b)=>b.updated-a.updated)[0];lib.cur=null;libOpen(next.id,libGet(next.id)||blankMap())}
+      libStore();libSay(`Deleted “${m.name}”.`);libRender()},libArmed===m.id?'warn':'');
+    if(lib.maps.length<2)del.disabled=true;
+    box.append(row)})}
+function libShow(){libSay('');libRename=null;libRender();$('libmodal').hidden=false;$('libclose').focus()}
+function libHide(){$('libmodal').hidden=true;libRename=null;$('libbtn').focus()}
+const slug=n=>(n.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,48)||'map');
+// export: through the artifact's downloads capability when there is one, else a normal browser download;
+// if neither works, the text goes in the box so it can be copied by hand
+async function libExport(ms){const now=new Date().toISOString();
+  const body=m=>m.id===lib.cur?JSON.parse(JSON.stringify(st)):libGet(m.id);
+  let data,filename;
+  if(ms.length===1){const m=ms[0];data={format:'dustmap',kind:'map',version:FILEVER,name:m.name,exported:now,map:body(m)};filename=slug(m.name)+'.dustmap.json'}
+  else{data={format:'dustmap',kind:'library',version:FILEVER,exported:now,maps:ms.map(m=>({name:m.name,map:body(m)})).filter(x=>x.map)};filename='dustmap-maps-'+now.slice(0,10)+'.dustmap.json'}
+  const text=JSON.stringify(data);const what=ms.length===1?`“${ms[0].name}”`:`${ms.length} maps`;
+  libSay('Saving '+what+'…');
+  const dl=window.claude&&typeof window.claude.use==='function'?await window.claude.use('downloads').catch(()=>null):undefined;
+  if(dl){try{await dl.save({filename,data:text});libSay(`Saved ${what} as ${filename}.`)}
+    catch(e){if(e&&e.code==='declined')libSay('Export cancelled.');else libFallback(text,what)}return}
+  if(dl===null)return libFallback(text,what);
+  try{const u=URL.createObjectURL(new Blob([text],{type:'application/json'}));const a=document.createElement('a');a.href=u;a.download=filename;document.body.append(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(u),4000);libSay(`Saved ${what} as ${filename}.`)}catch(e){libFallback(text,what)}}
+function libFallback(text,what){$('libtx').open=true;const t=$('libtext');t.value=text;t.focus();t.select();
+  libSay(`Files can't be saved from this page, so ${what} is in the text box below. Copy it into a text file ending in .dustmap.json.`)}
+// import: never overwrites; every map comes in as a new entry, and a single map opens
+function libImport(text){let d;try{d=JSON.parse(text)}catch(e){return{n:0,bad:1}}
+  let list=[];
+  if(d&&d.format==='dustmap'&&d.kind==='library'&&Array.isArray(d.maps))list=d.maps.map(x=>[x&&x.name,x&&x.map]);
+  else if(d&&d.format==='dustmap'&&d.map)list=[[d.name,d.map]];
+  else if(d&&Array.isArray(d.ops))list=[['Imported map',d]];
+  else if(Array.isArray(d))list=d.map(x=>[x&&x.name,x&&(x.map||x)]);
+  let n=0,bad=0,last=null;
+  for(const[name,raw]of list){const s=libClean(JSON.parse(JSON.stringify(raw||null)));if(!s){bad++;continue}const m=libAdd(name,s,false);if(m){n++;last=m}else break}
+  if(!list.length)bad=1;return{n,bad,last}}
+function libImported(rs){const n=rs.reduce((a,r)=>a+r.n,0),bad=rs.reduce((a,r)=>a+r.bad,0),last=rs.filter(r=>r.last).pop();
+  if(n===1&&last){libOpen(last.last.id,libGet(last.last.id))}
+  libSay((n?`Imported ${n} map${n>1?'s':''}${n===1?' and opened it':''}.`:'Nothing was imported.')+(bad?` ${bad} file${bad>1?'s were':' was'} not a Dustmap map.`:''));libRender()}
+async function libFiles(files){const rs=[];for(const f of files){try{rs.push(libImport(await f.text()))}catch(e){rs.push({n:0,bad:1})}}libImported(rs)}
+$('libbtn').onclick=libShow;$('libclose').onclick=libHide;
+$('libmodal').onclick=e=>{if(e.target.id==='libmodal')libHide()};
+// keys typed in the dialog stay out of the editor's shortcuts
+$('libmodal').addEventListener('keydown',e=>{if(e.key==='Escape')libHide();e.stopPropagation()});
+$('libnew').onclick=()=>{const m=libAdd('New map',blankMap(),true);if(m){libRename=m.id;libSay('Started a blank map. Type a name for it.');libRender()}};
+$('libexportall').onclick=()=>libExport([...lib.maps]);
+$('libimport').onclick=()=>$('libfile').click();
+$('libfile').onchange=e=>{const fs=[...e.target.files];e.target.value='';if(fs.length)libFiles(fs)};
+$('libpaste').onclick=()=>{const t=$('libtext').value.trim();if(!t)return libSay('Paste a map’s text into the box first.');libImported([libImport(t)])};
+{const card=$('libcard');let depth=0;
+  card.addEventListener('dragenter',e=>{e.preventDefault();depth++;card.classList.add('drop')});
+  card.addEventListener('dragleave',()=>{if(--depth<=0){depth=0;card.classList.remove('drop')}});
+  card.addEventListener('dragover',e=>e.preventDefault());
+  card.addEventListener('drop',e=>{e.preventDefault();depth=0;card.classList.remove('drop');const fs=[...(e.dataTransfer?e.dataTransfer.files:[])];if(fs.length)libFiles(fs)})}
+libInit();
 buildTools();buildObjs();updUndo();sizeCanvas();syncUI();requestAnimationFrame(loop);
 setTimeout(buildPaints,0);
 })();

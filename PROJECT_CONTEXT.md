@@ -21,6 +21,7 @@ Two related pieces of work:
 | `app/build_dustmap.py` | Rebuilds `dustmap.html` from the source by inlining the four sprite sheets |
 | `app/tests/verify_partial_redraw.js` | Playwright test: makes edits, then checks the partial redraw matches a full redraw pixel-for-pixel |
 | `app/tests/mine_scene_smoke_test.js` | Playwright test: builds a mine scene (stone, cave wall, rails, props, grid, stamp, token drag) |
+| `app/tests/map_library_test.js` | Playwright test: map library (new, rename, switch, export to file, import, delete, reload) |
 | `sprites/game_ready/` | Final 32×32 sprite sheets (8 frames each), combined atlas + JSON, lineup GIF |
 | `sprites/per_character/` | Every intermediate deliverable per character (pose mockups, size variants, eye/cigarette/palm variants, idle GIFs) |
 | `sprites/generator_scripts/` | The Python (Pillow + NumPy) scripts that drew each sprite. Sibling-script loads and `standardize/std.py` paths are repo-relative; other outputs go to the current directory. |
@@ -60,7 +61,8 @@ All are tiny pixel art, hand-placed on a character grid for the smallest size, t
 - **Tokens:** the four cowboys, animated. They snap so their standing point (shadow) lands exactly on a square centre, edge midpoint or corner; a diamond shows the target while dragging; Alt places freely.
 - **Measure:** square-to-square distance in feet and squares, 5e default (diagonals count 5 ft).
 - **Pointer:** click for a radar ping; press and drag for a pointer with a fading tail.
-- **Other:** Undo (Ctrl/Cmd+Z), Reroll details, Clear map (two-click confirm), Load example, Snapshot (renders an image the user right-click saves), 5 ft grid toggle, edge roughness slider, token animation toggle. Map autosaves to `localStorage`.
+- **Map library:** the **Map: <name>** button in the header opens the list of maps saved in this browser. New map (blank 40×28 with the four cowboys), Open, Rename, Duplicate, Export, Delete (two-click confirm; the only map can't be deleted), Import file (one or many, or drop files on the dialog), Export all maps. Import never overwrites: every imported map is added as a new entry (names get " (2)" if taken), and a single imported map opens. If the page can't save files, the export text appears in a "Move maps as text" box to copy, and pasted text imports from the same box. Switching maps clears undo history.
+- **Other:** Undo (Ctrl/Cmd+Z), Reroll details, Clear map (two-click confirm), Load example, Snapshot (renders an image the user right-click saves), 5 ft grid toggle, edge roughness slider, token animation toggle. Maps autosave to `localStorage`.
 
 ## How the code works (`app/dustmap_src.html`)
 
@@ -81,6 +83,21 @@ st = {
 }
 ```
 Older saves are migrated (`migrate()`); stamps live separately in `localStorage['dustmap-stamps']`.
+
+### Map library and file format
+
+`st` is always the open map and still saves to `dustmap-v2`. Every map, the open one included, is also stored as `localStorage['dustmap-map:<id>']`, and `localStorage['dustmap-library']` lists them: `{ cur: id, maps: [{ id, name, cols, rows, updated }] }`. `save()` writes both. On first load the existing `dustmap-v2` map becomes the first entry. Map names live only in the library, not in `st`.
+
+Export files are JSON named `<name>.dustmap.json`:
+
+```
+{ "format": "dustmap", "kind": "map", "version": 1, "name": "…", "exported": "ISO time", "map": { …st… } }
+{ "format": "dustmap", "kind": "library", "version": 1, "exported": "…", "maps": [ { "name": "…", "map": { …st… } } ] }
+```
+
+A bare `st` object also imports. Every map read from storage or a file goes through `libClean()`, which runs `migrate()`, clamps size/seed/roughness, and drops ops, objects or tokens with a bad shape (unknown extra fields are kept). For Phase 4, the `map` object is the unit to share: a DM can load an exported file into the library and push that `st` to the shared `db` document.
+
+Exports go through the artifact `downloads` capability when the page has it (`claude.use('downloads')`), a normal browser download when opened as a local file, and the copyable text box otherwise. **Publish the artifact with `capabilities: {downloads: true}`** so Export saves a file there. Stamps are not part of map files (they stay per browser).
 
 Terrain indices: 0 sand, 1 scrub, 2 mesa, 3 water, 4 badlands, 5 road, 6 town, 7 stone floor, 8 cave wall, 9 mine rail.
 
@@ -125,8 +142,8 @@ Full redraws still happen for: load, Reroll, roughness, resize, and undo that ch
 | 1 | Token snapping to centres / edge midpoints / corners | Done |
 | 2 | Stone / cave / mine terrain and props | Done |
 | 2 | Object grid placement and reusable stamps | Done |
-| 3 | **Map library**: named maps saved in the page, switch between them, export/import as a file (needed to "build locally, then load into a session") | **Next** |
-| 4 | Multiplayer core: sessions, DM + player roles, shared live map, players move only their own token, shared pointer/measure/ping | To do |
+| 3 | Map library: named maps saved in the page, switch between them, export/import as a file (needed to "build locally, then load into a session") | Done |
+| 4 | **Multiplayer core**: sessions, DM + player roles, shared live map, players move only their own token, shared pointer/measure/ping | **Next** |
 | 5 | Hidden areas (fog of war) painted by the DM, revealable mid-session | To do |
 | 6 | DM animation paths (token walks a drawn path at a set speed) | To do |
 | 6 | Interactive objects (click a door to load another map; more actions later) | To do |
