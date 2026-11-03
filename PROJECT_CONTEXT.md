@@ -22,7 +22,9 @@ Two related pieces of work:
 | `app/tests/verify_partial_redraw.js` | Playwright test: makes edits, then checks the partial redraw matches a full redraw pixel-for-pixel |
 | `app/tests/mine_scene_smoke_test.js` | Playwright test: builds a mine scene (stone, raised-stone cave wall, rails, props, grid, stamp, token drag) |
 | `app/tests/map_library_test.js` | Playwright test: map library (new, rename, switch, export to file, import, delete, reload) |
-| `sprites/game_ready/` | Final 32×32 sprite sheets (8 frames each), combined atlas + JSON, lineup GIF |
+| `sprites/game_ready/` | Final 32×32 sprite sheets (8 frames each), combined atlas + JSON, lineup GIF. `npcs_enemies/` holds the 24 NPC/enemy tokens and their colour variants (75 idle loops) |
+| `sprites/generator_scripts/npcs/` | Grids, palette, part-based idle animator and build scripts for the NPC/enemy tokens (`build_anim.py` regenerates `game_ready/npcs_enemies`) |
+| `app/token_manifest.json` | Append-only order of token sheets; a saved token's `s` is its index here |
 | `sprites/per_character/` | Every intermediate deliverable per character (pose mockups, size variants, eye/cigarette/palm variants, idle GIFs) |
 | `sprites/generator_scripts/` | The Python (Pillow + NumPy) scripts that drew each sprite. Sibling-script loads and `standardize/std.py` paths are repo-relative; other outputs go to the current directory. |
 | `reference/original_art/` | The four painted characters the sprites are based on |
@@ -58,7 +60,7 @@ All are tiny pixel art, hand-placed on a character grid for the smallest size, t
 - **Brush:** small gaps fully enclosed inside a single stroke fill automatically (up to about 8·r² px).
 - **Objects:** buildings, well, wagon, trough, barrels, crates, boulder, cactus, rock, dead tree, ore cart, lantern (glow), timber supports, rubble, crystals (glow). Grid picker (Google-Docs-style 6×6) places arrays with adjustable spacing; arrays move as a group (Alt grabs one).
 - **Select:** click to select; a terrain shape only moves when dragged *after* it is selected (otherwise the drag pans). Drag corners to reshape. Auto-placed buildings, props, cacti and rocks can be picked up individually (they become normal objects and the generator leaves the spot empty). Shift-click / Shift-drag box for multi-select; **Save as stamp** stores the selection as a reusable stamp (saved per browser).
-- **Tokens:** the four cowboys, animated. They snap so their standing point (shadow) lands exactly on a square centre, edge midpoint or corner; a diamond shows the target while dragging; Alt places freely.
+- **Tokens:** the four cowboys plus 13 townsfolk and 11 enemies, each with colour variants (79 sheets), all animated. Place them from the **Tokens** dropdown at the top of the Objects tool (the grid picker drops a group, one square apart); in Select, click a token to select it and press Delete to remove it. They snap so their standing point (shadow) lands exactly on a square centre, edge midpoint or corner; a diamond shows the target while dragging; Alt places freely.
 - **Measure:** square-to-square distance in feet and squares, 5e default (diagonals count 5 ft).
 - **Pointer:** click for a radar ping; press and drag for a pointer with a fading tail.
 - **Map library:** the **Map: <name>** button in the header opens the list of maps saved in this browser. New map (blank 40×28 with the four cowboys), Open, Rename, Duplicate, Export, Delete (two-click confirm; the only map can't be deleted), Import file (one or many, or drop files on the dialog), Export all maps. Import never overwrites: every imported map is added as a new entry (names get " (2)" if taken), and a single imported map opens. If the page can't save files, the export text appears in a "Move maps as text" box to copy, and pasted text imports from the same box. Switching maps clears undo history.

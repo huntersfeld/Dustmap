@@ -4,7 +4,7 @@
   "description": "Pixel-art Western battle-map editor for tabletop D&D sessions",
   "scripts": {
     "build": "python3 app/build_dustmap.py",
-    "test": "npm run build && node app/tests/verify_partial_redraw.js && node app/tests/mine_scene_smoke_test.js && node app/tests/object_grid_scatter_test.js && node app/tests/map_library_test.js"
+    "test": "npm run build && node app/tests/verify_partial_redraw.js && node app/tests/mine_scene_smoke_test.js && node app/tests/object_grid_scatter_test.js && node app/tests/map_library_test.js && node app/tests/npc_tokens_test.js"
   },
   "devDependencies": {
     "playwright": "^1.63.0"
