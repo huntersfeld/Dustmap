@@ -220,12 +220,13 @@ const sladIdx=h=>Math.max(0,Math.min(SLAD.length-1,h+SLAD0));
 // A raised area is moved up by the height of its cliff face, so the foot of the cliff sits where you painted.
 const sculptLift=(h,base)=>h>0&&h>base?Math.min(9,4*(h-base)):0;
 const OBJ=[
- {k:'shack',name:'Shack',sub:'Small · 3×3 squares',g:'Buildings'},{k:'saloon',name:'Saloon',sub:'Medium · 5×5 squares',g:'Buildings'},{k:'hotel',name:'Hotel',sub:'Large · 7×6 squares',g:'Buildings'},
+ {k:'shack',name:'Shack',sub:'Small · 2×2 squares',g:'Buildings'},{k:'saloon',name:'Saloon',sub:'Medium · 4×4 squares',g:'Buildings'},{k:'hotel',name:'Hotel',sub:'Large · 5×5 squares',g:'Buildings'},
  {k:'well',name:'Well',g:'Props'},{k:'wagon',name:'Wagon',g:'Props'},{k:'trough',name:'Trough',g:'Props'},{k:'barrels',name:'Barrels',g:'Props'},
  {k:'crates',name:'Crates',g:'Props'},{k:'boulder',name:'Boulder',g:'Props'},{k:'cactus',name:'Cactus',g:'Props'},{k:'rock',name:'Rock',g:'Props'},{k:'tree',name:'Dead tree',g:'Props'},
  {k:'cart',name:'Ore cart',g:'Mine & cave'},{k:'lantern',name:'Lantern',sub:'Casts a glow',g:'Mine & cave'},{k:'timber',name:'Timber supports',g:'Mine & cave'},{k:'rubble',name:'Rubble pile',g:'Mine & cave'},{k:'crystals',name:'Crystals',g:'Mine & cave'}];
-// true 5 ft scale: 16 px = one square. A shack is about 3×2½ squares, a saloon 5×5, a hotel 7×6.
-const SIZE={cart:[14,12],lantern:[6,7],timber:[30,10],rubble:[16,12],crystals:[12,12],cactus:[7,9],rock:[5,4],skull:[3,3],shack:[44,40],saloon:[76,80],hotel:[108,96],well:[16,16],wagon:[34,16],trough:[20,8],barrels:[10,8],crates:[11,10],boulder:[14,11],tree:[26,24]};
+// 16 px = one 5 ft square. Buildings are drawn a bit under true scale so towns read denser:
+// a shack is about 2¼×2 squares, a saloon 3¾×3¾, a hotel 5¼×4½ (still bigger than a token).
+const SIZE={cart:[14,12],lantern:[6,7],timber:[30,10],rubble:[16,12],crystals:[12,12],cactus:[7,9],rock:[5,4],skull:[3,3],shack:[36,32],saloon:[60,60],hotel:[84,72],well:[16,16],wagon:[34,16],trough:[20,8],barrels:[10,8],crates:[11,10],boulder:[14,11],tree:[26,24]};
 const TOOLS=[{id:'draw',name:'Shape',key:'D'},{id:'brush',name:'Brush',key:'B'},{id:'sculpt',name:'Sculpt',key:'E'},{id:'select',name:'Select',key:'V'},{id:'object',name:'Objects',key:'O'},{id:'measure',name:'Measure',key:'M'},{id:'ping',name:'Pointer',key:'P'},{id:'pan',name:'Pan',key:'H'}];
 const C={sand:[240,202,184],sand2:[236,196,178],sand3:[244,208,191],peb:[204,160,148],wet:[214,168,150],
  scrubg:[226,198,164],tuft:[140,130,72],tuftd:[104,96,52],tuftl:[170,160,92],
@@ -377,7 +378,7 @@ function sprite(k,v){v=(v||0)%12;const key=k+':'+v;if(SPR.has(key))return SPR.ge
   if(PATTERNS[k]){own=true;const[rows,map]=PATTERNS[k];rows.forEach((r,j)=>[...r].forEach((ch,i)=>{if(ch==='s'){const q=((j+1)*sw+i+1)*4;px.set(SHADOW,q)}else if(ch!=='.')put(i,j,C[map[ch]])}))}
   else if(k==='shack'||k==='saloon'||k==='hotel'){
     const RF=ROOFS[v%ROOFS.length],WL=WALLS[(v>>2)%WALLS.length];
-    const roofH={shack:26,saloon:44,hotel:48}[k],porch=k==='shack'?0:8,faceH=h-roofH-porch,fy=roofH;
+    const roofH={shack:20,saloon:32,hotel:30}[k],porch=k==='shack'?0:8,faceH=h-roofH-porch,fy=roofH;
     for(let j=0;j<roofH;j++)for(let i=0;i<w;i++){let c=j<roofH/2?mix(RF[0],LIGHT,.14):RF[0];
       if(RF[2]==='rows'){if(j%3===2)c=mix(c,DARK,.22);else if(j%3===1&&(i+((j/3)|0)*3)%6===0)c=mix(c,DARK,.16)}
       else if(i%4===0)c=mix(c,DARK,.2);
@@ -385,7 +386,7 @@ function sprite(k,v){v=(v||0)%12;const key=k+':'+v;if(SPR.has(key))return SPR.ge
     for(let j=0;j<faceH;j++)for(let i=0;i<w;i++){let c=i%3===2?WL[1]:WL[0];if(j<2)c=mix(c,DARK,.35-j*.12);put(i,fy+j,c)}
     const win=(x,y,ww,hh)=>{R(x,y,ww,hh,C.winl);R(x+1,y+1,ww-2,hh-2,C.win);R(x+(ww>>1),y+1,1,hh-2,C.winl);R(x+1,y+(hh>>1),ww-2,1,C.winl);R(x+1,y+1,(ww>>1)-1,1,mix(C.win,LIGHT,.35))};
     const door=(x,y,ww,hh)=>{R(x,y,ww,hh,C.door);R(x+ww-2,y+(hh>>1),1,1,[200,170,90])};
-    if(k==='shack'){R(w-12,4,4,8,[74,70,70]);R(w-12,4,4,1,[120,116,112]);door(9,fy+3,8,faceH-3);win(26,fy+4,9,7)}
+    if(k==='shack'){R(w-10,3,4,7,[74,70,70]);R(w-10,3,4,1,[120,116,112]);door(7,fy+2,8,faceH-2);win(w-14,fy+3,9,7)}
     if(k==='saloon'){
       // false front rising over the roof, with a stepped top and a sign
       const fx0=3,fx1=w-3,top=fy-12;
@@ -393,14 +394,14 @@ function sprite(k,v){v=(v||0)%12;const key=k+':'+v;if(SPR.has(key))return SPR.ge
       for(let j=top-5;j<top;j++)for(let i=(w>>1)-16;i<(w>>1)+16;i++)put(i,j,i%3===2?WL[1]:WL[0]);
       R(fx0,top,fx1-fx0,1,mix(WL[0],LIGHT,.3));R((w>>1)-16,top-5,32,1,mix(WL[0],LIGHT,.3));
       R(10,top+2,w-20,9,C.signd);R(11,top+3,w-22,7,C.sign);TXT('SALOON',(w>>1)-12,top+4,C.signd);
-      win(6,fy+5,12,10);win(20,fy+5,10,10);win(w-30,fy+5,10,10);win(w-18,fy+5,12,10);
-      R((w>>1)-8,fy+6,16,faceH-6,C.door);R((w>>1)-7,fy+10,6,8,C.wood);R((w>>1)+1,fy+10,6,8,C.wood)}
+      win(5,fy+4,12,10);win(w-17,fy+4,12,10);
+      R((w>>1)-8,fy+5,16,faceH-5,C.door);R((w>>1)-7,fy+8,6,8,C.wood);R((w>>1)+1,fy+8,6,8,C.wood)}
     if(k==='hotel'){
       R(14,6,6,10,[120,72,56]);R(14,6,6,2,[150,96,76]);R(w-22,8,6,10,[120,72,56]);R(w-22,8,6,2,[150,96,76]);
       R(26,fy+2,w-52,9,C.signd);R(27,fy+3,w-54,7,C.sign);TXT('HOTEL',(w>>1)-10,fy+4,C.signd);
-      for(let n=0;n<4;n++)win(8+n*((w-26)/3|0),fy+14,10,9);
-      R(0,fy+25,w,3,C.woodd);for(let i=1;i<w;i+=4)R(i,fy+23,1,2,C.woodd);R(0,fy+23,w,1,C.wood);
-      door((w>>1)-7,fy+29,14,faceH-29);win(8,fy+30,10,8);win(24,fy+30,10,8);win(w-34,fy+30,10,8);win(w-18,fy+30,10,8)}
+      for(let n=0;n<4;n++)win(8+n*((w-26)/3|0),fy+12,10,8);
+      R(0,fy+22,w,3,C.woodd);for(let i=1;i<w;i+=4)R(i,fy+20,1,2,C.woodd);R(0,fy+20,w,1,C.wood);
+      door((w>>1)-7,fy+25,14,faceH-25);win(8,fy+26,10,7);win(24,fy+26,10,7);win(w-34,fy+26,10,7);win(w-18,fy+26,10,7)}
     if(porch){const py=h-porch;for(let j=0;j<porch;j++)for(let i=0;i<w;i++){let c=[188,140,98];if(j%2===1)c=[170,124,86];if((i+(j>>1)*7)%12===0)c=[150,106,72];if(j===0)c=mix(c,DARK,.3);put(i,py+j,c)}
       for(const x of [1,(w>>2),(w>>1)-1,(3*w>>2),w-3])R(x,py,2,porch,[104,66,46])}}
   else if(k==='cart'){for(const[x,y]of[[0,1],[11,1],[0,8],[11,8]])R(x,y,3,3,C.wheel);R(1,0,12,12,C.metal);R(1,0,12,1,C.metall);R(1,0,1,12,C.metall);R(3,2,8,8,C.ore);
@@ -540,9 +541,13 @@ function paintMap(img,R,seed,opts={}){
     const fits=(x,y,w,h)=>{if(x<1||y<1||x+w+4>=W||y+h+3>=H)return false;
       if(area(x,y,w+3,h+2)!==(w+3)*(h+2))return false;
       return !rects.some(r=>x<r[0]+r[2]+3&&x+w+3>r[0]&&y<r[1]+r[3]+2&&y+h+2>r[1])};
+    const tA=area(0,0,W,H);let bigA=0;
     for(let k=0;k<1500;k++){const x=bx0+Math.floor(Rt()*(bx1-bx0+1)),y=by0+Math.floor(Rt()*(by1-by0+1));if(!inT(y*W+x))continue;
-      const r=Rt(),kind=r<.22?'hotel':r<.55?'saloon':'shack';
-      for(const kd of [kind,'saloon','shack']){const[ww,hh]=SIZE[kd];if(fits(x,y,ww,hh)){rects.push([x,y,ww,hh]);town.push({k:kd,x:x+ww/2,y:y+hh/2,v:Math.floor(Rt()*12)});break}}}
+      // first place a few big buildings (up to about a third of the town's area) so shacks don't crowd them out,
+      // then fill the gaps with a shack-heavy mix
+      const r=Rt(),big=k<300,kind=big?(r<.4?'hotel':'saloon'):r<.08?'hotel':r<.3?'saloon':'shack';
+      if(big&&bigA+SIZE[kind][0]*SIZE[kind][1]>tA*.34)continue;
+      for(const kd of big?[kind]:[kind,'saloon','shack']){const[ww,hh]=SIZE[kd];if(fits(x,y,ww,hh)){rects.push([x,y,ww,hh]);if(big)bigA+=ww*hh;town.push({k:kd,x:x+ww/2,y:y+hh/2,v:Math.floor(Rt()*12)});break}}}
     const sk=sid[oi]||0;
     town.sort((a,b)=>a.y-b.y).forEach(o=>{emit(`t${sk}:${o.k}`,o);const[w,h]=SIZE[o.k];
       const pr=Rt(),px=o.x+w/2+7,py=o.y+h/2-6;const okP=(xx,yy)=>inT((yy|0)*W+(xx|0));

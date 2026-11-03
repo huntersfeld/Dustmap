@@ -51,7 +51,7 @@ All are tiny pixel art, hand-placed on a character grid for the smallest size, t
 - **Terrain (Terrain tab):** Sand, Scrub, Mesa, Water, Badlands, Road, Town, Stone, Mine rail.
   - Water gets foam, a wet-sand band and depth shading. Mesa gets rock faces on its south side, outlines and cast shadows. Stone is one material: flat it is cave floor; raised (Elevation or Sculpt) it becomes a cave wall with the dark wall texture on top and dark gray rock faces.
   - Roads get wheel ruts computed from the *merged* road shape (so crossings join cleanly). A road can only climb or drop one elevation level at a time; larger jumps are skipped and the road resumes beyond them; where it crosses a one-level cliff it renders as a ramp.
-  - Town fills itself with small/medium/large buildings (shack 3×3, saloon 5×5, hotel 7×6 squares, true scale) plus barrels, crates and troughs; buildings avoid roads, so a road through a town becomes a street.
+  - Town fills itself with small/medium/large buildings (shack about 2×2, saloon 4×4, hotel 5×4½ squares; a bit under true scale so towns read denser; a few big buildings go down first, then shacks fill the gaps) plus barrels, crates and troughs; buildings avoid roads, so a road through a town becomes a street.
   - Mine rail draws ties and two rails along the stroke path.
 - **Elevation (Elevation tab):** Hill, High hill, Cliff, High cliff, Lower, Deepest, Flatten. Raised cliffs get rock faces coloured by the ground underneath (red for mesa, purple for badlands, dark gray for stone, tan otherwise); hills get a graded south slope, lit north/west edges, a shaded east edge and a soft cast shadow; lowered land renders as a recessed pit (inner wall, shadow, darker floor); lowered water just gets darker.
 - **Sculpt:** in one motion, drag over an area, hold still about 0.38 s (a ring fills) or press Shift, then drag up/down to set it to a cliff level from −3 to +3 (`SLAD`), starting from the most common height under it. A raised area is shifted up by its cliff-face height (`sculptLift`) so the foot of the cliff sits on the painted stroke. There is no Hill/Cliff toggle; hills come from the Elevation tab.
@@ -127,7 +127,7 @@ Full redraws still happen for: load, Reroll, roughness, resize, and undo that ch
 ## Decisions and preferences so far
 
 - The user prefers the **tiniest sprite size** and chooses from small sets of visual options before animating.
-- True-scale battle maps (one person = one square) over a compact look; buildings were scaled up rather than tokens shrunk.
+- True-scale battle maps (one person = one square) over a compact look; buildings were scaled up rather than tokens shrunk, then trimmed back about 20% so towns feel denser (exact scale given up for buildings only).
 - Elevation should feel physical: pits recess into the ground; roads obey one-level steps.
 - Interaction choices: a pause (dwell), not angle or speed, switches Sculpt from selecting to raising; terrain shapes must be selected before they can be dragged.
 - Physics engine (pour rocks, explosions, craters) is **parked** as a nice-to-have.
