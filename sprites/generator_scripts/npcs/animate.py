@@ -13,7 +13,7 @@ from PIL import Image
 from palette import C, OUT, to_frame
 
 N = 8
-PADX, PADT = 4, 3
+PADX, PADT = 4, 6
 # standard curves
 B = [0, 0, 1, 1, 1, 1, 0, 0]       # breathing: body sinks 1 px
 HAT = [0, 0, 1, 1, 1, 1, 1, 0]     # hat lags on the way up

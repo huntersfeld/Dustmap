@@ -72,23 +72,23 @@ T['desperado'] = dict(name='Desperado', grid=[
 
 # ---------------------------------------------------------------- Miner
 T['miner'] = dict(name='Miner', grid=[
-    "....................gG",
-    "..........FF.......gG.",
-    "........HHFFHH....gGG.",
-    ".......HHLHHHHH..JG...",
-    ".......HHHHHHHH..J....",
-    "......hhhhhhhhhh.J....",
-    ".......RSSSSSSR..J....",
-    ".......RSESSESR..J....",
-    ".......RsSSSSsR..J....",
-    "........MMMMMM..SJ....",
-    "......WWVWWWWVWWSJ....",
-    ".....WWWVWWWWVWWW.....",
-    ".....WWwVWWWWVwW......",
-    ".....WW.VWWWWV.WW.....",
-    ".....SS.BBBYBBB.SS....",
-    ".....SS.PPPPPPP.SS....",
-    "........PPPPPPP.......",
+    "......................",
+    "..........FF..........",
+    "........HHFFHH..GGGGG.",
+    ".......HHLHHHHHg..J..g",
+    ".......HHHHHHHH...J...",
+    "......hhhhhhhhhh..J...",
+    ".......RSSSSSSR...J...",
+    ".......RSESSESR...J...",
+    ".......RsSSSSsR...J...",
+    "........MMMMMM....J...",
+    "......WWVWWWWVWW..J...",
+    ".....WWWVWWWWVWWW.J...",
+    ".....WWwVWWWWVwWW.J...",
+    ".....WW.VWWWWV.WW.J...",
+    ".....SS.BBBYBBB.SSS...",
+    ".....SS.PPPPPPP.SSJ...",
+    "........PPPPPPP...J...",
     "........PPPpPPP.......",
     "........PPP.PPP.......",
     "........PP...PP.......",
@@ -315,23 +315,18 @@ T['prospector'] = dict(name='Prospector', grid=[
     ".....VMMMMMMMMMMV.....",
     ".....VVMMMMMMMMVV.....",
     ".....VV.MMMMMM.VV.....",
-    ".....SS.MMMMMM.SS.....",
-    "...GGGGGGMMMM.........",
-    "...gGGGGGgMM..........",
-    "....gggggPPPP.........",
+    "......S.MMMMMM.S......",
+    "..gGGSSGGGGGGGGSSGGg..",
+    "...gggGGGYGGGGGggg....",
+    "........PPPPPPP.......",
     "........PPPpPPP.......",
     "........PPP.PPP.......",
     "........PP...PP.......",
     "......KKKK...KKKK.....",
 ], cmap=cm(H='hatbr', h='hatbrd', L='hatbrl', R='hairgry', M='hairgry', V='red', v='redd',
-           G='grey', g='greyd', P='khaki', p='khakid'),
+           G=(128, 112, 98), g=(92, 78, 68), P='khaki', p='khakid'),
     variants=[dict(H='hattan', h='hattand', L='hattanl', V='blue', S='skin2', s='skin2d'),
-              dict(V='green', S='skin3', s='skin3d', G='gold', g='goldd')])
-# hands holding gold pan: put skin at row 14 ends
-T['prospector']['grid'][14] = "..SGGGGGGMMMMS........"
-T['prospector']['grid'][13] = ".....SS.MMMMMM.SS....."
-T['prospector']['grid'][13] = ".....V..MMMMMM..V....."
-T['prospector']['grid'][15] = "...gGYGGGgMM..........".replace('Y', 'Y')
+              dict(V='green', S='skin3', s='skin3d', G=(150, 120, 80), g=(110, 84, 54))])
 
 # ---------------------------------------------------------------- Town drunk (goofy)
 T['drunk'] = dict(name='Town drunk', grid=[

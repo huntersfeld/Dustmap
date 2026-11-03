@@ -38,7 +38,8 @@ S['desperado'] = lambda: dict(parts=human(5, 17, tails=True, pre=[hands(4, 17, 1
 
 
 def _miner():
-    pick = part('pick', lambda x, y, c: (c in 'JGg' and y <= 10) or (x == 16 and y in (9, 10)), Z0, LAG, z=4)
+    # pickaxe + the hand gripping it lag together
+    pick = part('pick', lambda x, y, c: c in 'JGg' or (c == 'S' and x >= 16 and y in (14, 15)), Z0, LAG, z=4)
 
     def fx(f, a, off):
         ox, oy = off['hat']
@@ -49,7 +50,7 @@ def _miner():
         al = 150 if bright else 90
         for x, y in [(9, 0), (12, 0), (10, -1), (11, -1), (8, 1), (13, 1)]:
             put(a, x + ox, y + oy, (255, 226, 120, al))
-    return dict(parts=human(5, 16, pre=[pick, hands(6, 16, 14, 15)]), fx=fx)
+    return dict(parts=human(5, 16, pre=[pick, hands(6, 99, 14, 15)]), fx=fx)
 
 
 S['miner'] = _miner
@@ -114,7 +115,8 @@ S['undertaker'] = _undertaker
 
 
 def _snakeoil():
-    bottle = part('bottle', lambda x, y, c: x >= 17 and y <= 9, Z0, [0, -1, -1, 0, 0, -1, -1, 0], z=6)
+    # only the bottle shakes; hand and arm stay with the body so nothing detaches
+    bottle = part('bottle', lambda x, y, c: x >= 18 and y <= 6, [0, 1, 0, -1, 0, 1, 0, -1], B, z=6)
     pts = [(19, 3), (19, 4), (19, 5), (19, 6)]
     return dict(parts=human(5, 16, pre=[bottle, hands(6, 99, 14, 15)]),
                 patch=lambda f: cycle(f, pts, 'n', 8), cmap=dict(n=GLINT))
@@ -124,10 +126,10 @@ S['snakeoil'] = _snakeoil
 
 
 def _prospector():
-    pan = part('pan', lambda x, y, c: 14 <= y <= 16 and ((x <= 9 and c in 'GgYS') or (x == 13 and c == 'S')),
-               [0, 1, 0, -1, 0, 1, 0, -1], LAG, z=6)
-    path = [0, 1, 2, 3, 2, 1, 0, 1]   # a gold fleck swirls around the pan
-    return dict(parts=human(4, 16, pre=[pan]), patch=lambda f: [(5, 15, 'G'), (3 + path[f], 15, 'Y')])
+    shake = [0, 1, 0, -1, 0, 1, 0, -1]
+    pan = part('pan', lambda x, y, c: y in (14, 15) or (y == 13 and c == 'S' and x in (6, 15)), shake, B, z=6)
+    path = [0, 1, 2, 3, 4, 3, 2, 1]   # a gold fleck swirls around the pan
+    return dict(parts=human(4, 16, pre=[pan]), patch=lambda f: [(9, 15, 'G'), (7 + path[f], 15, 'Y')])
 
 
 S['prospector'] = _prospector
@@ -137,7 +139,35 @@ def _drunk():
     sway = [0, 0, 1, 1, 1, 0, 0, 0]
     def patch(f):   # heavy eyelids
         return [(9, 7, 's'), (12, 7, 's')] if f in (3, 4, 5) else []
-    return dict(parts=human(5, 17, hat_dx=[0, 0, 0, 1, 1, 1, 0, 0], body_dx=sway), patch=patch)
+    # drunk bubbles: two bubbles, half a loop apart, float up and to the right, grow, then pop
+    PATH = [(15, 8, 'dot'), (17, 7, 'dot'), (19, 6, 'ring'), (21, 4, 'ring'), (22, 1, 'big'), (22, -2, 'big'),
+            (22, -4, 'pop'), None]
+    FILL, HI = (150, 206, 236, 255), (255, 255, 255, 255)
+    def fx(f, a, off):
+        ox, oy = off['body']
+        for age in (f, (f + 4) % 8):
+            st = PATH[age]
+            if st is None:
+                continue
+            x, y, kind = st
+            X, Y = x + ox, y + oy
+            if kind == 'dot':
+                put(a, X, Y, FILL)
+                put(a, X, Y - 1, HI)
+            elif kind == 'ring':
+                for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                    put(a, X + dx, Y + dy, FILL)
+                put(a, X - 1, Y - 1, HI)
+            elif kind == 'big':
+                for dx, dy in [(-1, -2), (0, -2), (1, -2), (-2, -1), (2, -1), (-2, 0), (2, 0), (-2, 1), (2, 1),
+                               (-1, 2), (0, 2), (1, 2)]:
+                    put(a, X + dx, Y + dy, FILL)
+                put(a, X - 1, Y - 1, HI)
+                put(a, X, Y - 1, (226, 242, 250, 160))
+            else:   # pop: four sparkles flying apart
+                for dx, dy in [(-3, -1), (3, -1), (-2, 2), (2, 2), (0, -3), (0, 3)]:
+                    put(a, X + dx, Y + dy, (190, 226, 246, 230))
+    return dict(parts=human(5, 17, hat_dx=[0, 0, 0, 1, 1, 1, 0, 0], body_dx=sway), patch=patch, fx=fx)
 
 
 S['drunk'] = _drunk
@@ -205,8 +235,11 @@ S['tarantula'] = _tarantula
 
 
 def _coyote():
-    ps = [part('head', lambda x, y, c: y <= 3 and x <= 7, Z0, LAG, z=4),
-          part('tail', lambda x, y, c: x >= 16 and 4 <= y <= 6, Z0, [0, -1, -1, 0, 0, -1, -1, 0], z=3),
+    # head moves with the body (a lagging head opened a dark seam across the chest); ears lag instead
+    wag = [0, -1, 0, 0, 0, -1, 0, 0]
+    ps = [part('ears', lambda x, y, c: y <= 1, Z0, HAT, z=5),
+          part('head', lambda x, y, c: y <= 3 and x <= 7, Z0, B, z=4),
+          part('tail', lambda x, y, c: x >= 16 and 4 <= y <= 6, Z0, [b + w for b, w in zip(B, wag)], z=3),
           part('body', lambda x, y, c: 4 <= y <= 6, Z0, B, z=3),
           part('legs', lambda x, y, c: True, z=1)]
     return dict(parts=ps, patch=lambda f: [(5, 0, '.')] if f == 5 else [])
