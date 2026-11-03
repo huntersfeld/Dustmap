@@ -1,0 +1,132 @@
+{
+  "frame_width": 32,
+  "frame_height": 32,
+  "pivot": {
+    "x": 16,
+    "y": 31,
+    "note": "bottom-center, standing point"
+  },
+  "status": "static mockups (frame 0 only, no animation yet)",
+  "sprites": {
+    "bandit": {
+      "group": "townsfolk",
+      "x": 0,
+      "y": 0
+    },
+    "desperado": {
+      "group": "townsfolk",
+      "x": 32,
+      "y": 0
+    },
+    "miner": {
+      "group": "townsfolk",
+      "x": 64,
+      "y": 0
+    },
+    "barkeep": {
+      "group": "townsfolk",
+      "x": 96,
+      "y": 0
+    },
+    "cowboy": {
+      "group": "townsfolk",
+      "x": 128,
+      "y": 0
+    },
+    "cowgirl": {
+      "group": "townsfolk",
+      "x": 160,
+      "y": 0
+    },
+    "sheriff": {
+      "group": "townsfolk",
+      "x": 192,
+      "y": 0
+    },
+    "singer": {
+      "group": "townsfolk",
+      "x": 224,
+      "y": 0
+    },
+    "undertaker": {
+      "group": "townsfolk",
+      "x": 256,
+      "y": 0
+    },
+    "snakeoil": {
+      "group": "townsfolk",
+      "x": 288,
+      "y": 0
+    },
+    "prospector": {
+      "group": "townsfolk",
+      "x": 320,
+      "y": 0
+    },
+    "drunk": {
+      "group": "townsfolk",
+      "x": 352,
+      "y": 0
+    },
+    "kid": {
+      "group": "townsfolk",
+      "x": 384,
+      "y": 0
+    },
+    "rattlesnake": {
+      "group": "enemies",
+      "x": 0,
+      "y": 32
+    },
+    "lizard": {
+      "group": "enemies",
+      "x": 32,
+      "y": 32
+    },
+    "scorpion": {
+      "group": "enemies",
+      "x": 64,
+      "y": 32
+    },
+    "tarantula": {
+      "group": "enemies",
+      "x": 96,
+      "y": 32
+    },
+    "coyote": {
+      "group": "enemies",
+      "x": 128,
+      "y": 32
+    },
+    "vulture": {
+      "group": "enemies",
+      "x": 160,
+      "y": 32
+    },
+    "armadillo": {
+      "group": "enemies",
+      "x": 192,
+      "y": 32
+    },
+    "jackalope": {
+      "group": "enemies",
+      "x": 224,
+      "y": 32
+    },
+    "skeleton": {
+      "group": "enemies",
+      "x": 256,
+      "y": 32
+    },
+    "cactus": {
+      "group": "enemies",
+      "x": 288,
+      "y": 32
+    },
+    "sandworm": {
+      "group": "enemies",
+      "x": 320,
+      "y": 32
+    }
+  }
+}
