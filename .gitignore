@@ -1,0 +1,23 @@
+# Test screenshots
+app/tests/output/
+
+# Node
+node_modules/
+npm-debug.log*
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Sprite generator scratch output (run generator scripts from a scratch folder; see README)
+sprites/generator_scripts/**/*.png
+sprites/generator_scripts/**/*.gif
+
+# Editors / OS
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
