@@ -1115,7 +1115,7 @@ const libCur=()=>lib.maps.find(m=>m.id===lib.cur);
 function libStore(){try{localStorage.setItem(LIBKEY,JSON.stringify(lib));return true}catch(e){return false}}
 function libPut(id,j){try{localStorage.setItem(MAPKEY+id,j);return true}catch(e){return false}}
 function libGet(id){try{return libClean(JSON.parse(localStorage.getItem(MAPKEY+id)))}catch(e){return null}}
-function libSaved(j){if(!lib)return;const m=libCur();if(!m)return;Object.assign(m,libMeta(st));
+function libSaved(j){if(!lib)return;const m=libCur();if(!m)return;Object.assign(m,libMeta(st));groupSync(m,j);
   if(!(libPut(m.id,j)&&libStore()))libSay('Browser storage is full, so the latest change was not saved. Export maps you want to keep, then delete some.')}
 function libUniq(name){name=(String(name||'').replace(/\s+/g,' ').trim()||'Untitled map').slice(0,60);
   const taken=new Set(lib.maps.map(m=>m.name));if(!taken.has(name))return name;
@@ -1174,6 +1174,9 @@ function libRender(){const box=$('libmaps');box.replaceChildren();
     btn('Duplicate',()=>{const s=m.id===lib.cur?libClean(JSON.parse(JSON.stringify(st))):libGet(m.id);if(!s)return libSay('That map could not be read.');
       if(libAdd(m.name+' copy',s,false)){libSay(`Made a copy of “${m.name}”.`);libRender()}});
     btn('Export',()=>libExport([m]));
+    if(mp.gm){const mine=m.gid&&m.gid.startsWith(mp.gm.me+'_');
+      if(mine){const p=document.createElement('span');p.className='pill';p.textContent='In group';p.title='Your changes reach the group library automatically';row.append(p)}
+      else btn('Share with group',()=>groupShare(m))}
     const del=btn(libArmed===m.id?'Click again to delete':'Delete',()=>{
       if(lib.maps.length<2)return libSay('This is your only map. Add another before deleting it.');
       if(libArmed!==m.id){libArmed=m.id;clearTimeout(libArmT);libArmT=setTimeout(()=>{libArmed=null;libRender()},3000);libRender();return}
@@ -1181,7 +1184,40 @@ function libRender(){const box=$('libmaps');box.replaceChildren();
       if(was){const next=[...lib.maps].sort((a,b)=>b.updated-a.updated)[0];lib.cur=null;libOpen(next.id,libGet(next.id)||blankMap())}
       libStore();libSay(`Deleted “${m.name}”.`);libRender()},libArmed===m.id?'warn':'');
     if(lib.maps.length<2)del.disabled=true;
+    box.append(row)});
+  if(mp.gm)groupRender(box)}
+// ---- group maps (Firebase): everyone in the room sees them; a copy opens in your own library ----
+let gArmed=null;
+const gLocal=gid=>lib.maps.find(m=>m.gid===gid);
+async function groupShare(m){const id=mp.gm.me+'_'+m.id,j=m.id===lib.cur?JSON.stringify(st):localStorage.getItem(MAPKEY+m.id);if(!j)return libSay('That map could not be read.');
+  libSay('Sharing “'+m.name+'”…');try{await mp.gm.put(id,m,j);m.gid=id;libStore();libSay(`Shared “${m.name}” with the group. Changes you make to it reach the group too.`)}
+  catch(e){libSay('That didn’t go through. Check your connection and try again.')}libRender()}
+// your shared maps follow your edits (debounced)
+const gTimers={};
+function groupSync(m,j){if(!mp.gm||!m||!m.gid||!m.gid.startsWith(mp.gm.me+'_'))return;clearTimeout(gTimers[m.id]);
+  gTimers[m.id]=setTimeout(()=>mp.gm.put(m.gid,m,j).catch(()=>{}),1500)}
+function groupRender(box){const list=mp.gm.list().sort((a,b)=>b.updated-a.updated);
+  const missing=[...new Set(list.map(g=>g.by))].filter(id=>id&&!(id in mp.profiles));
+  if(missing.length&&mp.user){missing.forEach(id=>mp.profiles[id]={name:''});mp.user.profiles(missing).then(ps=>{Object.assign(mp.profiles,ps);if(!$('libmodal').hidden&&!libRename)libRender()}).catch(()=>{})}
+  const h=document.createElement('div');h.className='grp';h.style.marginTop='10px';h.textContent='Group maps · everyone with your room link sees these';box.append(h);
+  if(!list.length){const p=document.createElement('p');p.className='note';p.style.margin='0';p.textContent='Nothing shared yet. Use “Share with group” on one of your maps.';box.append(p);return}
+  list.forEach(g=>{const row=document.createElement('div');row.className='libmap';const nm=document.createElement('div');nm.className='nm';
+    const b=document.createElement('b');b.textContent=g.name;const meta=document.createElement('span');meta.className='note';
+    meta.textContent=`${g.by===mp.gm.me?'You':mpName(g.by)} · ${g.cols} × ${g.rows} squares · ${ago(g.updated)}`;nm.append(b,meta);row.append(nm);
+    const btn=(t,fn,cls)=>{const x=document.createElement('button');x.className='btn'+(cls?' '+cls:'');x.textContent=t;x.onclick=fn;row.append(x);return x};
+    const mine=g.by===mp.gm.me;
+    if(!mine)btn(gLocal(g.id)?'Open latest':'Open',()=>groupOpen(g),'primary');
+    if(mine||mp.gm.isOwner())btn(gArmed===g.id?'Click again to remove':'Remove from group',async()=>{
+      if(gArmed!==g.id){gArmed=g.id;setTimeout(()=>{gArmed=null;libRender()},3000);libRender();return}
+      gArmed=null;try{await mp.gm.del(g.id);const lm=gLocal(g.id);if(lm&&mine){delete lm.gid;libStore()}libSay(`Removed “${g.name}” from the group. Copies people already opened stay in their libraries.`)}catch(e){libSay('That didn’t go through.')}libRender()},gArmed===g.id?'warn':'');
     box.append(row)})}
+// opening a group map copies it into your library (refreshing the copy if you opened it before)
+async function groupOpen(g){libSay('Opening “'+g.name+'”…');let j=null;try{j=await mp.gm.get(g.id)}catch(e){}
+  let s=null;try{s=libClean(JSON.parse(j))}catch(e){}if(!s)return libSay('That map could not be read.');
+  const lm=gLocal(g.id);
+  if(lm){if(lm.id===lib.cur){const old=st;st=s;hist=[];updUndo();redrawChanged(old);save()}else{libPut(lm.id,JSON.stringify(s));Object.assign(lm,libMeta(s));libStore();libOpen(lm.id,libGet(lm.id))}libSay(`Opened the latest “${g.name}”.`)}
+  else{const m=libAdd(g.name,s,true);if(!m)return;m.gid=g.id;libStore();libSay(`Opened “${g.name}”. It’s now in your maps, so you can edit your own copy.`)}
+  libHide()}
 function libShow(){libSay('');libRename=null;libRender();$('libmodal').hidden=false;$('libclose').focus()}
 function libHide(){$('libmodal').hidden=true;libRename=null;$('libbtn').focus()}
 const slug=n=>(n.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,48)||'map');
@@ -1267,8 +1303,11 @@ async function fbRuntime(cfg){
   const fb=window.firebase,T=window.__fbTest;fb.initializeApp(cfg);const fdb=fb.database();let me;
   if(T){fdb.useEmulator(T.host,T.port,{mockUserToken:{user_id:T.uid}});me=T.uid}   // tests: local emulator, fixed user
   else{const auth=fb.auth();me=await new Promise((res,rej)=>{const off=auth.onAuthStateChanged(u=>{if(u){off();res(u.uid)}else auth.signInAnonymously().catch(rej)})})}
-  let room=(location.hash.match(/room=([A-Za-z0-9_-]{6,40})/)||[])[1];const joined=!!room;
-  if(!room){room=Math.random().toString(36).slice(2,8)+Math.random().toString(36).slice(2,8);history.replaceState(null,'','#room='+room)}
+  // the room is the group: its link opens it, and this browser remembers the last one for a bare visit
+  let room=(location.hash.match(/room=([A-Za-z0-9_-]{6,40})/)||[])[1];const joined=!!room;let saved=null;try{saved=localStorage.getItem('dustmap-room')}catch(e){}
+  if(!room&&saved&&/^[A-Za-z0-9_-]{6,40}$/.test(saved))room=saved;
+  if(!room)room=Math.random().toString(36).slice(2,8)+Math.random().toString(36).slice(2,8);
+  history.replaceState(null,'','#room='+room);try{localStorage.setItem('dustmap-room',room)}catch(e){}
   const R=fdb.ref('rooms/'+room);let owner=(await R.child('owner').get()).val();
   R.child('owner').on('value',s=>{owner=s.val()});
   const err=e=>({code:/permission/i.test(String(e&&(e.code||e.message)))?'invalid_argument':'unavailable',message:String(e&&e.message||e)});
@@ -1306,12 +1345,22 @@ async function fbRuntime(cfg){
   const user={id:async()=>me,isOwner:async()=>!owner||owner===me,canEdit:async()=>!owner||owner===me,can:async()=>null,
     profiles:async ids=>{const r={};(Array.isArray(ids)?ids:[ids]).forEach(i=>{const n=people[i]&&people[i].name;r[i]={id:i,name:typeof n==='string'?n:'',avatarUrl:'',color:'',email:null,isMe:i===me,guest:false}});return r},
     setName,onNames:f=>nameL.push(f),joined,link:()=>location.href.split('#')[0]+'#room='+room};
-  return{use:async n=>({db:{doc:docRef,collection:colRef},room:roomNs,user})[n]||null,firebase:true}}
+  // group map library: a small index everyone lists, and the map text fetched only when someone opens it.
+  // Ids are <uid>_<local map id>, so each person writes only their own; the room owner may also delete.
+  const GI=R.child('mapIndex'),GD=R.child('mapData');let gidx={};const gL=[];
+  GI.on('value',s=>{gidx=s.val()||{};gL.forEach(f=>f())});
+  const groupMaps={me,isOwner:()=>owner===me,onChange:f=>gL.push(f),
+    list:()=>Object.entries(gidx).filter(([id,v])=>v&&typeof v.name==='string').map(([id,v])=>({id,name:v.name,by:v.by,cols:+v.cols||0,rows:+v.rows||0,updated:+v.updated||0})),
+    get:async id=>{const v=(await GD.child(id).get()).val();return v&&typeof v.j==='string'?v.j:null},
+    put:async(id,meta,j)=>{try{await GD.child(id).set({by:me,j});await GI.child(id).set({by:me,name:String(meta.name).slice(0,60),cols:meta.cols,rows:meta.rows,updated:Date.now()})}catch(e){throw err(e)}},
+    del:async id=>{try{await GI.child(id).remove();await GD.child(id).remove()}catch(e){throw err(e)}}};
+  return{use:async n=>({db:{doc:docRef,collection:colRef},room:roomNs,user})[n]||null,firebase:true,groupMaps}}
 
 async function mpInit(){
   // on claude.ai the page runtime provides db/room/user; anywhere else, Firebase does if it's configured
   let c=window.claude;for(let i=0;i<(FIREBASE?10:50)&&!(c&&typeof c.use==='function');i++){await new Promise(r=>setTimeout(r,100));c=window.claude}
-  if(!c||typeof c.use!=='function'){if(!FIREBASE)return;try{c=await fbRuntime(FIREBASE)}catch(e){console.warn('Firebase unavailable',e);$('mpbtn').hidden=false;mp.err='Live play can’t connect right now. Check your internet connection and reload.';mpUI();return}mp.fb=true}
+  if(!c||typeof c.use!=='function'){if(!FIREBASE)return;try{c=await fbRuntime(FIREBASE)}catch(e){console.warn('Firebase unavailable',e);$('mpbtn').hidden=false;mp.err='Live play can’t connect right now. Check your internet connection and reload.';mpUI();return}
+    mp.fb=true;mp.gm=c.groupMaps;mp.gm.onChange(()=>{if(!$('libmodal').hidden&&!libRename)libRender()})}
   $('mpbtn').hidden=false;
   const use=n=>Promise.resolve(c.use(n)).catch(()=>null);
   const[db,room,user]=await Promise.all([use('db'),use('room'),use('user')]);
@@ -1325,7 +1374,7 @@ async function mpInit(){
   db.doc('live/tokens').onSnapshot(sn=>{mp.ready.tok=true;mp.tok=sn.exists?sn.data():null;
     if(mp.tok&&Array.isArray(mp.tok.list))mp.tok.list.forEach(t=>{if(t&&typeof t.id==='string'&&fin(t.r))mp.tokR[t.id]=Math.max(mp.tokR[t.id]||0,+t.r)});mpTryTokens()},mpFail);
   room.onPeers(mpPeers);
-  if(mp.fb){user.onNames(()=>{mpProfKey='';mpUI()});if(user.joined&&!mpName0)$('mpbtn').click()}   // arrived by a room link: ask their name
+  if(mp.fb){user.onNames(()=>{mp.profiles={};mpProfKey='';mpUI();if(!$('libmodal').hidden&&!libRename)libRender()});if(user.joined&&!mpName0)$('mpbtn').click()}   // arrived by a room link: ask their name
   mpUI()}
 function mpFail(e){mp.err=e&&e.code==='revoked'?'Access to the shared map was withdrawn.':'The shared map can’t be reached right now.';mpUI()}
 

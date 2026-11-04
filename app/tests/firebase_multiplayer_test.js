@@ -75,9 +75,32 @@ try{
   if(await tryWrite(p3,`rooms/${room}/people/u_p3`,{name:'Alex'})!=='ok')fail('player should set their own name');
   if((await rest('GET',`rooms/${room}/d/live/session`,undefined,'')).status!==401)fail('signed-out visitors should not read');
 
+  if(await tryWrite(p3,`rooms/${room}/mapIndex/u_dm_m1`,{by:'u_p3',name:'x',updated:1})!=='denied')fail('rules let a player write someone else\'s group map');
+
+  // group maps: end the session, Sam builds a map on his own and shares it; Hunter opens it, Sam edits, Hunter gets the latest
+  await dm.click('#mpbtn');await dm.click('#mpbody button:has-text("End session")');await dm.click('#mpclose');
+  await until(async()=>(await S(p3)).role==='off'&&(await S(dm)).role==='off','session ended');
+  await p3.click('#libbtn');await p3.click('#libnew');await p3.fill('.libmap input','Sam canyon');await p3.press('.libmap input','Enter');await p3.click('#libclose');
+  await p3.keyboard.press('d');{const box=await (await p3.$('#map')).boundingBox();const c=[box.x+box.width/2,box.y+box.height/2];
+    for(const[dx,dy]of[[-50,-30],[50,-30],[50,30]])await p3.mouse.click(c[0]+dx,c[1]+dy);await p3.keyboard.press('Enter')}
+  await p3.click('#libbtn');await p3.locator('.libmap',{hasText:'Sam canyon'}).getByRole('button',{name:'Share with group'}).click();
+  await until(()=>p3.locator('.libmap',{hasText:'Sam canyon'}).locator('.pill',{hasText:'In group'}).count(),'shared pill');await p3.click('#libclose');
+  await dm.click('#libbtn');const grow=dm.locator('.libmap',{hasText:'Sam canyon'});
+  await until(async()=>(await grow.count())>0&&(await grow.textContent()).includes('Sam'),'Hunter sees Sam\'s map with his name');
+  await grow.getByRole('button',{name:'Open'}).click();
+  await until(async()=>(await S(dm)).st.ops.length===1,'Hunter opened Sam\'s map');
+  await p3.keyboard.press('d');{const box=await (await p3.$('#map')).boundingBox();const c=[box.x+100,box.y+100];
+    for(const[dx,dy]of[[0,0],[40,0],[40,40]])await p3.mouse.click(c[0]+dx,c[1]+dy);await p3.keyboard.press('Enter')}
+  await wait(2500);   // shared maps sync 1.5 s after an edit
+  await dm.click('#libbtn');await dm.locator('.libmap',{hasText:'Sam canyon'}).last().getByRole('button',{name:'Open latest'}).click();
+  await until(async()=>(await S(dm)).st.ops.length===2,'Hunter got Sam\'s latest edit');
+  const L=await dm.evaluate(()=>JSON.parse(localStorage.getItem('dustmap-library')));if(L.maps.filter(m=>m.name.startsWith('Sam canyon')).length!==1)fail('opening again should refresh the copy, not add another');
+  // a bare visit goes back to the remembered room
+  const again=await dm.context().newPage();await again.goto('file://'+page);await again.waitForTimeout(1500);
+  await until(async()=>(await again.evaluate(()=>location.hash))===hash,'bare visit reopens the group room',15000);await again.close();
   // a closed tab leaves the room
   await p1.context().close();await until(async()=>(await S(dm)).peers===2,'closed tab removed from presence',15000);
   for(const p of pages)if(p.errs.length)fail(p.uid+' page errors: '+p.errs.join('; '));
-  console.log('PASS: Firebase session, rules, names, token moves, pings, DM hand-off');
+  console.log('PASS: Firebase session, rules, names, token moves, pings, DM hand-off, group maps');
 }catch(e){console.error('FAIL:',e.message);code=1}
 finally{await b.close();process.exit(code)}})();

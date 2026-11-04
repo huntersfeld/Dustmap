@@ -18,6 +18,18 @@
             ".validate": "newData.hasChildren(['name']) && newData.child('name').isString() && newData.child('name').val().length <= 40"
           }
         },
+        "mapIndex": {
+          "$mid": {
+            ".write": "auth != null && ($mid.beginsWith(auth.uid + '_') || (!newData.exists() && root.child('rooms').child($room).child('owner').val() === auth.uid))",
+            ".validate": "!newData.exists() || (newData.child('by').val() === auth.uid && newData.child('name').isString() && newData.child('name').val().length <= 60 && newData.child('updated').isNumber())"
+          }
+        },
+        "mapData": {
+          "$mid": {
+            ".write": "auth != null && ($mid.beginsWith(auth.uid + '_') || (!newData.exists() && root.child('rooms').child($room).child('owner').val() === auth.uid))",
+            ".validate": "!newData.exists() || (newData.child('by').val() === auth.uid && newData.child('j').isString() && newData.child('j').val().length <= 5000000)"
+          }
+        },
         "presence": {
           "$tab": {
             ".write": "auth != null && $tab.beginsWith(auth.uid + '_')",
