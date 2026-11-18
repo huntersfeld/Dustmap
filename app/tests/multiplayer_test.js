@@ -57,6 +57,7 @@ try{
   await until(async()=>{const s=store.get('live/session');return s&&s.assign&&s.assign['3']==='u_p1'},'assignment saved');
   await dm.click('#mpclose');
   await until(async()=>(await p1.textContent('#hint')).includes('Wizard'),'player hint shows their cowboy');
+  await until(async()=>p1.evaluate(()=>document.getElementById('mpmodal').hidden),'character picker opened for the player closes once they have one');
 
   // player drags the Wizard one square-ish right and down
   let tk=(await S(p1)).st.tokens;const wiz=tk.find(t=>t.s===3),har=tk.find(t=>t.s===0);
