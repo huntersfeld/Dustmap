@@ -32,7 +32,10 @@ for aid in manifest:
         info.append({"name": m["name"], "group": "Townsfolk" if m["group"] == "townsfolk" else "Enemies", "v": m["variant"]})
 
 src = (root / "app" / "dustmap_src.html").read_text()
-assert "__SHEETS__" in src and "__TOKINFO__" in src
-out = src.replace("__SHEETS__", json.dumps(uris)).replace("__TOKINFO__", json.dumps(info))
+assert "__SHEETS__" in src and "__TOKINFO__" in src and "__FIREBASE__" in src
+# Firebase web config for live sessions outside claude.ai (public values; see firebase/database.rules.json)
+fb_path = root / "app" / "firebase_config.json"
+fb = json.loads(fb_path.read_text()) if fb_path.exists() else None
+out = src.replace("__SHEETS__", json.dumps(uris)).replace("__TOKINFO__", json.dumps(info)).replace("__FIREBASE__", json.dumps(fb))
 (root / "app" / "dustmap.html").write_text(out)
 print(f"wrote app/dustmap.html ({len(uris)} token sheets, {len(out) // 1024} KB)")

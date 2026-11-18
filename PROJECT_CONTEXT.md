@@ -21,6 +21,8 @@ Two related pieces of work:
 | `app/build_dustmap.py` | Rebuilds `dustmap.html` from the source by inlining the four sprite sheets |
 | `app/tests/verify_partial_redraw.js` | Playwright test: makes edits, then checks the partial redraw matches a full redraw pixel-for-pixel |
 | `app/tests/mine_scene_smoke_test.js` | Playwright test: builds a mine scene (stone, raised-stone cave wall, rails, props, grid, stamp, token drag) |
+| `app/tests/firebase_multiplayer_test.js` | Playwright test: live session over Firebase against the local Realtime Database emulator, including the security rules |
+| `app/tests/multiplayer_test.js` | Playwright test: three browsers in a live session (DM + two players) through `app/tests/mock_claude_runtime.js`, a stand-in for claude.ai's db/room/user |
 | `app/tests/map_library_test.js` | Playwright test: map library (new, rename, switch, export to file, import, delete, reload) |
 | `sprites/game_ready/` | Final 32×32 sprite sheets (8 frames each), combined atlas + JSON, lineup GIF. `npcs_enemies/` holds the 24 NPC/enemy tokens and their colour variants (75 idle loops) |
 | `sprites/generator_scripts/npcs/` | Grids, palette, part-based idle animator and build scripts for the NPC/enemy tokens (`build_anim.py` regenerates `game_ready/npcs_enemies`) |
@@ -145,17 +147,37 @@ Full redraws still happen for: load, Reroll, roughness, resize, and undo that ch
 | 2 | Stone / cave / mine terrain and props | Done |
 | 2 | Object grid placement and reusable stamps | Done |
 | 3 | Map library: named maps saved in the page, switch between them, export/import as a file (needed to "build locally, then load into a session") | Done |
-| 4 | **Multiplayer core**: sessions, DM + player roles, shared live map, players move only their own token, shared pointer/measure/ping | **Next** |
-| 5 | Hidden areas (fog of war) painted by the DM, revealable mid-session | To do |
+| 4 | Multiplayer core: sessions, DM + player roles, shared live map, players move only their own token, shared pointer/measure/ping | Done |
+| 5 | **Hidden areas** (fog of war) painted by the DM, revealable mid-session | **Next** |
 | 6 | DM animation paths (token walks a drawn path at a set speed) | To do |
 | 6 | Interactive objects (click a door to load another map; more actions later) | To do |
 | — | Physics engine | Parked |
 
 Planned role details for Phase 4: the artifact owner is DM by default and can make someone else DM. DM: full editing, add/move/remove any token, load maps, assign tokens to players, hide areas. Players: view, move their own token, Pointer and Measure. Players must be signed in and given access via the page's Share menu.
 
+## Multiplayer (Phase 4, "Play together")
+
+One session/roles layer (`mp*` functions in `dustmap_src.html`) runs on either of two transports with the same db / room / user shapes:
+
+1. **Firebase (the main way to play, chosen by Hunter).** The page is served from Hunter's Vercel site at `/dustmap` (Portfolio repo, `app/dustmap/route.ts`), which fetches `app/dustmap.html` from this repo's `main` and caches it for 5 minutes, so merging here is all it takes to update it. claude.ai artifacts can't reach outside servers, which is why it isn't the artifact. `app/firebase_config.json` (the public web config) is inlined by `build_dustmap.py`; with no config file the page is a solo editor. Anonymous sign-in, Realtime Database, rules in `firebase/database.rules.json`.
+   - A room is `rooms/<id>`, named in the link (`#room=<id>`). The browser remembers its last room, so a bare visit reopens it; a first-ever visit makes a fresh room. The room is the group. Whoever first starts a session owns the room (`owner`), and the owner picks the DM (`dm`). Only those two can write the shared documents under `d/`. Everyone signed in reads. Each person writes only their own `people/<uid>/name` and `presence/<uid>_<tab>` (removed on disconnect).
+   - **Group maps:** `mapIndex/<uid>_<local id>` (name, size, author, time) and `mapData/<same id>` (the map JSON). Anyone in the room can *Share with group* from the Map dialog; after that their edits sync up automatically (1.5 s debounce). Others *Open* a copy into their own library (re-opening refreshes that copy). Each person writes only their own entries; the room owner can also remove any.
+   - Documents are stored flat as `d/<collection path with ~>/<doc id> = {j: JSON text}` (RTDB nests children, so `live/map` would otherwise wipe `live/map/parts`).
+   - Ownership is tied to the browser's anonymous Firebase sign-in: clearing site data or another device means that browser is no longer the owner.
+2. **claude.ai built-in** (when the page runs as an artifact): `db` + `room` + `user` capabilities. Publish with `capabilities: {db:{rules:[{path:"",read:"view",write:"admin"}]}, room:{}, user:{scopes:["profile"]}, downloads:true}`. Players must be signed in and invited by email.
+
+Shared documents: `live/session {live, dm, assign:{<sheet>:<user id>}}`, `live/map {rev,n,name}` + `live/map/parts/p<i> {rev,s}` (the map minus tokens as ~150 KB text chunks), `live/tokens {rev, list:[{id,s,x,y,o,r}]}`.
+
+- **DM's page is the source of truth**: edits, token moves and library map switches are pushed (debounced 250 ms).
+- **Players** never write shared documents. Cursor, pointer trail, measure, live token drag, pings and finished moves go in presence. The DM's page checks a finished move (`mv`) against the assignment and commits it; a move made from a stale view (base rev older than the token's last change `r`) is dropped.
+- **Player view:** Select (own cowboy only), Measure, Pointer, Pan; editing controls hidden (`.dmonly`, `body.mp-player`). The shared map never overwrites the player's own saved maps; ending the session brings theirs back.
+- **Roles:** assignments are per character (sheet index), so they survive map switches. The owner can make someone else DM (their page saves the shared map as "Session map" in their library and carries on) and take it back.
+- Tests: `multiplayer_test.js` (claude.ai transport, mocked) and `firebase_multiplayer_test.js` (Firebase transport + rules, against the local database emulator: `java -jar firebase-database-emulator-*.jar --port 9000`, with `FIREBASE_SDK` pointing at an installed `firebase@10.12.2`).
+
 ## Known limitations
 
 - Full redraws are slow on 60×40 maps; maps above 60×40 are disabled.
 - Stamps are per browser, not per map.
 - Picked-up auto items are tied to the current layout; Reroll or reshaping a town can bring generated items back elsewhere.
+- Live sessions: the DM's page must be open for players' token moves to be committed.
 - Snapshot can't download directly (artifact sandbox); the user right-clicks the image.
