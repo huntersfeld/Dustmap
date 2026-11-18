@@ -1,4 +1,4 @@
-const {chromium}=require('playwright');const path=require('path');const fs=require('fs');const os=require('os');const http=require('http');
+const {chromium}=require('playwright');const path=require('path');const fs=require('fs');const http=require('http');
 // Play together over Firebase, against the local Realtime Database emulator with the repo's security rules.
 // Needs: the database emulator on 127.0.0.1:9000, and the Firebase SDK (npm i firebase@10.12.2) where FIREBASE_SDK points
 // (default: ./node_modules/firebase). The page's jsdelivr script requests are answered from that folder.
@@ -14,15 +14,17 @@ try{
   const rules=fs.readFileSync(path.resolve(__dirname,'..','..','firebase','database.rules.json'),'utf8');
   if((await rest('PUT','.settings/rules',JSON.parse(rules))).status!==200)fail('could not load rules into the emulator');
   await rest('DELETE','rooms');
-  const html=fs.readFileSync(path.resolve(__dirname,'..','dustmap.html'),'utf8').replace('const FIREBASE=null;',`const FIREBASE=${JSON.stringify({apiKey:'demo',projectId:NS,databaseURL:`http://${HOST}:${PORT}?ns=${NS}`})};`);
-  const page=path.join(os.tmpdir(),'dustmap_fb_test.html');fs.writeFileSync(page,html);
+  const html=fs.readFileSync(path.resolve(__dirname,'..','dustmap.html'),'utf8').replace(/const FIREBASE=.*?;\n/,`const FIREBASE=${JSON.stringify({apiKey:'demo',projectId:NS,databaseURL:`http://${HOST}:${PORT}?ns=${NS}`})};\n`);
+  // served over http (as on the real site) so every tab shares one origin and its localStorage
+  const srv=http.createServer((q,r)=>{r.writeHead(200,{'content-type':'text/html; charset=utf-8'});r.end(html)});await new Promise(r=>srv.listen(0,'127.0.0.1',r));
+  const page=`http://127.0.0.1:${srv.address().port}/dustmap`;
   const pages=[];
   async function open(uid,name,hash=''){
     const ctx=await b.newContext({viewport:{width:1280,height:860}});
     await ctx.route(/cdn\.jsdelivr\.net\/npm\/firebase@[^/]+\/(.+)$/,(r)=>{const f=r.request().url().match(/firebase@[^/]+\/(.+)$/)[1];r.fulfill({path:path.join(SDK,f),contentType:'text/javascript'})});
     await ctx.addInitScript(`window.__fbTest={host:'${HOST}',port:${PORT},uid:'${uid}'};${name?`localStorage.setItem('dustmap-name','${name}')`:''}`);
     const p=await ctx.newPage();p.errs=[];p.on('pageerror',e=>p.errs.push(e.message));p.uid=uid;
-    await p.goto('file://'+page+hash);await p.waitForTimeout(1500);pages.push(p);return p}
+    await p.goto(page+hash);await p.waitForTimeout(1500);pages.push(p);return p}
   const S=p=>p.evaluate(()=>window.__dustmap());
   const scr=async(p,x,y)=>{const d=await S(p),box=await (await p.$('#map')).boundingBox();return[box.x+(x-d.cam.x)*d.Z,box.y+(y-d.cam.y)*d.Z]};
   const dragMap=async(p,from,to)=>{const a=await scr(p,...from),c=await scr(p,...to);await p.mouse.move(...a);await p.mouse.down();
@@ -96,7 +98,7 @@ try{
   await until(async()=>(await S(dm)).st.ops.length===2,'Hunter got Sam\'s latest edit');
   const L=await dm.evaluate(()=>JSON.parse(localStorage.getItem('dustmap-library')));if(L.maps.filter(m=>m.name.startsWith('Sam canyon')).length!==1)fail('opening again should refresh the copy, not add another');
   // a bare visit goes back to the remembered room
-  const again=await dm.context().newPage();await again.goto('file://'+page);await again.waitForTimeout(1500);
+  const again=await dm.context().newPage();await again.goto(page);await again.waitForTimeout(1500);
   await until(async()=>(await again.evaluate(()=>location.hash))===hash,'bare visit reopens the group room',15000);await again.close();
   // a closed tab leaves the room
   await p1.context().close();await until(async()=>(await S(dm)).peers===2,'closed tab removed from presence',15000);
