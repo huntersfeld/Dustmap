@@ -25,6 +25,8 @@ try{
     await ctx.addInitScript(`window.__fbTest={host:'${HOST}',port:${PORT},uid:'${uid}'};${name?`localStorage.setItem('dustmap-name','${name}')`:''}`);
     const p=await ctx.newPage();p.errs=[];p.on('pageerror',e=>p.errs.push(e.message));p.uid=uid;
     await p.goto(page+hash);await p.waitForTimeout(1500);pages.push(p);return p}
+  const pick=async(p,i)=>{await p.waitForTimeout(500);if(await p.locator('#mpmodal').isHidden())await p.click('#mpbtn');
+    await p.locator('.mppick .tokbtn').nth(i).click()};   // players choose their own token; no DM step
   const S=p=>p.evaluate(()=>window.__dustmap());
   const scr=async(p,x,y)=>{const d=await S(p),box=await (await p.$('#map')).boundingBox();return[box.x+(x-d.cam.x)*d.Z,box.y+(y-d.cam.y)*d.Z]};
   const dragMap=async(p,from,to)=>{const a=await scr(p,...from),c=await scr(p,...to);await p.mouse.move(...a);await p.mouse.down();
@@ -41,12 +43,12 @@ try{
   const [tp]=await Promise.all([dm.context().waitForEvent('page'),dm.click('#mpbody button:has-text("Open a test player")')]);
   await until(async()=>{try{return (await S(tp)).role==='player'}catch(e){return false}},'test player joins as a player');
   await until(async()=>(await dm.locator('.mpp',{hasText:'Test player'}).count())>0,'Test player listed for the DM');
-  await dm.locator('.mpp',{hasText:'Test player'}).locator('select').selectOption('1');
+  await pick(tp,1);
   await until(async()=>(await tp.textContent('#hint')).includes('Wheat'),'test player got Wheat');
   if((await tp.textContent('#mpbtn')).indexOf('Test player')<0)fail('test tab label');
   await wait(500);if(JSON.stringify(await dm.evaluate(()=>[localStorage.getItem('dustmap-library'),localStorage.getItem('dustmap-name')]))!==JSON.stringify(libBefore))fail('test player changed the DM browser storage');
   if((await S(dm)).role!=='dm')fail('DM tab should stay DM');
-  await dm.locator('.mpp',{hasText:'Test player'}).locator('select').selectOption('');await tp.close();await dm.click('#mpclose');
+  await tp.close();await dm.click('#mpclose');
   // a player arriving by the link without a saved name is asked for one
   const p1=await open('u_p1','',hash);
   await until(()=>p1.isVisible('#mpname'),'name prompt for a new player');
@@ -55,11 +57,10 @@ try{
   const dmOps=JSON.stringify((await S(dm)).st.ops);
   await until(async()=>JSON.stringify((await S(p1)).st.ops)===dmOps,'player gets the map');
 
-  // assign Wizard to Alex
-  await dm.click('#mpclose').catch(()=>{});await dm.click('#mpbtn');
-  await until(async()=>(await dm.locator('.mpp',{hasText:'Alex'}).count())>0,'Alex listed by name');
-  await dm.locator('.mpp',{hasText:'Alex'}).locator('select').selectOption('3');await dm.click('#mpclose');
+  // Alex picks the Wizard
+  await pick(p1,3);
   await until(async()=>(await p1.textContent('#hint')).includes('Wizard'),'player has the Wizard');
+  await until(async()=>p1.evaluate(()=>document.getElementById('mpmodal').hidden),'picker closes once Alex has a token');
   const tk=(await S(p1)).st.tokens,wiz=tk.find(t=>t.s===3);
   await dragMap(p1,[wiz.x,wiz.y-10],[wiz.x+32,wiz.y+6]);
   const moved=(await S(p1)).st.tokens.find(t=>t.id===wiz.id);if(moved.x===wiz.x)fail('player drag failed');

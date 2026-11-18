@@ -22,6 +22,8 @@ try{
       if(m.t==='pres'){pres.set(m.peer,{peer:m.peer,by:m.by,kind:'viewer',guest:false,presence:m.presence});await broadcast(m)}});
     await ctx.addInitScript(`window.__names=${JSON.stringify(NAMES)};(${install.toString()})(${JSON.stringify({id,name:NAMES[id],owner,admin})})`);
     await p.goto(PAGE);await p.waitForTimeout(1200);pages.push(p);p.id=id;return p}
+  const pick=async(p,i)=>{await p.waitForTimeout(500);if(await p.locator('#mpmodal').isHidden())await p.click('#mpbtn');
+    await p.locator('.mppick .tokbtn').nth(i).click()};   // players choose their own token; no DM step
   const S=p=>p.evaluate(()=>window.__dustmap());
   const scr=async(p,x,y)=>{const d=await S(p),box=await (await p.$('#map')).boundingBox();return[box.x+(x-d.cam.x)*d.Z,box.y+(y-d.cam.y)*d.Z]};
   const dragMap=async(p,from,to)=>{const a=await scr(p,...from),c=await scr(p,...to);await p.mouse.move(...a);await p.mouse.down();
@@ -49,13 +51,13 @@ try{
   if(!(await p1.evaluate(()=>document.body.classList.contains('mp-player'))))fail('player UI not restricted');
   if(await p1.isVisible('#clear')||await p1.isVisible('#libbtn')||await p1.isVisible('#t-draw'))fail('editing controls visible to player');
   if(!(await p1.isVisible('#t-measure')))fail('player should keep Measure');
-  if((await p1.textContent('#mpbtn')).indexOf('Playing')<0)fail('player button label');
+  if((await p1.textContent('#mpbtn')).indexOf('Pick a token')<0)fail('player button should ask them to pick');
 
-  // DM gives Alex the Wizard (sheet 3)
-  await until(async()=>(await dm.locator('.mpp',{hasText:'Alex'}).count())>0,'Alex listed in the DM dialog');
-  await dm.locator('.mpp',{hasText:'Alex'}).locator('select').selectOption('3');
+  // Alex picks the Wizard (sheet 3) themselves
+  await pick(p1,3);
+  if(await dm.locator('.mpp select').count())fail('DM should have no token-assign step');
   await until(async()=>{const s=store.get('live/session');return s&&s.assign&&s.assign['3']==='u_p1'},'assignment saved');
-  await dm.click('#mpclose');
+  await dm.click('#mpclose').catch(()=>{});
   await until(async()=>(await p1.textContent('#hint')).includes('Wizard'),'player hint shows their cowboy');
   await until(async()=>p1.evaluate(()=>document.getElementById('mpmodal').hidden),'character picker opened for the player closes once they have one');
 
@@ -113,7 +115,7 @@ try{
   await dm.locator('.mpp',{hasText:'Hunter'}).getByRole('button',{name:'Take over as DM'}).click();
   await until(async()=>(await S(dm)).role==='dm'&&(await S(p2)).role==='player','owner took DM back');
   await until(async()=>(await S(p1)).st.ops.length===n2+1,'players still see the shared map');
-  await dm.click('#mpclose');
+  await dm.click('#mpclose').catch(()=>{});
   await dm.click('#mpbtn');await dm.click('#mpbody button:has-text("End session")');
   await until(async()=>(await S(p1)).role==='off','session ended for the player');
   if((await S(p1)).st.ops.length!==p1OwnOps)fail('player did not get their own map back');

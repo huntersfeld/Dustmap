@@ -1104,8 +1104,8 @@ function syncHint(){const h=$('hint');h.replaceChildren();
   else if(tool==='pan'){add('Drag to move around. Anytime: two-finger scroll, right-drag or hold <kbd>Space</kbd> to pan; pinch, mouse wheel or <kbd>+</kbd> <kbd>−</kbd> to zoom; <kbd>0</kbd> to fit.')}
   else if(tool==='ping'){add('Click to ping a spot, or press and drag to point with a trail.')}
   else if(mp.role==='player'){const mine=st.tokens.filter(t=>mpMayMove(t,mp.me)).map(t=>tokName(t.s));
-    if(mine.length){pill('Playing '+mine.join(' & '));add('Drag your cowboy to move. Drag the ground to look around. <kbd>M</kbd> measures, <kbd>P</kbd> points and pings.')}
-    else add('You’re watching. Once the DM gives you a cowboy you can move it here. <kbd>M</kbd> measures, <kbd>P</kbd> points and pings.')}
+    if(mine.length){pill('Playing '+mine.join(' & '));add('Drag your token to move. Drag the ground to look around. <kbd>M</kbd> measures, <kbd>P</kbd> points and pings.')}
+    else add('Click <b>Pick a token</b> (top right) to join in. <kbd>M</kbd> measures, <kbd>P</kbd> points and pings.')}
   else{if(!sel)add('Click anything to select or drag it: shapes, strokes, tokens, and single buildings, props, cacti or rocks. Drag empty ground to move around. Cowboys snap to half squares; hold <kbd>Alt</kbd> to place freely.');
     else if(sel.type==='token'){const t=st.tokens[sel.i];pill(t?tokLabel(t.s)+' selected':'Token selected');add('Drag to move. Tokens snap to squares, edges and corners; hold <kbd>Alt</kbd> to place freely.');btn('Delete','warn',delSel)}
     else if(sel.type!=='op'){const l=selList();pill(l.length===1?OBJ.find(o=>o.k===st.objects[l[0]].k).name+' selected':`${l.length} objects selected`);
@@ -1509,7 +1509,7 @@ function mpPeople(){const s=mp.sess||{assign:{}},ids=new Set(),here=new Set();
   return{ids:[...ids],here}}
 function mpUI(){const b=$('mpbtn');b.replaceChildren();b.classList.toggle('live',mp.role!=='off');
   if(mp.role!=='off'){const d=document.createElement('span');d.className='dot';b.append(d)}
-  b.append(mp.role==='dm'?'Live · DM':mp.role==='player'?(TESTPLAYER?'Live · Test player':'Live · Playing'):'Play together');
+  b.append(mp.role==='dm'?'Live · DM':mp.role==='player'?(!Object.values(mp.sess.assign).includes(mp.me)?'Pick a token':TESTPLAYER?'Live · Test player':'Live · Playing'):'Play together');
   const{ids,here}=mpPeople();const pk=ids.join();
   if(mp.user&&pk!==mpProfKey){mpProfKey=pk;mp.user.profiles(ids).then(ps=>{mp.profiles={...mp.profiles,...ps};mpKey='';mpRender()}).catch(()=>{})}
   const key=JSON.stringify([mp.avail,mp.sess,mp.role,ids,[...here],mp.err,st.tokens.map(t=>t.s)]);if(key!==mpKey){mpKey=key;mpRender()}}
@@ -1540,33 +1540,28 @@ function mpRender(){if($('mpmodal').hidden)return;const box=$('mpbody');box.repl
     else para('Nobody is running a session right now. When your DM starts one, this page switches to the shared map by itself.');
     mpNewRoom(box);para(invite,'note');return}
   const amDM=mp.role==='dm';
-  para(amDM?'You’re the DM. Players see the map you have open, live, and every change you make. Hand each player a cowboy below.':`<b></b> is the DM. Your view follows their map. You can move your own cowboy, point, ping and measure.`).querySelector('b')?.append(mpName(s.dm));
+  para(amDM?'You’re the DM. Players see your map live and pick their own token.':`<b></b> is the DM. Your view follows their map.`).querySelector('b')?.append(mpName(s.dm));
   if(mp.role==='player')mpPicker(box,s);
   const{ids,here}=mpPeople(),list=document.createElement('div');list.className='mppeople';box.append(list);
-  const chars=[...new Set([0,1,2,3,...st.tokens.map(t=>t.s),...Object.keys(s.assign).map(Number)])].filter(c=>c<SHEETS.length).sort((a,b)=>a-b);   // the four cowboys, plus any token on this map
   ids.sort((a,b)=>(b===s.dm)-(a===s.dm)||(b===mp.me)-(a===mp.me)).forEach(id=>{
     const row=document.createElement('div');row.className='mpp'+(here.has(id)?'':' away');const pf=mp.profiles[id];
     if(pf&&pf.avatarUrl){const im=document.createElement('img');im.alt='';im.src=pf.avatarUrl;row.append(im)}
     const nm=document.createElement('div');nm.className='nm';const bn=document.createElement('b');bn.textContent=mpName(id)+(id===mp.me?' (you)':'');
     const mine=Object.keys(s.assign).filter(k=>s.assign[k]===id).map(k=>tokName(+k));
     const sub=document.createElement('span');sub.textContent=(id===s.dm?'DM':mine.length?'Playing '+mine.join(' & '):'Watching')+(here.has(id)?'':' · away');nm.append(bn,sub);row.append(nm);
-    if(amDM&&id!==s.dm){const sl=document.createElement('select');sl.setAttribute('aria-label','Cowboy for '+mpName(id));
-      [['','Watching'],...chars.map(c=>[String(c),tokName(c)])].forEach(([v,t])=>{const o=document.createElement('option');o.value=v;o.textContent=t;sl.append(o)});
-      sl.value=Object.keys(s.assign).find(k=>s.assign[k]===id)||'';
-      sl.onchange=()=>{const a={...s.assign};Object.keys(a).forEach(k=>{if(a[k]===id)delete a[k]});if(sl.value!=='')a[sl.value]=id;mpWrite({...s,assign:a})};row.append(sl)}
     if(mp.owner&&id!==s.dm){button(id===mp.me?'Take over as DM':'Make DM','',()=>mpWrite({...s,dm:id}),row).title=id===mp.me||mp.fb?'':'They need Editor access to this page to change the map'}
     list.append(row)});
   if(mp.fb){const a=document.createElement('div');a.className='mpacts';box.append(a);const link=mp.user.link();
     if(amDM&&!TESTPLAYER)button('Open a test player','',()=>{window.open(location.pathname+'?as=player#room='+link.split('#room=')[1],'_blank');
-      mpSay('A test player opened in a new tab. Give “Test player” a cowboy here, then put the two tabs side by side.')},a).title='See exactly what a player sees, in a new tab';
+      mpSay('A test player opened in a new tab. Pick a token there, then put the two tabs side by side.')},a).title='See exactly what a player sees, in a new tab';
     button('Copy room link','primary',async e=>{const b=e.currentTarget;try{await navigator.clipboard.writeText(link);b.textContent='Copied'}catch(err){mpSay('Copy this link: '+link)}setTimeout(()=>b.textContent='Copy room link',1500)},a)}
   if(amDM||mp.owner){const a=document.createElement('div');a.className='mpacts';box.append(a);button('End session','warn',()=>mpWrite({...s,live:false}),a)}
   mpNewRoom(box);
   para(invite,'note')}
 // players: choose your token, one each; taken ones show who has them
 function mpPicker(box,s){const mine=Object.keys(s.assign).find(k=>s.assign[k]===mp.me),want=mp.pres.pick;
-  if(mine!==undefined&&mp.autoPick){mp.autoPick=false;setTimeout(()=>{$('mpmodal').hidden=true},600)}   // opened for them, so close once their pick lands
-  const h=document.createElement('p');h.innerHTML=mine!==undefined?'You’re playing <b></b>. Pick another to switch.':Number.isInteger(want)?'Waiting for the DM’s page to hand you <b></b>…':'<b>Pick your character.</b> One each; the DM can change it.';
+  if(mine!==undefined&&(mp.autoPick||+mine===mp.closeOn)){mp.autoPick=false;mp.closeOn=null;setTimeout(()=>{$('mpmodal').hidden=true},600)}   // close once their pick lands, so they can play
+  const h=document.createElement('p');h.innerHTML=mine!==undefined?'You’re playing <b></b>. Pick another to switch.':Number.isInteger(want)?'Joining as <b></b>…':'<b>Pick your token.</b>';
   const hb=h.querySelector('b');if(hb&&(mine!==undefined||Number.isInteger(want)))hb.textContent=tokLabel(mine!==undefined?+mine:want);box.append(h);
   const grid=document.createElement('div');grid.className='mppick';let grp='';
   TOKINFO.forEach((t,i)=>{if(t.group!==grp){grp=t.group;const g=document.createElement('div');g.className='grp';g.textContent=grp;grid.append(g)}
@@ -1575,7 +1570,7 @@ function mpPicker(box,s){const mine=Object.keys(s.assign).find(k=>s.assign[k]===
     if(owner&&owner!==mp.me){b.disabled=true;b.title=tokLabel(i)+' · taken by '+mpName(owner)}
     const c=document.createElement('canvas');c.width=c.height=32;const g=c.getContext('2d');const im=sheets[i];
     const paint=()=>g.drawImage(im,0,0,32,32,0,0,32,32);if(im.complete)paint();else im.addEventListener('load',paint,{once:true});b.append(c);
-    b.onclick=()=>{mp.pres.pick=i;mpKey='';mpRender()};grid.append(b)});
+    b.onclick=()=>{mp.pres.pick=i;mp.closeOn=i;mpKey='';mpRender()};grid.append(b)});
   box.append(grid)}
 $('mpbtn').onclick=()=>{$('mpmodal').hidden=false;mpKey='';mpSay('');mpUI();mpRender()};
 $('mpclose').onclick=()=>{$('mpmodal').hidden=true;mp.autoPick=false};
