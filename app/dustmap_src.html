@@ -334,7 +334,7 @@ const mp={db:null,room:null,user:null,me:null,owner:false,edit:false,avail:false
   pushed:{map:null,tok:null},lastPos:new Map(),tokR:{},busy:false,again:false,timer:0,
   peers:[],profiles:{},trails:new Map(),pingSeen:new Map(),mvSeen:new Map(),ghost:new Map(),
   pres:{},pickSeen:new Map(),sent:'',myPing:0,myMv:0,pend:null,err:'',heldTok:null};
-let tool='draw',paint={layer:'ground',t:3},tab='ground',objKind='saloon',bsize=6,objCells=new Set(['1,1']),objMix=false,mixKinds=new Set(),scatDens=70,scatSeed=1,objGap=2,boxSel=null;
+let tool='draw',paint={layer:'ground',t:3},tab='ground',objKind='saloon',bsize=6,objCells=new Set(['1,1']),objMix=false,mixKinds=new Set(),scatDens=70,scatSeed=1,objGap=2,boxSel=null,stampRot=0;
 let stamps=(()=>{try{return JSON.parse(localStorage.getItem('dustmap-stamps'))||[]}catch(e){return[]}})();
 const saveStamps=()=>{try{localStorage.setItem('dustmap-stamps',JSON.stringify(stamps))}catch(e){}};
 const selList=()=>!sel?[]:sel.type==='obj'?[sel.i]:sel.type==='objs'?sel.list:[];
@@ -703,7 +703,7 @@ function placementTokens(cx,cy){const s=tokKind();if(s<0)return[];const cells=ce
   return cells.map(([c,r])=>({s,x:Math.max(8,Math.min(W-8,snap(x0+(c-b.c0)*GRID))),y:Math.max(30,Math.min(H-1,snap(y0+(r-b.r0)*GRID)))}))}
 function placementItems(cx,cy){
   if(tokKind()>=0)return[];
-  if(objKind.startsWith('stamp:')){const sp=stamps[+objKind.slice(6)];if(!sp)return[];return sp.items.map(it=>({k:it.k,v:it.v,x:Math.round(cx+it.dx),y:Math.round(cy+it.dy)}))}
+  if(objKind.startsWith('stamp:')){const sp=stamps[+objKind.slice(6)];if(!sp)return[];return sp.items.map(it=>{const[dx,dy]=rotQ(it.dx,it.dy,stampRot);return{k:it.k,v:it.v,x:Math.round(cx+dx),y:Math.round(cy+dy)}})}
   const cells=cellList(),b=cellBox(cells);
   if(objMix){const kinds=[...mixKinds];if(!kinds.length)return[];
     // pitch fits the biggest object in the mix so neighbours rarely overlap
@@ -711,6 +711,12 @@ function placementItems(cx,cy){
     return scatterPlan(cells,kinds).map(q=>({k:q.k,v:q.v,x:Math.round(x0+(q.c-b.c0)*sx+q.jx*(sx-SIZE[q.k][0]*.5)),y:Math.round(y0+(q.r-b.r0)*sy+q.jy*(sy-SIZE[q.k][1]*.5))}))}
   const[w,h]=SIZE[objKind],sx=w+objGap,sy=h+objGap,x0=cx-(b.c*sx-objGap)/2+w/2,y0=cy-(b.r*sy-objGap)/2+h/2;
   return cells.map(([c,r])=>({k:objKind,x:Math.round(x0+(c-b.c0)*sx),y:Math.round(y0+(r-b.r0)*sy),v:Math.floor(Math.random()*12)}))}
+// right-click / R in the Objects tool: turn the placement a quarter turn clockwise (screen y points down, so (x,y) -> (-y,x))
+function rotQ(x,y,q){for(let i=0;i<q;i++)[x,y]=[-y,x];return[x+0,y+0]}
+function rotatePlacement(){
+  if(objKind.startsWith('stamp:')){stampRot=(stampRot+1)%4;syncUI();return}
+  const cells=cellList();if(cells.length<2)return;const t=cells.map(([c,r])=>rotQ(c,r,1)),c0=Math.min(...t.map(q=>q[0])),r0=Math.min(...t.map(q=>q[1]));
+  objCells=new Set(t.map(([c,r])=>(c-c0+1)+','+(r-r0+1)));syncUI()}
 // grid squares picked in the 6 × 6 picker, as [col,row] pairs (1-based), and their bounding box
 function cellList(){return[...objCells].map(s=>s.split(',').map(Number)).sort((a,b)=>a[1]-b[1]||a[0]-b[0])}
 function cellBox(cells){const cs=cells.map(q=>q[0]),rs=cells.map(q=>q[1]),c0=Math.min(...cs),r0=Math.min(...rs);return{c0,r0,c:Math.max(...cs)-c0+1,r:Math.max(...rs)-r0+1}}
@@ -741,7 +747,7 @@ function paintPick(s){$('gridpick').querySelectorAll('span').forEach(el=>el.clas
 function buildObjs(){$('objs').replaceChildren();buildGridPick();const box=$('objs');let g='';OBJ.forEach(o=>{if(o.g!==g){g=o.g;const d=document.createElement('div');d.className='grp';d.textContent=g;box.append(d)}
   box.append(itemBtn('o-'+o.k,objSwatch(o.k),o.name,o.sub,'',()=>{if(objMix&&!objKind.startsWith('stamp:')){if(mixKinds.has(o.k))mixKinds.delete(o.k);else mixKinds.add(o.k)}objKind=o.k;syncUI()}))});
   if(stamps.length){const d=document.createElement('div');d.className='grp';d.textContent='My stamps';box.append(d);
-    stamps.forEach((sp,i)=>{const b=itemBtn('o-stamp:'+i,stampCanvas(sp),sp.name,sp.items.length+' objects','',()=>{objKind='stamp:'+i;objMix=false;syncUI()});
+    stamps.forEach((sp,i)=>{const b=itemBtn('o-stamp:'+i,stampCanvas(sp),sp.name,sp.items.length+' objects','',()=>{objKind='stamp:'+i;objMix=false;stampRot=0;syncUI()});
       const x=document.createElement('span');x.className='del';x.textContent='×';x.title='Delete this stamp';x.onclick=e=>{e.stopPropagation();stamps.splice(i,1);saveStamps();if(objKind==='stamp:'+i)objKind='crates';buildObjs();syncUI()};b.append(x);box.append(b)})}}
 function tokSwatch(s){const c=document.createElement('canvas');c.width=c.height=32;const im=sheets[s],g=c.getContext('2d');
   const go=()=>{g.clearRect(0,0,32,32);g.drawImage(im,0,0,32,32,0,0,32,32)};if(im.complete&&im.naturalWidth)go();else im.addEventListener('load',go,{once:true});return c}
@@ -932,7 +938,7 @@ const endTouch=e=>{if(!touches.has(e.pointerId))return;touches.delete(e.pointerI
 cv.addEventListener('pointerup',endTouch,true);cv.addEventListener('pointercancel',endTouch,true);
 new ResizeObserver(()=>sizeCanvas()).observe(cv);
 cv.addEventListener('pointerdown',e=>{const p=toMap(e);cv.setPointerCapture(e.pointerId);
-  if(e.button===1||e.button===2||spaceDown||tool==='pan'){panning={x:e.clientX,y:e.clientY,cx:cam.x,cy:cam.y};cv.style.cursor='grabbing';return}
+  if(e.button===1||e.button===2||spaceDown||tool==='pan'){panning={x:e.clientX,y:e.clientY,cx:cam.x,cy:cam.y,rot:e.button===2&&tool==='object'&&tokKind()<0&&mp.role!=='player'};cv.style.cursor='grabbing';return}
   if(e.button!==0)return;
   {const q=scrPt(e),t=edgeTabs.find(t=>q[0]>=t.x&&q[0]<=t.x+32&&q[1]>=t.y&&q[1]<=t.y+32);
    if(t&&mp.role!=='player'){const MAXC=60,MAXR=40,add=n=>Math.min(10,n);
@@ -973,7 +979,7 @@ cv.addEventListener('pointerdown',e=>{const p=toMap(e);cv.setPointerCapture(e.po
     if(already)drag={kind:'op',i:h.i,start:p,orig:op.pts.map(q=>[...q]),moved:false};else{hist.pop();updUndo();panning={x:e.clientX,y:e.clientY,cx:cam.x,cy:cam.y}}}
   syncUI()});
 cv.addEventListener('pointermove',e=>{if(boxSel){boxSel.b=toMap(e);return}
-  if(panning){cam.x=panning.cx-(e.clientX-panning.x)/Z;cam.y=panning.cy-(e.clientY-panning.y)/Z;clampCam();return}
+  if(panning){if(Math.abs(e.clientX-panning.x)+Math.abs(e.clientY-panning.y)>4)panning.moved=true;cam.x=panning.cx-(e.clientX-panning.x)/Z;cam.y=panning.cy-(e.clientY-panning.y)/Z;clampCam();return}
   hoverScr=scrPt(e);const p=toMap(e);hover=p;
   if(tool==='brush'&&stroke){const lp=stroke.pts[stroke.pts.length-1];if(dist(lp,p)>=Math.max(1.5,stroke.r/2.5))stroke.pts.push(clamp(p));return}
   if(tool==='measure'&&measure&&measure.down){measure.b=measure.snap(p);return}
@@ -991,7 +997,7 @@ cv.addEventListener('pointermove',e=>{if(boxSel){boxSel.b=toMap(e);return}
 function up(){
   if(boxSel){const[a,b]=[boxSel.a,boxSel.b],x0=Math.min(a[0],b[0]),x1=Math.max(a[0],b[0]),y0=Math.min(a[1],b[1]),y1=Math.max(a[1],b[1]);
     const inside=st.objects.map((o,i)=>o.x>=x0&&o.x<=x1&&o.y>=y0&&o.y<=y1?i:-1).filter(i=>i>=0);setObjSel([...new Set([...boxSel.add,...inside])]);boxSel=null;syncUI();return}
-  if(panning){panning=null;cv.style.cursor='';return}
+  if(panning){const r=panning.rot&&!panning.moved;panning=null;cv.style.cursor='';if(r)rotatePlacement();return}
   if(tool==='brush'&&stroke){push();if(paint.t===9&&paint.layer==='ground'){const sp=[];stroke.pts.forEach((q,k)=>{if(!sp.length||k===stroke.pts.length-1||dist(sp[sp.length-1],q)>=10)sp.push(q)});stroke.pts=sp}
     st.ops.push({kind:'stroke',...paint,r:paint.t===9&&paint.layer==='ground'?5:stroke.r,pts:stroke.pts.map(q=>[Math.round(q[0]*2)/2,Math.round(q[1]*2)/2]),sid:Math.floor(Math.random()*1000)});markOp(st.ops[st.ops.length-1]);stroke=null;save();return}
   if(tool==='sculpt'&&sculpt){const sp=sculpt;sculpt=null;if(sp.phase==='raise'&&sp.delta!==0){push();const lv=SLAD[sp.base+sp.delta];
@@ -1015,7 +1021,7 @@ function saveStamp(){const list=selList();if(!list.length)return;const os=list.m
   const counts={};os.forEach(o=>{const nm=OBJ.find(q=>q.k===o.k).name.toLowerCase();counts[nm]=(counts[nm]||0)+1});
   const name=Object.entries(counts).map(([n,c])=>c>1?`${c} ${n}`:n).join(' + ');
   stamps.push({name:name.charAt(0).toUpperCase()+name.slice(1),items:os.map(o=>({k:o.k,v:o.v,dx:Math.round(o.x-cx),dy:Math.round(o.y-cy)}))});saveStamps();buildObjs();
-  objKind='stamp:'+(stamps.length-1);setTool('object')}
+  objKind='stamp:'+(stamps.length-1);stampRot=0;setTool('object')}
 $('undo').onclick=undo;
 $('zin').onclick=()=>zoomStep(1);$('zout').onclick=()=>zoomStep(-1);$('zfit').onclick=fit;
 MSIZES.forEach(([c,r])=>{const o=document.createElement('option');o.value=c+'x'+r;o.textContent=`${c} × ${r}  (${c*5} × ${r*5} ft)`;$('msize').append(o)});
@@ -1060,6 +1066,7 @@ window.addEventListener('keydown',e=>{const tg=e.target;if(tg.tagName==='INPUT'&
   if(e.ctrlKey||e.metaKey||e.altKey)return;
   if(e.key==='['){bsize=Math.max(2,bsize-1);$('bsize').value=bsize;return}if(e.key===']'){bsize=Math.min(28,bsize+1);$('bsize').value=bsize;return}
   const k=e.key.toUpperCase();const t=TOOLS.find(t=>t.key===k);if(t){setTool(t.id);return}
+  if(k==='R'&&tool==='object'&&tokKind()<0){rotatePlacement();return}
   if(k==='G'){$('grid').checked=!$('grid').checked;return}
   const n=parseInt(e.key,10);if(n>=1){const ti=TERR.findIndex(t=>t.key===e.key);if(tab==='ground'&&ti>=0)pickPaint({layer:'ground',t:ti});else if(tab==='height'&&n<=ELEV.length)pickPaint({layer:'height',h:ELEV[n-1].h,s:ELEV[n-1].s})}});
 
@@ -1073,7 +1080,7 @@ function syncUI(){
   TERR.forEach((t,i)=>{const b=$('p-g'+i);if(b)b.setAttribute('aria-pressed',paint.layer==='ground'&&paint.t===i)});
   ELEV.forEach((e,i)=>{const b=$('p-h'+i);if(b)b.setAttribute('aria-pressed',paint.layer==='height'&&paint.h===e.h&&paint.s===e.s)});
   {const mix=objMix&&!objKind.startsWith('stamp:');OBJ.forEach(o=>$('o-'+o.k).setAttribute('aria-pressed',mix?mixKinds.has(o.k):objKind===o.k))}TOKINFO.forEach((t,s)=>{const b=$('tk-'+s);if(b)b.setAttribute('aria-pressed',objKind==='tok:'+s)});stamps.forEach((sp,i)=>{const b=$('o-stamp:'+i);if(b)b.setAttribute('aria-pressed',objKind==='stamp:'+i)});
-  $('ogap').value=objGap;$('gridlbl').textContent=objKind.startsWith('stamp:')?'Stamp':cellLabel();paintPick(objCells);
+  $('ogap').value=objGap;$('gridlbl').textContent=objKind.startsWith('stamp:')?'Stamp'+(stampRot?` · ${stampRot*90}°`:''):cellLabel();paintPick(objCells);
   $('omix').checked=objMix;$('mixopts').hidden=!objMix;$('odens').value=scatDens;$('odenslbl').textContent=`Fill ${scatDens}%`;$('mixlbl').textContent=mixKinds.size?`${mixKinds.size} in the mix`:'Nothing picked yet';
   $('sec-paint').hidden=!(tool==='draw'||tool==='brush'||(tool==='select'&&sel&&sel.type==='op'));
   $('paint-label').textContent=tool==='select'?'Change paint':'Paint';
@@ -1097,9 +1104,9 @@ function syncHint(){const h=$('hint');h.replaceChildren();
   else if(tool==='object'&&tokKind()>=0){pill(tokLabel(tokKind())+(objCells.size>1?` · ${cellLabel()}`:''));
     add('Click to place the token on the square. Use the grid squares above to drop a group, one square apart. In <b>Select</b>, drag tokens to move them or press <kbd>Delete</kbd> to remove one.')}
   else if(tool==='object'){const st0=objKind.startsWith('stamp:');
-    if(!st0&&objMix){pill(`Random mix · ${mixKinds.size} kind${mixKinds.size===1?'':'s'} · ${cellLabel()}`);add(mixKinds.size?'Click to scatter. Each click rolls a fresh layout; the outline shows the next one. Pick more objects in the list to add them to the mix.':'Pick the objects to mix from the list on the left.')}
+    if(!st0&&objMix){pill(`Random mix · ${mixKinds.size} kind${mixKinds.size===1?'':'s'} · ${cellLabel()}`);add(mixKinds.size?'Click to scatter. Right-click or <kbd>R</kbd> turns the grid 90°. Each click rolls a fresh layout; the outline shows the next one. Pick more objects in the list to add them to the mix.':'Pick the objects to mix from the list on the left.')}
     else{pill(st0?(stamps[+objKind.slice(6)]||{name:'Stamp'}).name:OBJ.find(o=>o.k===objKind).name+(objCells.size>1?` · ${cellLabel()}`:''));
-    add(st0?'Click to stamp it. Its objects move together; hold <kbd>Alt</kbd> in Select to grab just one.':'Click to place. Drag across the grid squares to place a block at once, or click single squares for a custom pattern. In <b>Select</b>, Shift-drag a box to grab several and save them as a stamp.')}}
+    add(st0?'Click to stamp it. Right-click or <kbd>R</kbd> turns it 90°. Its objects move together; hold <kbd>Alt</kbd> in Select to grab just one.':'Click to place. Drag across the grid squares to place a block at once, or click single squares for a custom pattern. Right-click or <kbd>R</kbd> turns the pattern 90°. In <b>Select</b>, Shift-drag a box to grab several and save them as a stamp.')}}
   else if(tool==='measure'){add(measure?'Drag from one square to another. Diagonals count as 5 ft, as in the 5e default rule.':'Drag from one square to another to measure movement.')}
   else if(tool==='pan'){add('Drag to move around. Anytime: two-finger scroll, right-drag or hold <kbd>Space</kbd> to pan; pinch, mouse wheel or <kbd>+</kbd> <kbd>−</kbd> to zoom; <kbd>0</kbd> to fit.')}
   else if(tool==='ping'){add('Click to ping a spot, or press and drag to point with a trail.')}
