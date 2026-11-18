@@ -7,7 +7,7 @@ const OUT=path.join(__dirname,'output');require('fs').mkdirSync(OUT,{recursive:t
 (async()=>{const b=await chromium.launch();const p=await b.newPage({viewport:{width:1440,height:960}});
 const errs=[];p.on('pageerror',e=>errs.push('PAGEERR '+e.message));
 await p.goto(PAGE);await p.evaluate(()=>localStorage.clear());await p.reload();await p.waitForTimeout(2500);
-await p.uncheck('#anim');
+await p.click('#more');await p.uncheck('#anim');
 await p.click('#clear');await p.click('#clear');await p.waitForTimeout(800);
 const box=await (await p.$('#map')).boundingBox();
 const z=await p.evaluate(()=>parseInt(document.getElementById('zlabel').textContent)/100);

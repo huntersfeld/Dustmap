@@ -6,7 +6,7 @@ const OUT=path.join(__dirname,'output');require('fs').mkdirSync(OUT,{recursive:t
 (async()=>{const b=await chromium.launch();const p=await b.newPage({viewport:{width:1440,height:960}});
 const errs=[];p.on('pageerror',e=>errs.push('PAGEERR '+e.message));const fail=m=>{errs.push(m);console.log('FAIL',m)};
 await p.goto(PAGE);await p.evaluate(()=>localStorage.clear());await p.reload();await p.waitForTimeout(2000);
-await p.uncheck('#anim');await p.click('#clear');await p.click('#clear');await p.waitForTimeout(500);
+await p.click('#more');await p.uncheck('#anim');await p.click('#clear');await p.click('#clear');await p.waitForTimeout(500);
 await p.keyboard.press('o');
 const cell=async(c,r)=>{const h=await p.$(`#gridpick span[data-c="${c}"][data-r="${r}"]`);await h.scrollIntoViewIfNeeded();const bb=await h.boundingBox();return[bb.x+bb.width/2,bb.y+bb.height/2]};
 const drag=async(a,z)=>{const [x1,y1]=await cell(...a),[x2,y2]=await cell(...z);await p.mouse.move(x1,y1);await p.mouse.down();await p.mouse.move(x2,y2,{steps:6});await p.mouse.up()};

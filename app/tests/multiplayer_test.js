@@ -117,7 +117,7 @@ try{
   await dm.click('#mpbtn');await dm.click('#mpbody button:has-text("End session")');
   await until(async()=>(await S(p1)).role==='off','session ended for the player');
   if((await S(p1)).st.ops.length!==p1OwnOps)fail('player did not get their own map back');
-  if(await p1.isHidden('#clear'))fail('editing controls should come back');
+  if(await p1.isHidden('#libbtn'))fail('editing controls should come back');
   for(const p of pages)if(p.errs.length)fail(p.id+' page errors: '+p.errs.join('; '));
   console.log('PASS: multiplayer session, roles, live map, token moves, pings, measure');
 }catch(e){console.error('FAIL:',e.message);code=1}
