@@ -246,6 +246,12 @@ body.mp-player .dmonly{display:none!important}
 
 <script>
 (()=>{
+// ?as=player opens a throwaway player in another tab (from the DM's Play together dialog), so one person can see both views.
+// It gets its own Firebase identity and keeps this browser's saved maps untouched: storage is an in-memory copy.
+const TESTPLAYER=/[?&]as=player\b/.test(location.search);
+const localStorage=TESTPLAYER?(()=>{const m=new Map();try{for(let i=0;i<window.localStorage.length;i++){const k=window.localStorage.key(i);m.set(k,window.localStorage.getItem(k))}}catch(e){}
+  m.set('dustmap-name','Test player');
+  return{getItem:k=>m.has(k)?m.get(k):null,setItem:(k,v)=>{m.set(k,String(v))},removeItem:k=>{m.delete(k)},clear:()=>m.clear(),key:i=>[...m.keys()][i]??null,get length(){return m.size}}})():window.localStorage;
 // ================= constants =================
 // OX/OY: offset of the window being drawn; REG: full-map data during a partial redraw
 let W=320,H=224,Z=3,OX=0,OY=0,REG=null;const GRID=16,ZLEV=[.5,.75,1,1.5,2,3,4,5,6,8],MSIZES=[[20,14],[30,20],[40,28],[50,34],[60,40]];
@@ -1301,8 +1307,9 @@ let mpName0='';try{mpName0=localStorage.getItem('dustmap-name')||''}catch(e){}
 async function fbRuntime(cfg){
   for(const f of['app','auth','database'])await loadScript(`https://cdn.jsdelivr.net/npm/firebase@${FBV}/firebase-${f}-compat.js`);
   const fb=window.firebase,T=window.__fbTest;fb.initializeApp(cfg);const fdb=fb.database();let me;
-  if(T){fdb.useEmulator(T.host,T.port,{mockUserToken:{user_id:T.uid}});me=T.uid}   // tests: local emulator, fixed user
-  else{const auth=fb.auth();me=await new Promise((res,rej)=>{const off=auth.onAuthStateChanged(u=>{if(u){off();res(u.uid)}else auth.signInAnonymously().catch(rej)})})}
+  if(T){me=TESTPLAYER?T.uid+'-test':T.uid;fdb.useEmulator(T.host,T.port,{mockUserToken:{user_id:me}})}   // tests: local emulator, fixed user
+  else{const auth=fb.auth();if(TESTPLAYER)await auth.setPersistence(fb.auth.Auth.Persistence.NONE);   // a fresh identity every time
+    me=await new Promise((res,rej)=>{const off=auth.onAuthStateChanged(u=>{if(u){off();res(u.uid)}else auth.signInAnonymously().catch(rej)})})}
   // the room is the group: its link opens it, and this browser remembers the last one for a bare visit
   let room=(location.hash.match(/room=([A-Za-z0-9_-]{6,40})/)||[])[1];const joined=!!room;let saved=null;try{saved=localStorage.getItem('dustmap-room')}catch(e){}
   if(!room&&saved&&/^[A-Za-z0-9_-]{6,40}$/.test(saved))room=saved;
@@ -1470,7 +1477,7 @@ function mpPeople(){const s=mp.sess||{assign:{}},ids=new Set(),here=new Set();
   return{ids:[...ids],here}}
 function mpUI(){const b=$('mpbtn');b.replaceChildren();b.classList.toggle('live',mp.role!=='off');
   if(mp.role!=='off'){const d=document.createElement('span');d.className='dot';b.append(d)}
-  b.append(mp.role==='dm'?'Live · DM':mp.role==='player'?'Live · Playing':'Play together');
+  b.append(mp.role==='dm'?'Live · DM':mp.role==='player'?(TESTPLAYER?'Live · Test player':'Live · Playing'):'Play together');
   const{ids,here}=mpPeople();const pk=ids.join();
   if(mp.user&&pk!==mpProfKey){mpProfKey=pk;mp.user.profiles(ids).then(ps=>{mp.profiles={...mp.profiles,...ps};mpKey='';mpRender()}).catch(()=>{})}
   const key=JSON.stringify([mp.avail,mp.sess,mp.role,ids,[...here],mp.err,st.tokens.map(t=>t.s)]);if(key!==mpKey){mpKey=key;mpRender()}}
@@ -1513,6 +1520,8 @@ function mpRender(){if($('mpmodal').hidden)return;const box=$('mpbody');box.repl
     if(mp.owner&&id!==s.dm){button(id===mp.me?'Take over as DM':'Make DM','',()=>mpWrite({...s,dm:id}),row).title=id===mp.me||mp.fb?'':'They need Editor access to this page to change the map'}
     list.append(row)});
   if(mp.fb){const a=document.createElement('div');a.className='mpacts';box.append(a);const link=mp.user.link();
+    if(amDM&&!TESTPLAYER)button('Open a test player','',()=>{window.open(location.pathname+'?as=player#room='+link.split('#room=')[1],'_blank');
+      mpSay('A test player opened in a new tab. Give “Test player” a cowboy here, then put the two tabs side by side.')},a).title='See exactly what a player sees, in a new tab';
     button('Copy room link','primary',async e=>{const b=e.currentTarget;try{await navigator.clipboard.writeText(link);b.textContent='Copied'}catch(err){mpSay('Copy this link: '+link)}setTimeout(()=>b.textContent='Copy room link',1500)},a)}
   if(amDM||mp.owner){const a=document.createElement('div');a.className='mpacts';box.append(a);button('End session','warn',()=>mpWrite({...s,live:false}),a)}
   para(invite,'note')}

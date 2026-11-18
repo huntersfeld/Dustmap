@@ -171,6 +171,7 @@ Shared documents: `live/session {live, dm, assign:{<sheet>:<user id>}}`, `live/m
 - **DM's page is the source of truth**: edits, token moves and library map switches are pushed (debounced 250 ms).
 - **Players** never write shared documents. Cursor, pointer trail, measure, live token drag, pings and finished moves go in presence. The DM's page checks a finished move (`mv`) against the assignment and commits it; a move made from a stale view (base rev older than the token's last change `r`) is dropped.
 - **Player view:** Select (own cowboy only), Measure, Pointer, Pan; editing controls hidden (`.dmonly`, `body.mp-player`). The shared map never overwrites the player's own saved maps; ending the session brings theirs back.
+- **Solo testing:** as DM (Firebase), *Play together → Open a test player* opens `?as=player#room=…` in a new tab: a throwaway player with its own anonymous identity (auth persistence NONE) and an in-memory copy of localStorage, so the DM's saved maps are never touched.
 - **Roles:** assignments are per character (sheet index), so they survive map switches. The owner can make someone else DM (their page saves the shared map as "Session map" in their library and carries on) and take it back.
 - Tests: `multiplayer_test.js` (claude.ai transport, mocked) and `firebase_multiplayer_test.js` (Firebase transport + rules, against the local database emulator: `java -jar firebase-database-emulator-*.jar --port 9000`, with `FIREBASE_SDK` pointing at an installed `firebase@10.12.2`).
 

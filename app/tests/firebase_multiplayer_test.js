@@ -36,6 +36,17 @@ try{
   const room=hash.slice(6);
   await dm.click('#mpbtn');await dm.click('#mpbody button:has-text("Start session")');
   await until(async()=>(await S(dm)).role==='dm','DM role');
+  // solo testing: the DM opens a test player in a new tab, with its own identity and without touching the DM's saved maps
+  const libBefore=await dm.evaluate(()=>[localStorage.getItem('dustmap-library'),localStorage.getItem('dustmap-name')]);
+  const [tp]=await Promise.all([dm.context().waitForEvent('page'),dm.click('#mpbody button:has-text("Open a test player")')]);
+  await until(async()=>{try{return (await S(tp)).role==='player'}catch(e){return false}},'test player joins as a player');
+  await until(async()=>(await dm.locator('.mpp',{hasText:'Test player'}).count())>0,'Test player listed for the DM');
+  await dm.locator('.mpp',{hasText:'Test player'}).locator('select').selectOption('1');
+  await until(async()=>(await tp.textContent('#hint')).includes('Wheat'),'test player got Wheat');
+  if((await tp.textContent('#mpbtn')).indexOf('Test player')<0)fail('test tab label');
+  await wait(500);if(JSON.stringify(await dm.evaluate(()=>[localStorage.getItem('dustmap-library'),localStorage.getItem('dustmap-name')]))!==JSON.stringify(libBefore))fail('test player changed the DM browser storage');
+  if((await S(dm)).role!=='dm')fail('DM tab should stay DM');
+  await dm.locator('.mpp',{hasText:'Test player'}).locator('select').selectOption('');await tp.close();await dm.click('#mpclose');
   // a player arriving by the link without a saved name is asked for one
   const p1=await open('u_p1','',hash);
   await until(()=>p1.isVisible('#mpname'),'name prompt for a new player');
