@@ -128,6 +128,12 @@ body.mp-player .dmonly{display:none!important}
 .mpp .btn{padding:5px 9px;font-size:12px}
 .mpacts{display:flex;gap:8px;flex-wrap:wrap}
 #mpmsg:empty{display:none}
+.mppick{display:flex;flex-wrap:wrap;gap:4px;max-height:240px;overflow:auto}
+.mppick .grp{flex-basis:100%}
+.mppick .tokbtn{width:44px;height:44px;padding:4px;background:var(--bg);border:1px solid var(--line);border-radius:6px;cursor:pointer}
+.mppick .tokbtn canvas{width:32px;height:32px;image-rendering:pixelated}
+.mppick .tokbtn[aria-pressed="true"]{border-color:var(--accent);background:var(--raised)}
+.mppick .tokbtn:disabled{opacity:.3;cursor:default}
 @media (max-width:820px){
   .app{grid-template-columns:minmax(0,1fr)}
   aside{flex-direction:row;flex-wrap:wrap;gap:14px}
@@ -327,7 +333,7 @@ const mp={db:null,room:null,user:null,me:null,owner:false,edit:false,avail:false
   meta:null,parts:new Map(),applied:null,tok:null,tokApplied:null,ready:{map:false,tok:false,sess:false},
   pushed:{map:null,tok:null},lastPos:new Map(),tokR:{},busy:false,again:false,timer:0,
   peers:[],profiles:{},trails:new Map(),pingSeen:new Map(),mvSeen:new Map(),ghost:new Map(),
-  pres:{},sent:'',myPing:0,myMv:0,pend:null,err:'',heldTok:null};
+  pres:{},pickSeen:new Map(),sent:'',myPing:0,myMv:0,pend:null,err:'',heldTok:null};
 let tool='draw',paint={layer:'ground',t:3},tab='ground',objKind='saloon',bsize=6,objCells=new Set(['1,1']),objMix=false,mixKinds=new Set(),scatDens=70,scatSeed=1,objGap=2,boxSel=null;
 let stamps=(()=>{try{return JSON.parse(localStorage.getItem('dustmap-stamps'))||[]}catch(e){return[]}})();
 const saveStamps=()=>{try{localStorage.setItem('dustmap-stamps',JSON.stringify(stamps))}catch(e){}};
@@ -1306,9 +1312,13 @@ const loadScript=src=>new Promise((res,rej)=>{const s=document.createElement('sc
 let mpName0='';try{mpName0=localStorage.getItem('dustmap-name')||''}catch(e){}
 async function fbRuntime(cfg){
   for(const f of['app','auth','database'])await loadScript(`https://cdn.jsdelivr.net/npm/firebase@${FBV}/firebase-${f}-compat.js`);
-  const fb=window.firebase,T=window.__fbTest;fb.initializeApp(cfg);const fdb=fb.database();let me;
-  if(T){me=TESTPLAYER?T.uid+'-test':T.uid;fdb.useEmulator(T.host,T.port,{mockUserToken:{user_id:me}})}   // tests: local emulator, fixed user
-  else{const auth=fb.auth();if(TESTPLAYER)await auth.setPersistence(fb.auth.Auth.Persistence.NONE);   // a fresh identity every time
+  // A test player runs as its own named Firebase app: sign-ins are stored per app, so it can never pick up
+  // (or, by changing persistence, erase) the DM's saved sign-in in this browser.
+  const fb=window.firebase,T=window.__fbTest,app=fb.initializeApp(cfg,TESTPLAYER?'testplayer':'[DEFAULT]'),fdb=app.database();let me;
+  if(T&&!T.auth){me=TESTPLAYER?T.uid+'-test':T.uid;fdb.useEmulator(T.host,T.port,{mockUserToken:{user_id:me}})}   // tests: local emulator, fixed user
+  else{const auth=app.auth();
+    if(T){auth.useEmulator(T.auth,{disableWarnings:true});fdb.useEmulator(T.host,T.port)}   // tests: real anonymous sign-in on the auth emulator
+    if(TESTPLAYER)await auth.setPersistence(fb.auth.Auth.Persistence.NONE);   // a fresh identity every time
     me=await new Promise((res,rej)=>{const off=auth.onAuthStateChanged(u=>{if(u){off();res(u.uid)}else auth.signInAnonymously().catch(rej)})})}
   // the room is the group: its link opens it, and this browser remembers the last one for a bare visit
   let room=(location.hash.match(/room=([A-Za-z0-9_-]{6,40})/)||[])[1];const joined=!!room;let saved=null;try{saved=localStorage.getItem('dustmap-room')}catch(e){}
@@ -1393,6 +1403,8 @@ function mpRoleChanged(){const was=mp.role,now=mpRole();
       else if(own){const old=st;st=own;hist=[];updUndo();redrawChanged(old)}
       mp.pend=null}
     mp.role=now;
+    if(now==='player'&&$('mpmodal').hidden&&!Object.values(mp.sess.assign).includes(mp.me))setTimeout(()=>{if(mp.role==='player'&&$('mpmodal').hidden&&!Object.values(mp.sess.assign).includes(mp.me)){mp.autoPick=true;$('mpbtn').click()}},300);
+    if(was==='player'&&mp.autoPick){mp.autoPick=false;$('mpmodal').hidden=true}
     if(now==='player'){mp.applied=null;mp.tokApplied=null;hist=[];updUndo();sel=null;draft=[];stroke=null;sculpt=null;boxSel=null;drag=null;
       if(!PLAYER_TOOLS.includes(tool))tool='select';mpTryMap();mpTryTokens()}
     if(now==='dm'){mp.pushed={map:null,tok:null};mpIds();mpChanged()}
@@ -1437,11 +1449,11 @@ function mpPinged(x,y){if(mp.role!=='off')mp.pres.ping={x:Math.round(x),y:Math.r
 
 // ---- presence: what I'm doing, sent as absolute state ----
 function mpTick(){if(!mp.room)return;let pr;
-  if(mp.role==='off'){if(!mp.sent)return;pr={cur:null,ptr:null,meas:null,drag:null,ping:null,mv:null}}
+  if(mp.role==='off'){if(!mp.sent)return;pr={cur:null,ptr:null,meas:null,drag:null,ping:null,mv:null,pick:null}}
   else{const tk=drag&&drag.kind==='token'?st.tokens[drag.i]:null,hd=pointer&&pointer.down?pointer.trail[pointer.trail.length-1]:null;
     pr={cur:hover&&hover[0]>=0&&hover[1]>=0&&hover[0]<=W&&hover[1]<=H?[Math.round(hover[0]),Math.round(hover[1])]:null,
       ptr:hd?[Math.round(hd.x),Math.round(hd.y)]:null,meas:measure?{a:measure.a,b:measure.b}:null,
-      drag:tk&&tk.id?{id:tk.id,x:Math.round(tk.x),y:Math.round(tk.y)}:null,ping:mp.pres.ping||null,mv:mp.pres.mv||null}}
+      drag:tk&&tk.id?{id:tk.id,x:Math.round(tk.x),y:Math.round(tk.y)}:null,ping:mp.pres.ping||null,mv:mp.pres.mv||null,pick:Number.isInteger(mp.pres.pick)?mp.pres.pick:null}}
   const j=JSON.stringify(pr);if(j===mp.sent)return;mp.sent=mp.role==='off'?'':j;mp.room.presence(pr).catch(()=>{})}
 const ptOk=q=>Array.isArray(q)&&q.length===2&&fin(q[0])&&fin(q[1]);
 function mpPeers(ch){mp.peers=ch.peers;const now=performance.now(),ghost=new Map();let commit=false;
@@ -1457,8 +1469,28 @@ function mpPeers(ch){mp.peers=ch.peers;const now=performance.now(),ghost=new Map
       if(mv&&typeof mv.id==='string'&&mp.mvSeen.get(key)!==mv.n){mp.mvSeen.set(key,mv.n);const t=st.tokens.find(t=>t.id===mv.id);
         if(t&&p.by&&p.by!==mp.me&&mpMayMove(t,p.by)&&fin(mv.x)&&fin(mv.y)&&fin(mv.base)&&+mv.base>=(mp.tokR[t.id]||0)){
           t.x=Math.max(8,Math.min(W-8,+mv.x));t.y=Math.max(30,Math.min(H-1,+mv.y));commit=true}}}}
-  for(const l of ch.left){mp.trails.delete(l.peer);mp.pingSeen.delete(l.peer);mp.mvSeen.delete(l.peer)}
+  for(const l of ch.left){mp.trails.delete(l.peer);mp.pingSeen.delete(l.peer);mp.mvSeen.delete(l.peer);mp.pickSeen.delete(l.peer)}
+  if(mp.role==='dm'&&mpPicks(ch.peers))commit=true;
   mp.ghost=ghost;if(commit)save();mpUI()}
+// DM: players choose their own token (one each). A new choice takes that token if nobody else has it, and puts one on
+// the map if there isn't one; a token added for a player goes away when they choose another. The DM's own assignment
+// sticks until the player chooses again.
+function mpPicks(peers){const s=mp.sess;if(!s||!s.live)return false;let a=null,placed=false;
+  for(const p of peers){if(p.sameTab||!p.by||p.by===s.dm)continue;const pk=(p.presence||{}).pick;
+    if(!Number.isInteger(pk)||pk<0||pk>=SHEETS.length||mp.pickSeen.get(p.peer)===pk)continue;mp.pickSeen.set(p.peer,pk);
+    const cur=a||s.assign;if(cur[pk]===p.by)continue;if(cur[pk]&&cur[pk]!==p.by)continue;   // taken by someone else
+    a={...cur};Object.keys(a).forEach(k=>{if(a[k]===p.by)delete a[k]});a[pk]=p.by;
+    const before=st.tokens.length;st.tokens=st.tokens.filter(t=>!(t.auto===p.by&&t.s!==pk));if(st.tokens.length!==before)placed=true;
+    if(!st.tokens.some(t=>t.s===pk)){const[x,y]=mpFreeSpot();st.tokens.push({id:tokId(),s:pk,x,y,o:Math.floor(Math.random()*8),auto:p.by});placed=true}}
+  if(a){mp.sess={...s,assign:a};mpWrite({...s,assign:a})}
+  return placed}
+// a free square near the other tokens (or the middle of the map)
+function mpFreeSpot(){const ts=st.tokens,cx=ts.length?ts.reduce((q,t)=>q+t.x,0)/ts.length:W/2,cy=ts.length?ts.reduce((q,t)=>q+t.y,0)/ts.length:H/2;
+  const c0=Math.floor(cx/GRID),r0=Math.floor(cy/GRID);
+  for(let d=0;d<30;d++)for(let dc=-d;dc<=d;dc++)for(let dr=-d;dr<=d;dr++){if(Math.max(Math.abs(dc),Math.abs(dr))!==d)continue;
+    const x=(c0+dc)*GRID+GRID/2,y=(r0+dr)*GRID+GRID-2;if(x<8||x>W-8||y<30||y>H-1)continue;
+    if(!ts.some(t=>Math.abs(t.x-x)<GRID&&Math.abs(t.y-y)<GRID))return[x,y]}
+  return[Math.round(W/2),Math.round(H/2)]}
 function mpDraw(){if(mp.role==='off'||!mp.peers.length)return;const now=performance.now();
   ctx.font='600 12px "Work Sans", system-ui, sans-serif';
   for(const p of mp.peers){if(p.sameTab)continue;const pr=p.presence||{},rgb=mpRgb(p.by||p.peer),col=`rgb(${rgb})`,who=mpName(p.by);
@@ -1482,6 +1514,10 @@ function mpUI(){const b=$('mpbtn');b.replaceChildren();b.classList.toggle('live'
   if(mp.user&&pk!==mpProfKey){mpProfKey=pk;mp.user.profiles(ids).then(ps=>{mp.profiles={...mp.profiles,...ps};mpKey='';mpRender()}).catch(()=>{})}
   const key=JSON.stringify([mp.avail,mp.sess,mp.role,ids,[...here],mp.err,st.tokens.map(t=>t.s)]);if(key!==mpKey){mpKey=key;mpRender()}}
 function mpSay(t){$('mpmsg').textContent=t||''}
+// anyone who doesn't own this room can start one of their own (and become its DM); the old room stays reachable by its link
+function mpNewRoom(box){if(!mp.fb||mp.owner||TESTPLAYER)return;const a=document.createElement('div');a.className='mpacts';box.append(a);
+  const b=document.createElement('button');b.className='btn';b.textContent='Start my own room';b.title='A new room where you are the owner and DM. Your saved maps come with you.';
+  b.onclick=()=>{const id=Math.random().toString(36).slice(2,8)+Math.random().toString(36).slice(2,8);try{localStorage.setItem('dustmap-room',id)}catch(e){}location.hash='room='+id;location.reload()};a.append(b)}
 async function mpWrite(d){mpSay('');try{await mp.db.doc('live/session').set(d)}
   catch(e){mpSay(e&&e.code==='invalid_argument'?(mp.fb?'Only the room’s owner or DM can do that.':'That needs Editor access to this page.'):'That didn’t go through. Try again in a moment.')}}
 function mpRender(){if($('mpmodal').hidden)return;const box=$('mpbody');box.replaceChildren();const s=mp.sess,live=s&&s.live;
@@ -1502,9 +1538,10 @@ function mpRender(){if($('mpmodal').hidden)return;const box=$('mpbody');box.repl
       const a=document.createElement('div');a.className='mpacts';box.append(a);
       button('Start session','primary',()=>mpWrite({live:true,dm:mp.me,assign:(s&&s.assign)||{}}),a)}
     else para('Nobody is running a session right now. When your DM starts one, this page switches to the shared map by itself.');
-    para(invite,'note');return}
+    mpNewRoom(box);para(invite,'note');return}
   const amDM=mp.role==='dm';
   para(amDM?'You’re the DM. Players see the map you have open, live, and every change you make. Hand each player a cowboy below.':`<b></b> is the DM. Your view follows their map. You can move your own cowboy, point, ping and measure.`).querySelector('b')?.append(mpName(s.dm));
+  if(mp.role==='player')mpPicker(box,s);
   const{ids,here}=mpPeople(),list=document.createElement('div');list.className='mppeople';box.append(list);
   const chars=[...new Set([0,1,2,3,...st.tokens.map(t=>t.s),...Object.keys(s.assign).map(Number)])].filter(c=>c<SHEETS.length).sort((a,b)=>a-b);   // the four cowboys, plus any token on this map
   ids.sort((a,b)=>(b===s.dm)-(a===s.dm)||(b===mp.me)-(a===mp.me)).forEach(id=>{
@@ -1524,9 +1561,24 @@ function mpRender(){if($('mpmodal').hidden)return;const box=$('mpbody');box.repl
       mpSay('A test player opened in a new tab. Give “Test player” a cowboy here, then put the two tabs side by side.')},a).title='See exactly what a player sees, in a new tab';
     button('Copy room link','primary',async e=>{const b=e.currentTarget;try{await navigator.clipboard.writeText(link);b.textContent='Copied'}catch(err){mpSay('Copy this link: '+link)}setTimeout(()=>b.textContent='Copy room link',1500)},a)}
   if(amDM||mp.owner){const a=document.createElement('div');a.className='mpacts';box.append(a);button('End session','warn',()=>mpWrite({...s,live:false}),a)}
+  mpNewRoom(box);
   para(invite,'note')}
+// players: choose your token, one each; taken ones show who has them
+function mpPicker(box,s){const mine=Object.keys(s.assign).find(k=>s.assign[k]===mp.me),want=mp.pres.pick;
+  if(mine!==undefined&&mp.autoPick){mp.autoPick=false;setTimeout(()=>{$('mpmodal').hidden=true},600)}   // opened for them, so close once their pick lands
+  const h=document.createElement('p');h.innerHTML=mine!==undefined?'You’re playing <b></b>. Pick another to switch.':Number.isInteger(want)?'Waiting for the DM’s page to hand you <b></b>…':'<b>Pick your character.</b> One each; the DM can change it.';
+  const hb=h.querySelector('b');if(hb&&(mine!==undefined||Number.isInteger(want)))hb.textContent=tokLabel(mine!==undefined?+mine:want);box.append(h);
+  const grid=document.createElement('div');grid.className='mppick';let grp='';
+  TOKINFO.forEach((t,i)=>{if(t.group!==grp){grp=t.group;const g=document.createElement('div');g.className='grp';g.textContent=grp;grid.append(g)}
+    const b=document.createElement('button');b.className='tokbtn';b.title=tokLabel(i);b.setAttribute('aria-label',tokLabel(i));
+    const owner=s.assign[i];b.setAttribute('aria-pressed',String(owner===mp.me||(mine===undefined&&want===i)));
+    if(owner&&owner!==mp.me){b.disabled=true;b.title=tokLabel(i)+' · taken by '+mpName(owner)}
+    const c=document.createElement('canvas');c.width=c.height=32;const g=c.getContext('2d');const im=sheets[i];
+    const paint=()=>g.drawImage(im,0,0,32,32,0,0,32,32);if(im.complete)paint();else im.addEventListener('load',paint,{once:true});b.append(c);
+    b.onclick=()=>{mp.pres.pick=i;mpKey='';mpRender()};grid.append(b)});
+  box.append(grid)}
 $('mpbtn').onclick=()=>{$('mpmodal').hidden=false;mpKey='';mpSay('');mpUI();mpRender()};
-$('mpclose').onclick=()=>$('mpmodal').hidden=true;
+$('mpclose').onclick=()=>{$('mpmodal').hidden=true;mp.autoPick=false};
 $('mpmodal').onclick=e=>{if(e.target.id==='mpmodal')e.currentTarget.hidden=true};
 $('mpmodal').addEventListener('keydown',e=>{if(e.key==='Escape')$('mpmodal').hidden=true;e.stopPropagation()});
 // read-only peek for the tests
