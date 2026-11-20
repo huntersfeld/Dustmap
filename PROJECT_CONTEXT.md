@@ -66,6 +66,7 @@ All are tiny pixel art, hand-placed on a character grid for the smallest size, t
 - **Measure:** square-to-square distance in feet and squares, 5e default (diagonals count 5 ft).
 - **Pointer:** click for a radar ping; press and drag for a pointer with a fading tail.
 - **Map library:** the **Map: <name>** button in the header opens the list of maps saved in this browser. New map (blank 40×28 with the four cowboys), Open, Rename, Duplicate, Export, Delete (two-click confirm; the only map can't be deleted), Import file (one or many, or drop files on the dialog), Export all maps. Import never overwrites: every imported map is added as a new entry (names get " (2)" if taken), and a single imported map opens. If the page can't save files, the export text appears in a "Move maps as text" box to copy, and pasted text imports from the same box. Switching maps clears undo history.
+- **Fog of war (F):** the DM hides and reveals squares with a brush (1–11 squares across) or a box, Shift paints the opposite, plus Hide everything / Reveal everything. The DM sees hidden squares under a hatched veil and can preview the player view; players see darkness, and tokens standing in hidden squares are never sent to them (tokens handed to a player always show). Fog saves with the map, undoes, and moves with map resizes (new squares start hidden). In a session it is published on its own document (`live/fog`), so a reveal never resends the map. Limitation: the terrain and objects under fog are still in the shared map data, so a player who digs into the database could see the layout; tokens are not.
 - **Other:** Undo (Ctrl/Cmd+Z), Reroll details, Clear map (two-click confirm), Load example, Snapshot (renders an image the user right-click saves), 5 ft grid toggle, edge roughness slider, token animation toggle. Maps autosave to `localStorage`.
 
 ## How the code works (`app/dustmap_src.html`)
@@ -83,7 +84,8 @@ st = {
            pts:[[x,y]...], r (stroke radius), sid (per-op random id) } ],
   objects: [ { k, x, y, v, g? } ],   // centre position; v = variant; g = group id
   tokens:  [ { s (sheet 0–3), x, y (standing point), o (frame offset) } ],
-  skip: [ "prefix:x:y" ]             // auto-placed items the user picked up
+  skip: [ "prefix:x:y" ],            // auto-placed items the user picked up
+  fog: null | "0101..."              // one char per square, row by row; '1' = hidden from players
 }
 ```
 Older saves are migrated (`migrate()`); stamps live separately in `localStorage['dustmap-stamps']`.
@@ -148,7 +150,7 @@ Full redraws still happen for: load, Reroll, roughness, resize, and undo that ch
 | 2 | Object grid placement and reusable stamps | Done |
 | 3 | Map library: named maps saved in the page, switch between them, export/import as a file (needed to "build locally, then load into a session") | Done |
 | 4 | Multiplayer core: sessions, DM + player roles, shared live map, players move only their own token, shared pointer/measure/ping | Done |
-| 5 | **Hidden areas** (fog of war) painted by the DM, revealable mid-session | **Next** |
+| 5 | Hidden areas (fog of war) painted by the DM, revealable mid-session | Done |
 | 6 | DM animation paths (token walks a drawn path at a set speed) | To do |
 | 6 | Interactive objects (click a door to load another map; more actions later) | To do |
 | — | Physics engine | Parked |

@@ -41,7 +41,7 @@ aside{background:var(--panel);border:1px solid var(--line);border-radius:10px;pa
 .tool[aria-pressed="true"]{background:var(--raised);border-color:var(--accent);font-weight:600}
 .tabs{display:flex;gap:4px;background:var(--bg);padding:3px;border-radius:7px}
 .tab{flex:1;background:transparent;border:0;border-radius:5px;padding:5px 8px;cursor:pointer;font-size:12px;font-weight:600;color:var(--muted)}
-.tab[aria-selected="true"]{background:var(--raised);color:var(--fg)}
+.tab[aria-selected="true"],.tab[aria-pressed="true"]{background:var(--raised);color:var(--fg)}
 .terr{display:flex;align-items:center;gap:10px;background:transparent;border:1px solid transparent;border-radius:8px;padding:4px;cursor:pointer;text-align:left}
 .terr:hover{background:var(--raised)}
 .terr[aria-pressed="true"]{background:var(--raised);border-color:var(--accent)}
@@ -174,6 +174,16 @@ body.mp-player .dmonly{display:none!important}
       <label class="label" for="bsize">Brush size</label>
       <input type="range" id="bsize" min="2" max="28" step="1" value="6">
     </div>
+    <div class="sec dmonly" id="sec-fog" hidden>
+      <span class="label">Fog of war</span>
+      <div class="tabs" role="group" aria-label="Fog brush paints"><button class="tab" id="fog-hide">Hide</button><button class="tab" id="fog-reveal">Reveal</button></div>
+      <div class="tabs" role="group" aria-label="Fog brush shape"><button class="tab" id="fog-brush">Brush</button><button class="tab" id="fog-box">Box</button></div>
+      <label class="note" for="fogsize" id="fogsizelbl">Brush: 1 square</label>
+      <input type="range" id="fogsize" min="1" max="6" step="1" value="2">
+      <div class="row" style="flex-wrap:wrap"><button class="btn sm" id="fog-all">Hide everything</button><button class="btn sm" id="fog-none">Reveal everything</button></div>
+      <label class="check" for="fogprev"><input type="checkbox" id="fogprev"> Preview what players see</label>
+      <span class="note" id="fognote"></span>
+    </div>
     <div class="sec" id="sec-obj" hidden>
       <details class="tokdrop" id="tokdrop">
         <summary>Tokens <span class="note" id="toknote"></span></summary>
@@ -285,7 +295,7 @@ const OBJ=[
 // 16 px = one 5 ft square. Buildings are drawn a bit under true scale so towns read denser:
 // a shack is about 2¼×2 squares, a saloon 3¾×3¾, a hotel 5¼×4½ (still bigger than a token).
 const SIZE={cart:[14,12],lantern:[6,7],timber:[30,10],rubble:[16,12],crystals:[12,12],cactus:[7,9],rock:[5,4],skull:[3,3],shack:[36,32],saloon:[60,60],hotel:[84,72],well:[16,16],wagon:[34,16],trough:[20,8],barrels:[10,8],crates:[11,10],boulder:[14,11],tree:[26,24]};
-const TOOLS=[{id:'draw',name:'Shape',key:'D'},{id:'brush',name:'Brush',key:'B'},{id:'sculpt',name:'Sculpt',key:'E'},{id:'select',name:'Select',key:'V'},{id:'object',name:'Objects',key:'O'},{id:'measure',name:'Measure',key:'M'},{id:'ping',name:'Pointer',key:'P'},{id:'pan',name:'Pan',key:'H'}];
+const TOOLS=[{id:'draw',name:'Shape',key:'D'},{id:'brush',name:'Brush',key:'B'},{id:'sculpt',name:'Sculpt',key:'E'},{id:'select',name:'Select',key:'V'},{id:'object',name:'Objects',key:'O'},{id:'fog',name:'Fog',key:'F'},{id:'measure',name:'Measure',key:'M'},{id:'ping',name:'Pointer',key:'P'},{id:'pan',name:'Pan',key:'H'}];
 const C={sand:[240,202,184],sand2:[236,196,178],sand3:[244,208,191],peb:[204,160,148],wet:[214,168,150],
  scrubg:[226,198,164],tuft:[140,130,72],tuftd:[104,96,52],tuftl:[170,160,92],
  mesa:[198,88,62],mesal:[218,112,80],mesad:[168,70,50],cliff:[140,54,40],cliffd:[108,40,30],
@@ -330,8 +340,8 @@ function save(){if(mp.role==='player')return;const j=JSON.stringify(st);try{loca
 let st=load()||example();W=st.cols*GRID;H=st.rows*GRID;
 // multiplayer state (see the Play together section near the end)
 const mp={db:null,room:null,user:null,me:null,owner:false,edit:false,avail:false,sess:null,role:'off',
-  meta:null,parts:new Map(),applied:null,tok:null,tokApplied:null,ready:{map:false,tok:false,sess:false},
-  pushed:{map:null,tok:null},lastPos:new Map(),tokR:{},busy:false,again:false,timer:0,
+  meta:null,parts:new Map(),applied:null,tok:null,tokApplied:null,ready:{map:false,tok:false,sess:false,fog:false},
+  pushed:{map:null,tok:null,fog:null},fog:null,lastPos:new Map(),tokR:{},busy:false,again:false,timer:0,
   peers:[],profiles:{},trails:new Map(),pingSeen:new Map(),mvSeen:new Map(),ghost:new Map(),
   pres:{},pickSeen:new Map(),sent:'',myPing:0,myMv:0,pend:null,err:'',heldTok:null};
 let tool='draw',paint={layer:'ground',t:3},tab='ground',objKind='saloon',bsize=6,objCells=new Set(['1,1']),objMix=false,mixKinds=new Set(),scatDens=70,scatSeed=1,objGap=2,boxSel=null,stampRot=0;
@@ -777,6 +787,63 @@ const sheets=SHEETS.map(src=>{const im=new Image();im.src=src;return im});
 const shadowImg=(()=>{const c=document.createElement('canvas');c.width=14;c.height=4;const g=c.getContext('2d');g.fillStyle='rgb(196,150,138)';
   [[3,0,8,1],[1,1,12,2],[3,3,8,1]].forEach(r=>g.fillRect(...r));return c})();
 
+// ================= fog of war =================
+// st.fog is null (nothing hidden) or one character per square, row by row: '1' hidden from players, '0' revealed.
+// It saves with the map. In a session the DM publishes it on its own (live/fog), so revealing a room never resends the map,
+// and tokens standing in hidden squares are left out of what players receive (party tokens handed to a player always show).
+let fogMode='hide',fogShape='brush',fogR=2,fogPreview=false,fogPaint=null;
+const fogAll=c=>c.repeat(st.cols*st.rows);
+function fogGet(){   // what this viewer has hidden right now: a string, or null for nothing
+  if(mp.role==='player'){const f=mp.fog;
+    if(!mp.ready.fog)return fogAll('1');   // nothing heard yet: show nothing rather than everything
+    if(!f||!f.f)return null;
+    return f.cols===st.cols&&f.rows===st.rows&&f.f.length===st.cols*st.rows?f.f:fogAll('1')}
+  return st.fog||null}
+const fogAt=(f,x,y)=>{const c=Math.floor(x/GRID),r=Math.floor(y/GRID);return!!f&&c>=0&&r>=0&&c<st.cols&&r<st.rows&&f[r*st.cols+c]==='1'};
+const tokHidden=(f,t)=>fogAt(f,t.x,t.y-4);   // by the square the token stands in
+const tokShown=(f,t)=>!f||!tokHidden(f,t)||!!(mp.sess&&mp.sess.live&&mp.sess.assign[t.s]);
+// fog as the players see it in drawWorld: players always, the DM only when previewing
+const fogView=()=>mp.role==='player'?fogGet():fogPreview?st.fog||null:null;
+function fogCleanDoc(d){if(!d||typeof d!=='object')return null;const cols=Math.round(+d.cols),rows=Math.round(+d.rows),f=typeof d.f==='string'&&/^[01]*$/.test(d.f)?d.f:'';
+  return{rev:fin(d.rev)?+d.rev:0,cols,rows,f}}
+const fogMask=document.createElement('canvas');let fogKey='',fogTex=null;
+function fogMaskFor(f){const k=st.cols+'x'+st.rows+':'+f;if(k!==fogKey){fogKey=k;fogMask.width=st.cols;fogMask.height=st.rows;const g=fogMask.getContext('2d'),im=g.createImageData(st.cols,st.rows);
+    for(let i=0;i<f.length;i++)if(f[i]==='1'){im.data[i*4]=18;im.data[i*4+1]=14;im.data[i*4+2]=22;im.data[i*4+3]=255}g.putImageData(im,0,0)}return fogMask}
+// hidden squares as one path (merged into runs per row, so no seams between squares)
+function fogPath(g,f){g.beginPath();for(let r=0;r<st.rows;r++){let c0=-1;for(let c=0;c<=st.cols;c++){const on=c<st.cols&&f[r*st.cols+c]==='1';
+  if(on&&c0<0)c0=c;else if(!on&&c0>=0){g.rect(c0*GRID,r*GRID,(c-c0)*GRID,GRID);c0=-1}}}}
+// players: solid dark ground with a soft shadow falling onto the revealed edge
+function drawFogSolid(g,f){if(!f||!f.includes('1'))return;g.save();
+  g.imageSmoothingEnabled=true;g.globalAlpha=.8;g.drawImage(fogMaskFor(f),0,0,st.cols*GRID,st.rows*GRID);g.globalAlpha=1;g.imageSmoothingEnabled=false;
+  if(!fogTex){fogTex=document.createElement('canvas');fogTex.width=fogTex.height=32;const x=fogTex.getContext('2d');x.fillStyle='#16121b';x.fillRect(0,0,32,32);
+    for(let i=0;i<32;i++)for(let j=0;j<32;j++){const h=hash(i,j,913);if(h<.07){x.fillStyle=h<.025?'#2b2434':'#201a27';x.fillRect(i,j,1,1)}}}
+  fogPath(g,f);g.fillStyle=g.createPattern(fogTex,'repeat');g.fill();g.restore()}
+// DM: hidden squares stay visible under a hatched veil
+function drawFogVeil(g,f){if(!f||!f.includes('1'))return;g.save();fogPath(g,f);g.fillStyle='rgba(20,14,30,.45)';g.fill();g.clip();
+  g.strokeStyle='rgba(200,180,230,.22)';g.lineWidth=Math.max(.5,1.5/Z);g.beginPath();for(let k=-H;k<W;k+=8){g.moveTo(k,0);g.lineTo(k+H,H)}g.stroke();
+  g.restore();g.save();g.beginPath();const hid=(c,r)=>c>=0&&r>=0&&c<st.cols&&r<st.rows&&f[r*st.cols+c]==='1';   // outline only where fog meets revealed ground
+  for(let r=0;r<st.rows;r++)for(let c=0;c<st.cols;c++){if(!hid(c,r))continue;const x=c*GRID,y=r*GRID;
+    if(!hid(c,r-1)&&r>0){g.moveTo(x,y);g.lineTo(x+GRID,y)}if(!hid(c,r+1)&&r<st.rows-1){g.moveTo(x,y+GRID);g.lineTo(x+GRID,y+GRID)}
+    if(!hid(c-1,r)&&c>0){g.moveTo(x,y);g.lineTo(x,y+GRID)}if(!hid(c+1,r)&&c<st.cols-1){g.moveTo(x+GRID,y);g.lineTo(x+GRID,y+GRID)}}
+  g.strokeStyle='rgba(200,180,230,.7)';g.lineWidth=Math.max(.75,2/Z);g.stroke();g.restore()}
+// paint: squares whose centres are within the brush of p, or every square a box touches
+function fogEnsure(){if(typeof st.fog!=='string'||st.fog.length!==st.cols*st.rows)st.fog=fogAll('0')}
+function fogSet(cells,v){fogEnsure();const a=st.fog.split('');cells.forEach(i=>a[i]=v);st.fog=a.join('')}
+function fogBrushCells(p){const c0=Math.floor(p[0]/GRID),r0=Math.floor(p[1]/GRID),R=fogR-.5,n=Math.ceil(R),out=[];
+  for(let dr=-n;dr<=n;dr++)for(let dc=-n;dc<=n;dc++){const c=c0+dc,r=r0+dr;if(c<0||r<0||c>=st.cols||r>=st.rows||Math.hypot(dc,dr)>R)continue;out.push(r*st.cols+c)}return out}
+function fogBoxCells(a,b){const cl=v=>Math.max(0,Math.min(st.cols-1,Math.floor(v/GRID))),rl=v=>Math.max(0,Math.min(st.rows-1,Math.floor(v/GRID)));
+  const c0=cl(Math.min(a[0],b[0])),c1=cl(Math.max(a[0],b[0])),r0=rl(Math.min(a[1],b[1])),r1=rl(Math.max(a[1],b[1])),out=[];
+  for(let r=r0;r<=r1;r++)for(let c=c0;c<=c1;c++)out.push(r*st.cols+c);return out}
+function fogStroke(a,b){const d=dist(a,b),n=Math.max(1,Math.ceil(d/(GRID/2)));const cells=new Set();
+  for(let k=0;k<=n;k++)fogBrushCells([a[0]+(b[0]-a[0])*k/n,a[1]+(b[1]-a[1])*k/n]).forEach(i=>cells.add(i));fogSet(cells,fogPaint.v)}
+function fogDone(){const fp=fogPaint;fogPaint=null;if(!fp)return;if(!fp.brush)fogSet(fogBoxCells(fp.a,fp.b),fp.v);
+  if(st.fog&&!st.fog.includes('1'))st.fog=null;
+  if((st.fog||null)===fp.before){hist.pop();updUndo()}else save();syncUI()}
+function fogWhole(v){const nf=v==='1'?fogAll('1'):null;if(nf===(st.fog||null))return;push();st.fog=nf;save();syncUI()}
+// map resized by (dx,dy) squares: keep fog under the same ground; new squares start hidden
+function fogResize(oc,or,cols,rows,dx,dy){if(!st.fog)return;const old=st.fog;let f='';
+  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){const oc2=c-dx,or2=r-dy;f+=oc2>=0&&or2>=0&&oc2<oc&&or2<or?old[or2*oc+oc2]:'1'}st.fog=f}
+
 // ================= display =================
 const cv=$('map'),ctx=cv.getContext('2d');
 const sc=p=>[p[0]*Z,p[1]*Z];
@@ -787,7 +854,8 @@ function pathPoly(p){ctx.beginPath();p.forEach((q,i)=>i?ctx.lineTo(...q):ctx.mov
 const cam={x:0,y:0};let dpr=1,viewW=800,viewH=560,fitted=false;
 function drawWorld(g,s){ // draw terrain, objects, tokens and grid in map units (transform already set)
   g.imageSmoothingEnabled=false;g.drawImage(tcan,0,0);g.drawImage(ocan,0,0);
-  [...st.tokens].map(t=>{const gh=t.id&&mp.ghost.get(t.id);return gh?{...t,x:gh[0],y:gh[1]}:t}).sort((a,b)=>a.y-b.y).forEach(t=>{g.drawImage(shadowImg,Math.round(t.x)-7,Math.round(t.y)-2);
+  const fv=fogView();drawFogSolid(g,fv);
+  st.tokens.filter(t=>tokShown(fv,t)).map(t=>{const gh=t.id&&mp.ghost.get(t.id);return gh?{...t,x:gh[0],y:gh[1]}:t}).sort((a,b)=>a.y-b.y).forEach(t=>{g.drawImage(shadowImg,Math.round(t.x)-7,Math.round(t.y)-2);
     const f=(frame+(t.o||0))%8,im=sheets[t.s];if(im.complete)g.drawImage(im,f*32,0,32,32,Math.round(t.x)-16,Math.round(t.y)-31,32,32)});
   if($('grid').checked&&GRID*s>=6){g.strokeStyle='rgba(60,40,40,.18)';g.lineWidth=1/s;g.beginPath();
     for(let x=GRID;x<W;x+=GRID){g.moveTo(x,0);g.lineTo(x,H)}for(let y=GRID;y<H;y+=GRID){g.moveTo(0,y);g.lineTo(W,y)}g.stroke()}}
@@ -803,7 +871,7 @@ function draw(ts){
   const busy=drag&&(drag.kind==='vertex'||drag.kind==='op');
   if(dirty)renderTerrain();else if(dRect&&lastR&&!(busy&&performance.now()-lastRenderT<40))renderRegion();if(objDirty)renderObjects();
   ctx.setTransform(1,0,0,1,0,0);ctx.fillStyle='#120f14';ctx.fillRect(0,0,cv.width,cv.height);
-  ctx.setTransform(dpr*Z,0,0,dpr*Z,-cam.x*Z*dpr,-cam.y*Z*dpr);drawWorld(ctx,Z);
+  ctx.setTransform(dpr*Z,0,0,dpr*Z,-cam.x*Z*dpr,-cam.y*Z*dpr);drawWorld(ctx,Z);if(mp.role!=='player'&&!fogPreview)drawFogVeil(ctx,st.fog);
   ctx.setTransform(dpr,0,0,dpr,-cam.x*Z*dpr,-cam.y*Z*dpr);   // overlays: map coords × Z, in CSS pixels
   ctx.strokeStyle='rgba(242,196,159,.35)';ctx.lineWidth=1;ctx.strokeRect(-.5,-.5,W*Z+1,H*Z+1);
   edgeTabs=[];const MAXC=60,MAXR=40;
@@ -868,6 +936,12 @@ function draw(ts){
           ctx.fillStyle=on?'#f2c49f':'rgba(29,27,34,.85)';ctx.beginPath();ctx.roundRect(gx,yy-9,tw+12,18,5);ctx.fill();
           ctx.fillStyle=on?'#1d1b22':'#cfc8d6';ctx.fillText(lb,gx+6,yy+4)}}}
     else if(hover){const [cx,cy]=sc(hover);ctx.beginPath();ctx.arc(cx,cy,r,0,7);ctx.strokeStyle='rgba(255,255,255,.9)';ctx.lineWidth=2;ctx.setLineDash([6,5]);ctx.stroke();ctx.setLineDash([])}}
+  // fog tool: the squares the next stroke or box will change
+  if(tool==='fog'&&(fogPaint||hover)){const hideNow=fogPaint?fogPaint.v==='1':(fogMode==='hide')!==shiftDown;
+    const cells=fogPaint&&!fogPaint.brush?fogBoxCells(fogPaint.a,fogPaint.b):hover?fogBrushCells(hover):[];
+    if(cells.length&&!(fogShape==='box'&&!fogPaint)){ctx.beginPath();cells.forEach(i=>ctx.rect((i%st.cols)*GRID*Z,Math.floor(i/st.cols)*GRID*Z,GRID*Z,GRID*Z));
+      ctx.fillStyle=hideNow?'rgba(20,14,30,.35)':'rgba(255,240,210,.18)';ctx.fill();ctx.strokeStyle=hideNow?'rgba(200,180,230,.9)':'rgba(255,240,210,.95)';ctx.lineWidth=1.5;ctx.stroke()}
+    else if(hover){const c=Math.floor(hover[0]/GRID),r=Math.floor(hover[1]/GRID);ctx.strokeStyle='rgba(255,255,255,.8)';ctx.lineWidth=1.5;ctx.strokeRect(c*GRID*Z,r*GRID*Z,GRID*Z,GRID*Z)}}
   if(measure)drawMeasure(measure.a,measure.b,'#f2c49f');
   // pointer with a fading tail
   if(pointer){const now2=performance.now();
@@ -955,6 +1029,8 @@ cv.addEventListener('pointerdown',e=>{const p=toMap(e);cv.setPointerCapture(e.po
   if(tool==='sculpt'){sculpt={phase:'paint',pts:[clamp(p)],cy:e.clientY,t:performance.now(),y0:0,base:0,delta:0};syncHint();return}
   if(tool==='object'&&tokKind()>=0){const ts=placementTokens(p[0],p[1]);if(!ts.length)return;push();ts.forEach(t=>st.tokens.push({...t,o:Math.floor(Math.random()*8)}));save();return}
   if(tool==='object'){const items=placementItems(p[0],p[1]);if(!items.length)return;push();const g=items.length>1?'g'+Date.now().toString(36):undefined;items.forEach(it=>st.objects.push(g?{...it,g}:it));objDirty=true;save();if(objMix&&!objKind.startsWith('stamp:'))scatSeed++;return}
+  if(tool==='fog'&&mp.role!=='player'){push();const before=st.fog||null,v=(fogMode==='hide')!==e.shiftKey?'1':'0',q=clamp(p);
+    fogPaint={v,before,brush:fogShape==='brush',a:q,b:q,last:q};if(fogPaint.brush)fogStroke(q,q);return}
   if(tool==='measure'){const s=q=>[Math.floor(q[0]/GRID)*GRID+GRID/2,Math.floor(q[1]/GRID)*GRID+GRID/2];measure={a:s(p),b:s(p),snap:s,down:true};return}
   if(tool==='ping'){pointer={trail:[{x:p[0],y:p[1],t:performance.now()}],down:true,end:0};return}
   // players: drag a token they may move, otherwise pan
@@ -983,6 +1059,7 @@ cv.addEventListener('pointermove',e=>{if(boxSel){boxSel.b=toMap(e);return}
   hoverScr=scrPt(e);const p=toMap(e);hover=p;
   if(tool==='brush'&&stroke){const lp=stroke.pts[stroke.pts.length-1];if(dist(lp,p)>=Math.max(1.5,stroke.r/2.5))stroke.pts.push(clamp(p));return}
   if(tool==='measure'&&measure&&measure.down){measure.b=measure.snap(p);return}
+  if(tool==='fog'&&fogPaint){const q=clamp(p);if(fogPaint.brush){fogStroke(fogPaint.last,q);fogPaint.last=q;mpChanged()}else fogPaint.b=q;return}
   if(tool==='ping'&&pointer&&pointer.down){pointer.trail.push({x:p[0],y:p[1],t:performance.now()});return}
   if(tool==='sculpt'&&sculpt){sculpt.cy=e.clientY;
     if(sculpt.phase==='paint'){const lp=sculpt.pts[sculpt.pts.length-1];if(dist(lp,p)>=1.5){sculpt.pts.push(clamp(p));sculpt.t=performance.now()}}
@@ -998,6 +1075,7 @@ function up(){
   if(boxSel){const[a,b]=[boxSel.a,boxSel.b],x0=Math.min(a[0],b[0]),x1=Math.max(a[0],b[0]),y0=Math.min(a[1],b[1]),y1=Math.max(a[1],b[1]);
     const inside=st.objects.map((o,i)=>o.x>=x0&&o.x<=x1&&o.y>=y0&&o.y<=y1?i:-1).filter(i=>i>=0);setObjSel([...new Set([...boxSel.add,...inside])]);boxSel=null;syncUI();return}
   if(panning){const r=panning.rot&&!panning.moved;panning=null;cv.style.cursor='';if(r)rotatePlacement();return}
+  if(fogPaint){fogDone();return}
   if(tool==='brush'&&stroke){push();if(paint.t===9&&paint.layer==='ground'){const sp=[];stroke.pts.forEach((q,k)=>{if(!sp.length||k===stroke.pts.length-1||dist(sp[sp.length-1],q)>=10)sp.push(q)});stroke.pts=sp}
     st.ops.push({kind:'stroke',...paint,r:paint.t===9&&paint.layer==='ground'?5:stroke.r,pts:stroke.pts.map(q=>[Math.round(q[0]*2)/2,Math.round(q[1]*2)/2]),sid:Math.floor(Math.random()*1000)});markOp(st.ops[st.ops.length-1]);stroke=null;save();return}
   if(tool==='sculpt'&&sculpt){const sp=sculpt;sculpt=null;if(sp.phase==='raise'&&sp.delta!==0){push();const lv=SLAD[sp.base+sp.delta];
@@ -1032,7 +1110,7 @@ function setMapSize(cols,rows,ox,oy,keepView){if(cols===st.cols&&rows===st.rows)
   const dx=(ox??Math.round((cols-st.cols)/2))*GRID,dy=(oy??Math.round((rows-st.rows)/2))*GRID;
   st.ops.forEach(o=>o.pts=o.pts.map(q=>[q[0]+dx,q[1]+dy]));st.objects.forEach(o=>{o.x+=dx;o.y+=dy});st.tokens.forEach(t=>{t.x+=dx;t.y+=dy});
   st.skip=(st.skip||[]).map(k=>k.replace(/:(-?[\d.]+):(-?[\d.]+)$/,(m,a,b)=>`:${+a+dx}:${+b+dy}`));
-  st.cols=cols;st.rows=rows;applySize();const nw=W,nh=H;
+  fogResize(st.cols,st.rows,cols,rows,dx/GRID,dy/GRID);st.cols=cols;st.rows=rows;applySize();const nw=W,nh=H;
   st.objects=st.objects.filter(o=>o.x>=0&&o.y>=0&&o.x<=nw&&o.y<=nh);
   st.tokens.forEach(t=>{t.x=Math.max(8,Math.min(nw-8,t.x));t.y=Math.max(30,Math.min(nh-2,t.y))});
   if(keepView){cam.x+=dx;cam.y+=dy;clampCam()}else fit();save();syncUI()}
@@ -1043,6 +1121,11 @@ clr.onclick=()=>{if(!armedClear){armedClear=true;clr.textContent='Click again to
   push();st.ops=[];st.objects=[];sel=null;draft=[];dirty=objDirty=true;armedClear=false;clr.textContent='Clear map';clr.classList.remove('warn');save();syncUI()};
 $('rag').oninput=e=>{st.rag=+e.target.value;dirty=true};$('rag').onchange=save;
 $('bsize').oninput=e=>{bsize=+e.target.value};
+$('fog-hide').onclick=()=>{fogMode='hide';syncUI()};$('fog-reveal').onclick=()=>{fogMode='reveal';syncUI()};
+$('fog-brush').onclick=()=>{fogShape='brush';syncUI()};$('fog-box').onclick=()=>{fogShape='box';syncUI()};
+$('fogsize').oninput=e=>{fogR=+e.target.value;syncUI()};
+$('fog-all').onclick=()=>fogWhole('1');$('fog-none').onclick=()=>fogWhole('0');
+$('fogprev').onchange=e=>{fogPreview=e.target.checked};
 $('ogap').oninput=e=>{objGap=+e.target.value};
 $('gridreset').onclick=()=>{objCells=new Set(['1,1']);syncUI()};
 $('omix').onchange=e=>{objMix=e.target.checked;if(objMix){if(objKind.startsWith('stamp:')||objKind.startsWith('tok:'))objKind='crates';if(!mixKinds.size)mixKinds.add(objKind)}syncUI()};
@@ -1053,9 +1136,11 @@ $('snap').onclick=()=>{const s=Math.max(1,Math.min(3,Math.floor(2400/W)));const 
   $('snapimg').src=c.toDataURL('image/png');$('modal').hidden=false};
 $('mclose').onclick=()=>$('modal').hidden=true;
 $('modal').onclick=e=>{if(e.target.id==='modal')e.currentTarget.hidden=true};
-window.addEventListener('keyup',e=>{if(e.key==='Alt')altDown=false;if(e.key===' '){spaceDown=false;cv.classList.toggle('pan',tool==='pan')}});
+let shiftDown=false;
+window.addEventListener('blur',()=>{shiftDown=false});
+window.addEventListener('keyup',e=>{if(e.key==='Shift')shiftDown=false;if(e.key==='Alt')altDown=false;if(e.key===' '){spaceDown=false;cv.classList.toggle('pan',tool==='pan')}});
 window.addEventListener('keydown',e=>{const tg=e.target;if(tg.tagName==='INPUT'&&tg.type!=='checkbox'&&tg.type!=='range')return;if(tg.tagName==='SELECT')return;
-  if(e.key==='Alt')altDown=true;
+  if(e.key==='Alt')altDown=true;if(e.key==='Shift')shiftDown=true;
   if(e.key===' '&&tg.tagName!=='BUTTON'){e.preventDefault();spaceDown=true;cv.classList.add('pan');return}
   if(!e.ctrlKey&&!e.metaKey&&(e.key==='+'||e.key==='=')){zoomStep(1);return}if(!e.ctrlKey&&!e.metaKey&&(e.key==='-'||e.key==='_')){zoomStep(-1);return}if(e.key==='0'){fit();return}
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();undo();return}
@@ -1064,6 +1149,7 @@ window.addEventListener('keydown',e=>{const tg=e.target;if(tg.tagName==='INPUT'&
   if(e.key==='Enter'&&tool==='draw'&&tg.tagName!=='BUTTON'){finish();return}
   if(e.key==='Backspace'||e.key==='Delete'){if(tool==='draw'&&draft.length){draft.pop();syncHint();e.preventDefault()}else if(sel){delSel();e.preventDefault()}return}
   if(e.ctrlKey||e.metaKey||e.altKey)return;
+  if(tool==='fog'&&(e.key==='['||e.key===']')){fogR=Math.max(1,Math.min(6,fogR+(e.key===']'?1:-1)));syncUI();return}
   if(e.key==='['){bsize=Math.max(2,bsize-1);$('bsize').value=bsize;return}if(e.key===']'){bsize=Math.min(28,bsize+1);$('bsize').value=bsize;return}
   const k=e.key.toUpperCase();const t=TOOLS.find(t=>t.key===k);if(t){setTool(t.id);return}
   if(k==='R'&&tool==='object'&&tokKind()<0){rotatePlacement();return}
@@ -1086,6 +1172,10 @@ function syncUI(){
   $('paint-label').textContent=tool==='select'?'Change paint':'Paint';
   $('sec-brush').hidden=!(tool==='brush'||tool==='sculpt');
   $('sec-obj').hidden=tool!=='object';
+  $('sec-fog').hidden=tool!=='fog';$('fog-hide').setAttribute('aria-pressed',fogMode==='hide');$('fog-reveal').setAttribute('aria-pressed',fogMode==='reveal');
+  $('fog-brush').setAttribute('aria-pressed',fogShape==='brush');$('fog-box').setAttribute('aria-pressed',fogShape==='box');
+  $('fogsize').value=fogR;$('fogsize').disabled=fogShape!=='brush';$('fogsizelbl').textContent=`Brush: ${2*fogR-1} square${fogR>1?'s':''} across`;$('fogprev').checked=fogPreview;
+  {const n=st.fog?[...st.fog].filter(c=>c==='1').length:0;$('fognote').textContent=n?`${n} of ${st.cols*st.rows} squares hidden from players.`:'Nothing is hidden. Players see the whole map.'}
   $('rag').value=st.rag;$('bsize').value=bsize;syncHint()}
 function paintName(){return paint.layer==='ground'?TERR[paint.t].name:ELEV.find(e=>e.h===paint.h&&e.s===paint.s).name}
 function syncHint(){const h=$('hint');h.replaceChildren();
@@ -1107,6 +1197,8 @@ function syncHint(){const h=$('hint');h.replaceChildren();
     if(!st0&&objMix){pill(`Random mix · ${mixKinds.size} kind${mixKinds.size===1?'':'s'} · ${cellLabel()}`);add(mixKinds.size?'Click to scatter. Right-click or <kbd>R</kbd> turns the grid 90°. Each click rolls a fresh layout; the outline shows the next one. Pick more objects in the list to add them to the mix.':'Pick the objects to mix from the list on the left.')}
     else{pill(st0?(stamps[+objKind.slice(6)]||{name:'Stamp'}).name:OBJ.find(o=>o.k===objKind).name+(objCells.size>1?` · ${cellLabel()}`:''));
     add(st0?'Click to stamp it. Right-click or <kbd>R</kbd> turns it 90°. Its objects move together; hold <kbd>Alt</kbd> in Select to grab just one.':'Click to place. Drag across the grid squares to place a block at once, or click single squares for a custom pattern. Right-click or <kbd>R</kbd> turns the pattern 90°. In <b>Select</b>, Shift-drag a box to grab several and save them as a stamp.')}}
+  else if(tool==='fog'){pill(fogMode==='hide'?'Hide':'Reveal');
+    add((fogShape==='brush'?'Drag over squares to ':'Drag a box to ')+(fogMode==='hide'?'hide them from players':'reveal them to players')+'. Hold <kbd>Shift</kbd> to '+(fogMode==='hide'?'reveal':'hide')+' instead. Hidden squares show hatched for you; players see darkness, and tokens standing there disappear for them.'+(fogShape==='brush'?' <kbd>[</kbd> <kbd>]</kbd> change the size.':''))}
   else if(tool==='measure'){add(measure?'Drag from one square to another. Diagonals count as 5 ft, as in the 5e default rule.':'Drag from one square to another to measure movement.')}
   else if(tool==='pan'){add('Drag to move around. Anytime: two-finger scroll, right-drag or hold <kbd>Space</kbd> to pan; pinch, mouse wheel or <kbd>+</kbd> <kbd>−</kbd> to zoom; <kbd>0</kbd> to fit.')}
   else if(tool==='ping'){add('Click to ping a spot, or press and drag to point with a trail.')}
@@ -1149,7 +1241,8 @@ function libClean(s){s=migrate(s&&typeof s==='object'?s:null);if(!s||!Array.isAr
     &&(o.layer==='ground'?Number.isInteger(o.t)&&o.t>=0&&o.t<TERR.length:Number.isFinite(o.h)));
   s.objects=(Array.isArray(s.objects)?s.objects:[]).filter(o=>o&&OBJ.some(q=>q.k===o.k)&&Number.isFinite(o.x)&&Number.isFinite(o.y));
   s.tokens=(Array.isArray(s.tokens)?s.tokens:[]).filter(t=>t&&Number.isInteger(t.s)&&t.s>=0&&t.s<SHEETS.length&&Number.isFinite(t.x)&&Number.isFinite(t.y));
-  s.skip=(Array.isArray(s.skip)?s.skip:[]).filter(k=>typeof k==='string');return s}
+  s.skip=(Array.isArray(s.skip)?s.skip:[]).filter(k=>typeof k==='string');
+  s.fog=typeof s.fog==='string'&&s.fog.length===s.cols*s.rows&&/^[01]*$/.test(s.fog)&&s.fog.includes('1')?s.fog:null;return s}
 function blankMap(){const ex=example();return{v:3,cols:40,rows:28,seed:Math.floor(Math.random()*100000),rag:5,ops:[],objects:[],tokens:ex.tokens,skip:[]}}
 function libInit(){try{lib=JSON.parse(localStorage.getItem(LIBKEY))}catch(e){lib=null}
   if(!lib||!Array.isArray(lib.maps))lib={cur:null,maps:[]};
@@ -1392,9 +1485,10 @@ async function mpInit(){
   if(user)[mp.me,mp.owner,mp.edit]=await Promise.all([user.id().catch(()=>null),user.isOwner().catch(()=>false),user.canEdit().catch(()=>false)]);
   mp.avail=!!(db&&room&&mp.me);
   if(!mp.avail){mpUI();return}
-  db.doc('live/session').onSnapshot(sn=>{mp.ready.sess=true;mp.sess=mpCleanSess(sn.exists?sn.data():null);mpRoleChanged()},mpFail);
+  db.doc('live/session').onSnapshot(sn=>{mp.ready.sess=true;mp.sess=mpCleanSess(sn.exists?sn.data():null);mpRoleChanged();if(mp.role==='dm')mpChanged()},mpFail);   // assignments change which tokens show through fog
   db.doc('live/map').onSnapshot(sn=>{mp.ready.map=true;mp.meta=sn.exists?sn.data():null;mpTryMap()},mpFail);
   db.collection('live/map/parts').onSnapshot(q=>{mp.parts=new Map(q.docs.map(d=>[d.id,d.data()]));mpTryMap()},mpFail);
+  db.doc('live/fog').onSnapshot(sn=>{mp.ready.fog=true;mp.fog=sn.exists?fogCleanDoc(sn.data()):null},mpFail);
   db.doc('live/tokens').onSnapshot(sn=>{mp.ready.tok=true;mp.tok=sn.exists?sn.data():null;
     if(mp.tok&&Array.isArray(mp.tok.list))mp.tok.list.forEach(t=>{if(t&&typeof t.id==='string'&&fin(t.r))mp.tokR[t.id]=Math.max(mp.tokR[t.id]||0,+t.r)});mpTryTokens()},mpFail);
   room.onPeers(mpPeers);
@@ -1414,23 +1508,27 @@ function mpRoleChanged(){const was=mp.role,now=mpRole();
     if(was==='player'&&mp.autoPick){mp.autoPick=false;$('mpmodal').hidden=true}
     if(now==='player'){mp.applied=null;mp.tokApplied=null;hist=[];updUndo();sel=null;draft=[];stroke=null;sculpt=null;boxSel=null;drag=null;
       if(!PLAYER_TOOLS.includes(tool))tool='select';mpTryMap();mpTryTokens()}
-    if(now==='dm'){mp.pushed={map:null,tok:null};mpIds();mpChanged()}
+    if(now==='dm'){mp.pushed={map:null,tok:null,fog:null};mpIds();mpChanged()}
     if(now==='off')mp.ghost.clear()}
   mpUI();syncUI()}
 
 // ---- DM: publish the open map ----
 function mpChanged(){if(mp.role!=='dm')return;clearTimeout(mp.timer);mp.timer=setTimeout(mpPush,250)}
 async function mpPush(){if(mp.role!=='dm'||!mp.db)return;
-  if(!mp.ready.map||!mp.ready.tok){clearTimeout(mp.timer);mp.timer=setTimeout(mpPush,500);return}
+  if(!mp.ready.map||!mp.ready.tok||!mp.ready.fog){clearTimeout(mp.timer);mp.timer=setTimeout(mpPush,500);return}
   if(mp.busy){mp.again=true;return}mp.busy=true;
-  try{mpIds();const{tokens,...rest}=st,mj=JSON.stringify(rest);
+  try{mpIds();const{tokens,fog,...rest}=st,mj=JSON.stringify(rest);
+    // fog first, so a player never gets a newly sized map without the fog that goes with it
+    const fj=JSON.stringify([st.cols,st.rows,st.fog||'']);
+    if(fj!==mp.pushed.fog){const rev=(mp.fog&&fin(mp.fog.rev)?+mp.fog.rev:0)+1;await mp.db.doc('live/fog').set({rev,cols:st.cols,rows:st.rows,f:st.fog||''});mp.pushed.fog=fj}
+    const shown=st.tokens.filter(t=>tokShown(st.fog,t));   // players never receive tokens standing in fog
     if(mj!==mp.pushed.map){const rev=Math.max(mp.meta&&fin(mp.meta.rev)?+mp.meta.rev:0,mp.applied||0)+1,n=Math.max(1,Math.ceil(mj.length/CHUNK));
       for(let i=0;i<n;i++)await mp.db.doc('live/map/parts/p'+i).set({rev,s:mj.slice(i*CHUNK,(i+1)*CHUNK)});
       await mp.db.doc('live/map').set({rev,n,name:(libCur()||{}).name||''});mp.applied=rev;mp.pushed.map=mj}
-    const tj=JSON.stringify(st.tokens.map(t=>[t.id,t.s,t.x,t.y,t.o||0]));
+    const tj=JSON.stringify(shown.map(t=>[t.id,t.s,t.x,t.y,t.o||0]));
     if(tj!==mp.pushed.tok){const rev=Math.max(mp.tok&&fin(mp.tok.rev)?+mp.tok.rev:0,mp.tokApplied||0)+1;
       st.tokens.forEach(t=>{const lp=mp.lastPos.get(t.id);if(!lp||lp[0]!==t.x||lp[1]!==t.y)mp.tokR[t.id]=rev});
-      await mp.db.doc('live/tokens').set({rev,list:st.tokens.map(t=>({id:t.id,s:t.s,x:t.x,y:t.y,o:t.o||0,r:mp.tokR[t.id]||0}))});
+      await mp.db.doc('live/tokens').set({rev,list:shown.map(t=>({id:t.id,s:t.s,x:t.x,y:t.y,o:t.o||0,r:mp.tokR[t.id]||0}))});
       mp.tokApplied=rev;mp.pushed.tok=tj;mp.lastPos=new Map(st.tokens.map(t=>[t.id,[t.x,t.y]]))}
     if(mp.err){mp.err='';mpUI()}}
   catch(e){mp.err=e&&e.code==='invalid_argument'?(mp.fb?'Your changes aren’t reaching the players: only the room’s owner or DM can change the shared map.':'Your changes aren’t reaching the players: running a session needs Editor access to this page.'):e&&e.code==='quota_exceeded'?'The shared map is too big to send.':'Your latest change hasn’t reached the players yet. It will go with the next one.';mpUI()}
@@ -1584,7 +1682,7 @@ $('mpclose').onclick=()=>{$('mpmodal').hidden=true;mp.autoPick=false};
 $('mpmodal').onclick=e=>{if(e.target.id==='mpmodal')e.currentTarget.hidden=true};
 $('mpmodal').addEventListener('keydown',e=>{if(e.key==='Escape')$('mpmodal').hidden=true;e.stopPropagation()});
 // read-only peek for the tests
-window.__dustmap=()=>({st,role:mp.role,cam:{...cam},Z,pings:pings.map(p=>({x:p.x,y:p.y,rgb:p.rgb||null})),tool,peers:mp.peers.length,busy:mp.busy,err:mp.err,again:mp.again});
+window.__dustmap=()=>({st,fog:fogGet(),role:mp.role,cam:{...cam},Z,pings:pings.map(p=>({x:p.x,y:p.y,rgb:p.rgb||null})),tool,peers:mp.peers.length,busy:mp.busy,err:mp.err,again:mp.again});
 libInit();mpInit();
 buildTools();buildObjs();buildToks();updUndo();sizeCanvas();syncUI();requestAnimationFrame(loop);
 setTimeout(buildPaints,0);
