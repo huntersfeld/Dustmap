@@ -24,7 +24,7 @@ await p.keyboard.press('e');[a,c]=m(600,250);await p.mouse.move(a,c);await p.mou
 // stone floor with a raised rock wall on part of it
 const shape=async pts=>{for(const q of pts){const [x,y]=m(...q);await p.mouse.click(x,y);await p.waitForTimeout(330)}await p.keyboard.press('Enter');await p.waitForTimeout(600)};
 await p.keyboard.press('d');await p.keyboard.press('8');await shape([[40,140],[180,130],[190,220],[50,230]]);
-await p.click('#tab-height');await remap();await p.keyboard.press('3');await shape([[60,150],[150,145],[140,185],[70,190]]);
+await p.keyboard.press('e');await remap();await p.keyboard.press('3');await shape([[60,150],[150,145],[140,185],[70,190]]);
 const lt=await p.evaluate(()=>window.__lt);console.log('long tasks during edits (ms):',JSON.stringify(lt));
 const sb=await (await p.$('#map')).boundingBox();const shotRegion=await p.screenshot({path:out('p1_region.png'),clip:{x:sb.x,y:sb.y,width:sb.width,height:sb.height}});
 // force full redraw with identical state

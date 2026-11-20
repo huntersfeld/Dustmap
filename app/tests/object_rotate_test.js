@@ -7,7 +7,8 @@ const errs=[];p.on('pageerror',e=>errs.push('PAGEERR '+e.message));const fail=m=
 await p.goto(PAGE);await p.evaluate(()=>localStorage.clear());await p.reload();await p.waitForTimeout(2000);
 await p.click('#more');await p.uncheck('#anim');await p.click('#clear');await p.click('#clear');await p.waitForTimeout(500);
 await p.keyboard.press('o');
-const cell=async(c,r)=>{const h=await p.$(`#gridpick span[data-c="${c}"][data-r="${r}"]`);await h.scrollIntoViewIfNeeded();const bb=await h.boundingBox();return[bb.x+bb.width/2,bb.y+bb.height/2]};
+const gp=async()=>{if(await p.isHidden('#gridpop'))await p.click('#gridbtn')};
+const cell=async(c,r)=>{const h=await p.$(`#gridpick span[data-c="${c}"][data-r="${r}"]`);await gp();const bb=await h.boundingBox();return[bb.x+bb.width/2,bb.y+bb.height/2]};
 const drag=async(a,z)=>{const [x1,y1]=await cell(...a),[x2,y2]=await cell(...z);await p.mouse.move(x1,y1);await p.mouse.down();await p.mouse.move(x2,y2,{steps:6});await p.mouse.up()};
 const on=()=>p.$$eval('#gridpick span.on',els=>els.map(e=>e.dataset.c+','+e.dataset.r).sort().join(' '));
 const objs=()=>p.evaluate(()=>JSON.parse(localStorage.getItem('dustmap-v2')).objects);
@@ -21,7 +22,7 @@ await rclick();
 if((await on())!=='1,1 1,2 1,3 1,4')fail('right-click should turn the row into a column: '+await on());
 if((await p.textContent('#gridlbl')).trim()!=='1 × 4')fail('label should read 1 × 4');
 // an L shape turns clockwise each time and comes back after four turns
-await p.click('#gridreset');await p.mouse.click(...await cell(1,2));await p.mouse.click(...await cell(1,3));await p.mouse.click(...await cell(2,3));
+await gp();await p.click('#gridreset');await p.mouse.click(...await cell(1,2));await p.mouse.click(...await cell(1,3));await p.mouse.click(...await cell(2,3));
 const L=await on();if(L!=='1,1 1,2 1,3 2,3')fail('setup L: '+L);
 await rclick();if((await on())!=='1,1 1,2 2,1 3,1')fail('L after one turn: '+await on());
 await p.evaluate(()=>window.scrollTo(0,0));await p.mouse.move(mid[0],mid[1]);await p.keyboard.press('r');if((await on())!=='1,1 2,1 2,2 2,3')fail('R key should also turn: '+await on());
@@ -35,12 +36,12 @@ if((await on())!==pat)fail('right-drag should not turn the pattern');
 if(camA.x===camB.x&&camA.y===camB.y)fail('right-drag should still pan');
 await p.keyboard.press('0');await p.waitForTimeout(200);
 // placed objects follow the turned layout (column: same x, different y)
-await p.click('#gridreset');await drag([1,1],[3,1]);await rclick();
+await gp();await p.click('#gridreset');await drag([1,1],[3,1]);await rclick();
 const n0=(await objs()).length;await p.evaluate(()=>window.scrollTo(0,0));await p.mouse.click(mid[0],mid[1]);await p.waitForTimeout(200);
 const col=(await objs()).slice(n0);if(col.length!==3||new Set(col.map(o=>o.x)).size!==1||new Set(col.map(o=>o.y)).size!==3)fail('turned row should place a column: '+JSON.stringify(col));
 // stamps turn too: save that column as a stamp, one turn makes it a row
 await p.keyboard.press('v');await p.evaluate(()=>window.scrollTo(0,0));await p.mouse.click(mid[0],mid[1]);await p.waitForTimeout(200);
-await p.click('text=Save as stamp');await p.waitForTimeout(300);
+await p.click('[aria-label="Save as stamp"]');await p.waitForTimeout(300);
 await rclick();if(!/90°/.test(await p.textContent('#gridlbl')))fail('stamp label should show 90°: '+await p.textContent('#gridlbl'));
 const m0=(await objs()).length;await p.evaluate(()=>window.scrollTo(0,0));await p.mouse.click(mid[0]-150,mid[1]);await p.waitForTimeout(200);
 const sp=(await objs()).slice(m0);if(sp.length!==3||new Set(sp.map(o=>o.y)).size!==1||new Set(sp.map(o=>o.x)).size!==3)fail('turned stamp should be a row: '+JSON.stringify(sp));
