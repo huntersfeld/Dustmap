@@ -49,7 +49,7 @@ All are tiny pixel art, hand-placed on a character grid for the smallest size, t
 
 ## Dustmap: features today
 
-- **Map:** 16 px = one 5 ft square. Sizes from 20×14 up to 60×40 squares (Settings dropdown, or zoom out and click the + tabs on each edge to add 10 squares on that side). Resizing keeps content in place and can be undone.
+- **Map:** 16 px = one 5 ft square. Sizes from 20×14 up to 60×40 squares (⋯ menu, or zoom out and click the + tabs on each edge to add 10 squares on that side). Resizing keeps content in place and can be undone.
 - **Camera:** trackpad two-finger scroll pans and pinch zooms; mouse wheel zooms in steps; right-drag, Space-drag, Pan tool (H) or dragging empty ground in Select pans; touch pinch/pan; `+` `−` zoom, `0` fits.
 - **Tools:** Shape (D, click polygon points), Brush (B), Sculpt (E), Select (V), Objects (O), Measure (M), Pointer (P), Pan (H).
 - **Terrain (Terrain tab):** Sand, Scrub, Mesa, Water, Badlands, Road, Town, Stone, Mine rail.
@@ -66,6 +66,8 @@ All are tiny pixel art, hand-placed on a character grid for the smallest size, t
 - **Measure:** square-to-square distance in feet and squares, 5e default (diagonals count 5 ft).
 - **Pointer:** click for a radar ping; press and drag for a pointer with a fading tail.
 - **Map library:** the **Map: <name>** button in the header opens the list of maps saved in this browser. New map (blank 40×28 with the four cowboys), Open, Rename, Duplicate, Export, Delete (two-click confirm; the only map can't be deleted), Import file (one or many, or drop files on the dialog), Export all maps. Import never overwrites: every imported map is added as a new entry (names get " (2)" if taken), and a single imported map opens. If the page can't save files, the export text appears in a "Move maps as text" box to copy, and pasted text imports from the same box. Switching maps clears undo history.
+- **Fog of war (F):** the DM hides and reveals squares with a brush (1–11 squares across) or a box, Shift paints the opposite, plus Hide everything / Reveal everything. The DM sees hidden squares under a hatched veil and can preview the player view; players see darkness, and tokens standing in hidden squares are never sent to them (tokens handed to a player always show). Fog saves with the map, undoes, and moves with map resizes (new squares start hidden). In a session it is published on its own document (`live/fog`), so a reveal never resends the map. Limitation: the terrain and objects under fog are still in the shared map data, so a player who digs into the database could see the layout; tokens are not.
+- **Layout:** the page is one screen with no page scroll. Header: map name (opens the library), Undo, Play together, and a ⋯ menu holding map size, edge roughness, Reroll details, Load example, grid and animation toggles, Snapshot and Clear map. Left panel: an icon grid of the nine tools (Fog sits next to Objects and is DM-only), then only the options for the active tool (Objects has Objects / Tokens tabs). A one-line status chip sits over the map's bottom-left corner. Helper text was cut deliberately; longer explanations live in button tooltips.
 - **Other:** Undo (Ctrl/Cmd+Z), Reroll details, Clear map (two-click confirm), Load example, Snapshot (renders an image the user right-click saves), 5 ft grid toggle, edge roughness slider, token animation toggle. Maps autosave to `localStorage`.
 
 ## How the code works (`app/dustmap_src.html`)
@@ -83,7 +85,8 @@ st = {
            pts:[[x,y]...], r (stroke radius), sid (per-op random id) } ],
   objects: [ { k, x, y, v, g? } ],   // centre position; v = variant; g = group id
   tokens:  [ { s (sheet 0–3), x, y (standing point), o (frame offset) } ],
-  skip: [ "prefix:x:y" ]             // auto-placed items the user picked up
+  skip: [ "prefix:x:y" ],            // auto-placed items the user picked up
+  fog: null | "0101..."              // one char per square, row by row; '1' = hidden from players
 }
 ```
 Older saves are migrated (`migrate()`); stamps live separately in `localStorage['dustmap-stamps']`.
@@ -148,7 +151,7 @@ Full redraws still happen for: load, Reroll, roughness, resize, and undo that ch
 | 2 | Object grid placement and reusable stamps | Done |
 | 3 | Map library: named maps saved in the page, switch between them, export/import as a file (needed to "build locally, then load into a session") | Done |
 | 4 | Multiplayer core: sessions, DM + player roles, shared live map, players move only their own token, shared pointer/measure/ping | Done |
-| 5 | **Hidden areas** (fog of war) painted by the DM, revealable mid-session | **Next** |
+| 5 | Hidden areas (fog of war) painted by the DM, revealable mid-session | Done |
 | 6 | DM animation paths (token walks a drawn path at a set speed) | To do |
 | 6 | Interactive objects (click a door to load another map; more actions later) | To do |
 | — | Physics engine | Parked |
@@ -172,7 +175,7 @@ Shared documents: `live/session {live, dm, assign:{<sheet>:<user id>}}`, `live/m
 - **Players** never write shared documents. Cursor, pointer trail, measure, live token drag, pings and finished moves go in presence. The DM's page checks a finished move (`mv`) against the assignment and commits it; a move made from a stale view (base rev older than the token's last change `r`) is dropped.
 - **Player view:** Select (own cowboy only), Measure, Pointer, Pan; editing controls hidden (`.dmonly`, `body.mp-player`). The shared map never overwrites the player's own saved maps; ending the session brings theirs back.
 - **Solo testing:** as DM (Firebase), *Play together → Open a test player* opens `?as=player#room=…` in a new tab: a throwaway player with its own anonymous identity and an in-memory copy of localStorage, so the DM's saved maps are never touched. The test player must use its own named Firebase app (`'testplayer'`, persistence NONE): on the default app it picked up the DM's saved sign-in and `setPersistence(NONE)` moved it out of storage, which locked the DM out of their room and made the "player" the same person as the DM.
-- **Players pick their own token:** a player with no token gets the picker (every cowboy and NPC, grouped as in the Tokens menu; taken ones are disabled). The pick goes out on presence (`pick`); the DM's page (`mpPicks`) assigns it if free, drops that player's other assignment, and places the token near the others (`mpFreeSpot`) if the map has none. One token per player. The DM can still assign by hand.
+- **Players pick their own token:** a player with no token gets the picker (every cowboy and NPC, grouped as in the Tokens menu; taken ones are disabled). The pick goes out on presence (`pick`); the DM's page (`mpPicks`) assigns it if free, drops that player's other assignment, and places the token near the others (`mpFreeSpot`) if the map has none. One token per player. There is no DM step: the DM dialog only lists who is playing what, and the picker closes once the pick lands.
 - **Start my own room:** anyone who isn't the room's owner sees it in Play together (Firebase only). It makes a fresh room id, so a person who lost their sign-in (cleared site data, new browser) can run sessions again. Old group maps stay reachable through the old room link.
 - Tests: `app/tests/firebase_auth_test.js` runs against the real auth emulator (`firebase emulators:start --only auth`, port 9099) plus the database emulator, and covers the test player identity, picking, own rooms and the DM reopening their tab.
 - **Roles:** assignments are per character (sheet index), so they survive map switches. The owner can make someone else DM (their page saves the shared map as "Session map" in their library and carries on) and take it back.

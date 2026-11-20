@@ -7,7 +7,7 @@ const fs=require('fs');
 (async()=>{const b=await chromium.launch();const p=await b.newPage({viewport:{width:1440,height:960}});
 const errs=[];p.on('pageerror',e=>errs.push('PAGEERR '+e.message));
 await p.goto(PAGE);await p.evaluate(()=>localStorage.clear());await p.reload();await p.waitForTimeout(2500);
-await p.uncheck('#anim');await p.uncheck('#grid');
+await p.click('#more');await p.uncheck('#anim');await p.uncheck('#grid');await p.keyboard.press('Escape');
 await p.evaluate(()=>{window.__lt=[];new PerformanceObserver(l=>l.getEntries().forEach(e=>window.__lt.push(Math.round(e.duration)))).observe({type:'longtask',buffered:false})});
 const box=await (await p.$('#map')).boundingBox();
 const z=await p.evaluate(()=>parseInt(document.getElementById('zlabel').textContent)/100);
