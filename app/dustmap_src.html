@@ -4,7 +4,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@500;700&family=Work+Sans:wght@400;500;600&display=swap">
 <style>
-/* Layout: editor chrome — tool rail on the left, map canvas filling the rest; stacks on phones.
+/* Layout: one screen, no page scroll. Header bar on top; a narrow tool panel on the left that
+   scrolls on its own; the map fills the rest. Stacks on phones (map first).
    Single dark theme by choice: a dim workshop around a bright desert map. */
 :root{
   --bg:#1d1b22; --panel:#26232c; --raised:#322e3a; --line:#3d3846;
@@ -13,104 +14,130 @@
   --ui:"Work Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   color-scheme:dark;
 }
-html,body{height:100%}
-body{background:var(--bg);color:var(--fg);font-family:var(--ui);font-size:14px;
-  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:12px;box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--fg);font-family:var(--ui);font-size:14px;overflow:hidden;
+  padding-left:max(12px,env(safe-area-inset-left,0px));padding-right:max(12px,env(safe-area-inset-right,0px));padding-block:10px;box-sizing:border-box}
 *{box-sizing:border-box}
 button{font:inherit;color:inherit}
-.app{display:grid;grid-template-columns:248px minmax(0,1fr);grid-template-rows:auto 1fr;gap:12px;max-width:1360px;margin:0 auto;min-height:100%}
-header{grid-column:1/-1;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
-.brand{font-family:var(--display);font-weight:700;font-size:26px;color:var(--accent);letter-spacing:.02em;line-height:1}
-.mapname{color:var(--muted);font-size:13px}
-.hbtns{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
-.btn{background:var(--raised);border:1px solid var(--line);border-radius:6px;padding:7px 12px;cursor:pointer;font-weight:500;font-size:13px;display:inline-flex;align-items:center;gap:6px}
+.app{display:grid;grid-template-columns:236px minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);gap:10px;height:100%}
+header{grid-column:1/-1;display:flex;align-items:center;gap:8px;min-width:0}
+.brand{font-family:var(--display);font-weight:700;font-size:22px;color:var(--accent);letter-spacing:.02em;line-height:1;margin-right:4px}
+.hbtns{margin-left:auto;display:flex;gap:6px;align-items:center}
+.btn{background:var(--raised);border:1px solid var(--line);border-radius:6px;padding:6px 11px;cursor:pointer;font-weight:500;font-size:13px;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
 .btn:hover{border-color:#5a5266}
-.btn:disabled{opacity:.45;cursor:default}
+.btn:disabled{opacity:.4;cursor:default}
 .btn.primary{background:var(--rust);border-color:var(--rust)}
 .btn.primary:hover{background:var(--rust-hi)}
 .btn.warn{background:#5a2a24;border-color:#8a3a2e}
-.btn:focus-visible,.tool:focus-visible,.terr:focus-visible,.tab:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.btn.ghost{background:transparent;border-color:transparent;color:var(--muted)}
+.btn.ghost:hover{background:var(--raised);color:var(--fg)}
+.btn.icon{padding:6px 8px}
+.btn svg{width:16px;height:16px;flex:none}
+.btn:focus-visible,.tool:focus-visible,.terr:focus-visible,.tab:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 kbd{font-family:ui-monospace,monospace;font-size:11px;background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:0 4px;color:var(--muted)}
-aside{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:18px;align-self:start}
+/* header: map switcher and the overflow menu */
+#libbtn{max-width:280px;background:transparent;border-color:transparent;font-size:14px;padding:6px 8px}
+#libbtn:hover{background:var(--raised);border-color:var(--line)}
+#libname{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+#libbtn .chev{color:var(--muted);font-size:10px}
+.menuwrap{position:relative}
+.menu{position:absolute;right:0;top:calc(100% + 6px);z-index:15;width:260px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:6px;
+  box-shadow:0 12px 32px rgba(0,0,0,.45);display:flex;flex-direction:column;gap:2px}
+.menu .mi{display:flex;align-items:center;gap:10px;width:100%;background:transparent;border:0;border-radius:6px;padding:7px 10px;cursor:pointer;text-align:left;font-size:13px}
+.menu .mi:hover{background:var(--raised)}
+.menu .mi.warn{color:#f0a493}
+.menu .mi.warn.armed{background:#5a2a24;color:var(--fg)}
+.menu .mi kbd{margin-left:auto}
+.menu hr{border:0;border-top:1px solid var(--line);margin:4px 2px;width:auto}
+.menu .mrow{display:flex;align-items:center;gap:10px;padding:5px 10px;font-size:13px}
+.menu .mrow>span:first-child{flex:none;width:72px;color:var(--muted)}
+.menu .mrow select,.menu .mrow input[type=range]{flex:1;min-width:0}
+/* side panel */
+aside{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:14px;overflow-y:auto;min-height:0;scrollbar-width:thin}
 .sec{display:flex;flex-direction:column;gap:8px}
-.label{font-size:11px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
-.tools{display:grid;grid-template-columns:1fr 1fr;gap:6px}
-.list{display:flex;flex-direction:column;gap:4px}
-.tool{display:flex;align-items:center;justify-content:space-between;gap:6px;background:transparent;border:1px solid var(--line);border-radius:6px;padding:7px 9px;cursor:pointer;text-align:left;font-size:13px}
-.tool:hover{background:var(--raised)}
-.tool[aria-pressed="true"]{background:var(--raised);border-color:var(--accent);font-weight:600}
-.tabs{display:flex;gap:4px;background:var(--bg);padding:3px;border-radius:7px}
+.label{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.tools{display:grid;grid-template-columns:repeat(4,1fr);gap:4px}
+.tool{display:flex;flex-direction:column;align-items:center;gap:3px;background:transparent;border:1px solid transparent;border-radius:7px;padding:7px 2px 5px;cursor:pointer;font-size:11px;color:var(--muted)}
+.tool svg{width:20px;height:20px}
+.tool:hover{background:var(--raised);color:var(--fg)}
+.tool[aria-pressed="true"]{background:var(--raised);border-color:var(--accent);color:var(--fg)}
+.tabs{display:flex;gap:3px;background:var(--bg);padding:3px;border-radius:7px}
 .tab{flex:1;background:transparent;border:0;border-radius:5px;padding:5px 8px;cursor:pointer;font-size:12px;font-weight:600;color:var(--muted)}
 .tab[aria-selected="true"],.tab[aria-pressed="true"]{background:var(--raised);color:var(--fg)}
-.terr{display:flex;align-items:center;gap:10px;background:transparent;border:1px solid transparent;border-radius:8px;padding:4px;cursor:pointer;text-align:left}
+.list{display:grid;grid-template-columns:1fr 1fr;gap:3px}
+.terr{display:flex;align-items:center;gap:7px;background:transparent;border:1px solid transparent;border-radius:7px;padding:3px;cursor:pointer;text-align:left;min-width:0}
 .terr:hover{background:var(--raised)}
 .terr[aria-pressed="true"]{background:var(--raised);border-color:var(--accent)}
-.terr canvas{width:32px;height:32px;image-rendering:pixelated;border-radius:4px;border:1px solid #111;flex:none;background:#f0cab8}
-.terr .tn{font-weight:500;font-size:13px}
-.terr .ts{font-size:11px;color:var(--muted);display:block}
-.terr .tk{margin-left:auto}
-.grp{font-size:11px;color:var(--muted);margin-top:4px}
-.gridpick{display:grid;grid-template-columns:repeat(6,16px);gap:3px;padding:4px;background:var(--bg);border-radius:6px}
-.gridpick span{width:16px;height:16px;border:1px solid var(--line);border-radius:3px;cursor:pointer}
-.gridpick{touch-action:none;user-select:none}
+.terr canvas{width:26px;height:26px;image-rendering:pixelated;border-radius:4px;border:1px solid #111;flex:none;background:#f0cab8}
+.terr .tn{font-weight:500;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+.terr>span{min-width:0;flex:1}
+.grp{grid-column:1/-1;font-size:11px;color:var(--muted);margin-top:6px}
+.grp:first-child{margin-top:0}
+.gridpick{display:grid;grid-template-columns:repeat(6,13px);gap:2px;padding:3px;background:var(--bg);border-radius:6px;touch-action:none;user-select:none;flex:none}
+.gridpick span{width:13px;height:13px;border:1px solid var(--line);border-radius:2px;cursor:pointer}
 .gridpick span:hover{border-color:var(--rust-hi)}
 .gridpick span.on{background:var(--rust);border-color:var(--rust-hi)}
 .btn.sm{padding:3px 8px;font-size:12px}
-.terr .del{margin-left:auto;color:var(--muted);padding:2px 6px;border-radius:4px}
+.terr .del{margin-left:auto;color:var(--muted);padding:0 4px;border-radius:4px}
 .terr .del:hover{background:var(--bg);color:var(--fg)}
 input[type=range]{width:100%;accent-color:var(--rust)}
 .check{display:flex;align-items:center;gap:8px;cursor:pointer}
-.check input{accent-color:var(--rust);width:16px;height:16px}
+.check input{accent-color:var(--rust);width:15px;height:15px;margin:0}
 .row{display:flex;align-items:center;gap:8px}
-main{display:flex;flex-direction:column;gap:8px;min-width:0}
-.stage{position:relative;background:#120f14;border:1px solid var(--line);border-radius:10px;padding:8px;overflow:hidden}
-#map{display:block;width:100%;height:clamp(360px,72vh,1000px);touch-action:none;border-radius:4px;cursor:crosshair}
+.val{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;min-width:20px;text-align:right}
+.arrange{display:flex;gap:10px;align-items:flex-start}
+.arrange .side{display:flex;flex-direction:column;gap:6px;flex:1;min-width:0}
+/* map */
+main{display:flex;flex-direction:column;min-width:0;min-height:0}
+.stage{position:relative;flex:1;min-height:0;background:#120f14;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+#map{display:block;width:100%;height:100%;touch-action:none;cursor:crosshair}
 #map.pan{cursor:grab}
-.zoombar{position:absolute;right:16px;bottom:16px;display:flex;align-items:center;gap:4px;background:rgba(29,27,34,.92);border:1px solid var(--line);border-radius:8px;padding:4px}
-.zoombar .btn{padding:4px 10px}
-#zlabel{min-width:46px;text-align:center;font-size:12px;font-variant-numeric:tabular-nums;color:var(--muted)}
-select{background:var(--raised);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:6px 8px;font:inherit;font-size:13px}
+#map.select{cursor:default}
+.zoombar{position:absolute;right:10px;bottom:10px;display:flex;align-items:center;gap:2px;background:rgba(29,27,34,.92);border:1px solid var(--line);border-radius:8px;padding:3px}
+.zoombar .btn{padding:3px 9px;background:transparent;border-color:transparent}
+.zoombar .btn:hover{background:var(--raised)}
+#zlabel{min-width:42px;text-align:center;font-size:12px;font-variant-numeric:tabular-nums;color:var(--muted)}
+select{background:var(--raised);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:5px 8px;font:inherit;font-size:13px}
 .terr canvas.objsw{image-rendering:auto}
-/* Tokens dropdown (Objects tool) */
-.tokdrop{border:1px solid var(--line);border-radius:8px;background:var(--bg)}
-.tokdrop>summary{cursor:pointer;padding:8px 10px;font-size:11px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);list-style:none;display:flex;align-items:center;gap:6px}
-.tokdrop>summary::-webkit-details-marker{display:none}
-.tokdrop>summary::before{content:'▸';font-size:10px;transition:transform .15s}
-.tokdrop[open]>summary::before{transform:rotate(90deg)}
-.tokdrop>summary span{margin-left:auto;text-transform:none;letter-spacing:0;font-weight:500}
-.tokbody{padding:0 8px 8px;display:flex;flex-direction:column;gap:2px;max-height:420px;overflow:auto}
-.tokrow{display:flex;align-items:center;gap:6px;min-height:34px}
+/* status chip floating over the map */
+.hint{position:absolute;left:10px;bottom:10px;max-width:calc(100% - 210px);display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  background:rgba(29,27,34,.92);border:1px solid var(--line);border-radius:8px;padding:4px 6px 4px 8px;color:var(--muted);font-size:12px}
+.hint:empty{display:none}
+.hint b{color:var(--fg);font-weight:600}
+.hint .btn{padding:3px 9px;font-size:12px}
+.pill{font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--accent)}
+/* tokens */
+.tokbody{display:flex;flex-direction:column;gap:2px}
+.tokbody .grp{margin-top:6px}
+.tokrow{display:flex;align-items:center;gap:6px;min-height:32px}
 .tokrow .tn{flex:1;min-width:0;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.tokvars{display:flex;gap:3px}
+.tokvars{display:flex;gap:3px;flex-wrap:wrap;justify-content:flex-end}
 .tokbtn{padding:0;border:1px solid transparent;border-radius:5px;background:#e8bea9;cursor:pointer;line-height:0}
-.tokbtn canvas{width:30px;height:30px;image-rendering:pixelated}
+.tokbtn canvas{width:28px;height:28px;image-rendering:pixelated}
 .tokbtn:hover{border-color:#5a5266}
 .tokbtn[aria-pressed="true"]{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
 .tokbtn:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
-#map.select{cursor:default}
-.hint{display:flex;align-items:center;gap:10px;flex-wrap:wrap;color:var(--muted);font-size:13px;min-height:32px}
-.hint b{color:var(--fg);font-weight:600}
-.pill{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border-radius:99px;background:var(--raised);color:var(--accent)}
 .note{font-size:12px;color:var(--muted);line-height:1.45}
 [hidden]{display:none!important}
 .modal{position:fixed;inset:0;background:rgba(10,8,12,.82);display:flex;align-items:center;justify-content:center;padding:max(16px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) max(16px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));z-index:20}
 .modal .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:12px;max-width:min(1000px,100%);max-height:100%;overflow:auto}
+.modal .card>.row:first-child b{font-size:15px}
 .modal img{width:100%;height:auto;image-rendering:pixelated;border-radius:6px}
 /* Map library */
-#libbtn{max-width:260px}
-#libname{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
 .lib{width:min(620px,100%)}
 .lib .acts{display:flex;gap:8px;flex-wrap:wrap}
-.libmaps{display:flex;flex-direction:column;gap:6px}
-.libmap{display:flex;align-items:center;gap:8px;flex-wrap:wrap;border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+.libmaps{display:flex;flex-direction:column;gap:4px}
+.libmap{display:flex;align-items:center;gap:4px;flex-wrap:wrap;border:1px solid var(--line);border-radius:8px;padding:6px 8px}
 .libmap.cur{border-color:var(--accent);background:var(--raised)}
-.libmap .nm{flex:1 1 180px;min-width:0;display:flex;flex-direction:column;gap:2px}
+.libmap .nm{flex:1 1 180px;min-width:0;display:flex;flex-direction:column;gap:1px}
 .libmap .nm b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .libmap .nm input{background:var(--bg);color:var(--fg);border:1px solid var(--accent);border-radius:5px;padding:4px 6px;font:inherit}
-.libmap .btn{padding:5px 9px;font-size:12px}
+.libmap .btn{padding:4px 8px;font-size:12px}
+.libmap .pill{margin-right:6px}
 .lib.drop{outline:2px dashed var(--accent);outline-offset:-6px}
 #libtext{width:100%;min-height:110px;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:8px;font:12px/1.4 ui-monospace,monospace;resize:vertical}
 #libmsg:empty{display:none}
+#libtx summary{cursor:pointer}
 /* Play together (multiplayer) */
 body.mp-player .dmonly{display:none!important}
 .mpbtn.live{border-color:#6fae6a;background:#2b3a2b}
@@ -135,35 +162,46 @@ body.mp-player .dmonly{display:none!important}
 .mppick .tokbtn[aria-pressed="true"]{border-color:var(--accent);background:var(--raised)}
 .mppick .tokbtn:disabled{opacity:.3;cursor:default}
 @media (max-width:820px){
-  .app{grid-template-columns:minmax(0,1fr)}
-  aside{flex-direction:row;flex-wrap:wrap;gap:14px}
-  aside .sec{flex:1 1 220px}
-  .terr .tk,.tool kbd{display:none}
+  body{overflow:auto;height:auto}
+  .app{grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto auto;height:auto}
+  header{flex-wrap:wrap}
+  .brand{display:none}
+  main{order:1}
+  aside{order:2;overflow:visible}
+  .stage{height:62vh;flex:none}
+  .hint{max-width:calc(100% - 20px);bottom:52px}
 }
 </style>
 
 <div class="app">
   <header>
     <span class="brand">Dustmap</span>
-    <button class="btn dmonly" id="libbtn" title="Map library: switch, add, import and export maps">Map: <span id="libname"></span></button>
-    <span class="mapname" id="mapname"></span>
+    <button class="btn dmonly" id="libbtn" title="Your maps"><span id="libname"></span><span class="chev" aria-hidden="true">▼</span></button>
     <div class="hbtns">
-      <button class="btn mpbtn" id="mpbtn" hidden title="Run a live session: everyone you invite sees the map and moves their own cowboy">Play together</button>
-      <button class="btn dmonly" id="undo" title="Undo (Ctrl+Z)">Undo</button>
-      <button class="btn dmonly" id="reroll" title="New random details for the same shapes">Reroll details</button>
-      <button class="btn dmonly" id="clear">Clear map</button>
-      <button class="btn dmonly" id="example">Load example</button>
-      <button class="btn primary" id="snap">Snapshot</button>
+      <button class="btn icon dmonly" id="undo" title="Undo (Ctrl+Z)" aria-label="Undo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 010 11H11"/></svg></button>
+      <button class="btn mpbtn" id="mpbtn" hidden title="Run a live session">Play together</button>
+      <div class="menuwrap">
+        <button class="btn icon" id="more" aria-haspopup="true" aria-expanded="false" aria-controls="menu" aria-label="More" title="More"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg></button>
+        <div class="menu" id="menu" role="menu" hidden>
+          <label class="mrow dmonly" for="msize"><span>Map size</span><select id="msize"></select></label>
+          <label class="mrow dmonly" for="rag"><span>Edges</span><input type="range" id="rag" min="0" max="9" step="1" value="5" title="Edge roughness"></label>
+          <button class="mi dmonly" id="reroll" role="menuitem" title="New random details for the same shapes">Reroll details</button>
+          <button class="mi dmonly" id="example" role="menuitem">Load example map</button>
+          <hr class="dmonly">
+          <label class="mi check" for="grid"><input type="checkbox" id="grid" checked> Grid <kbd>G</kbd></label>
+          <label class="mi check" for="anim"><input type="checkbox" id="anim" checked> Animate tokens</label>
+          <button class="mi" id="snap" role="menuitem">Snapshot</button>
+          <hr class="dmonly">
+          <button class="mi warn dmonly" id="clear" role="menuitem">Clear map</button>
+        </div>
+      </div>
     </div>
   </header>
 
   <aside>
-    <div class="sec">
-      <span class="label">Tools</span>
-      <div class="tools" id="tools"></div>
-    </div>
+    <div class="tools" id="tools"></div>
     <div class="sec" id="sec-paint">
-      <span class="label" id="paint-label">Paint</span>
+      <span class="label" id="paint-label" hidden>Change paint</span>
       <div class="tabs" role="tablist">
         <button class="tab" role="tab" id="tab-ground" aria-selected="true">Terrain</button>
         <button class="tab" role="tab" id="tab-height" aria-selected="false">Elevation</button>
@@ -171,62 +209,50 @@ body.mp-player .dmonly{display:none!important}
       <div class="list" id="paints"></div>
     </div>
     <div class="sec" id="sec-brush">
-      <label class="label" for="bsize">Brush size</label>
-      <input type="range" id="bsize" min="2" max="28" step="1" value="6">
+      <label class="row" for="bsize"><span class="label" style="flex:none">Size</span><input type="range" id="bsize" min="2" max="28" step="1" value="6"><span class="val" id="bsizev">6</span></label>
     </div>
     <div class="sec dmonly" id="sec-fog" hidden>
-      <span class="label">Fog of war</span>
       <div class="tabs" role="group" aria-label="Fog brush paints"><button class="tab" id="fog-hide">Hide</button><button class="tab" id="fog-reveal">Reveal</button></div>
       <div class="tabs" role="group" aria-label="Fog brush shape"><button class="tab" id="fog-brush">Brush</button><button class="tab" id="fog-box">Box</button></div>
-      <label class="note" for="fogsize" id="fogsizelbl">Brush: 1 square</label>
+      <label class="note" for="fogsize" id="fogsizelbl">Size 3</label>
       <input type="range" id="fogsize" min="1" max="6" step="1" value="2">
-      <div class="row" style="flex-wrap:wrap"><button class="btn sm" id="fog-all">Hide everything</button><button class="btn sm" id="fog-none">Reveal everything</button></div>
-      <label class="check" for="fogprev"><input type="checkbox" id="fogprev"> Preview what players see</label>
+      <div class="row" style="flex-wrap:wrap"><button class="btn sm" id="fog-all" title="Hide the whole map from players">Hide all</button><button class="btn sm" id="fog-none" title="Show the whole map to players">Reveal all</button></div>
+      <label class="check" for="fogprev"><input type="checkbox" id="fogprev"> Player view</label>
       <span class="note" id="fognote"></span>
     </div>
     <div class="sec" id="sec-obj" hidden>
-      <details class="tokdrop" id="tokdrop">
-        <summary>Tokens <span class="note" id="toknote"></span></summary>
-        <div class="tokbody" id="toks"></div>
-      </details>
-      <span class="label">Place as a grid</span>
-      <div class="row"><div class="gridpick" id="gridpick" aria-label="Grid squares"></div>
-        <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-start"><span class="note" id="gridlbl">1 × 1</span><button class="btn sm" id="gridreset" title="Back to a single object">Reset</button></div></div>
-      <span class="note">Drag to fill a block. Click single squares to add or remove them.</span>
-      <label class="note" for="ogap">Spacing between objects</label>
-      <input type="range" id="ogap" min="0" max="16" step="1" value="2">
-      <label class="check" for="omix"><input type="checkbox" id="omix"> Random mix</label>
-      <div id="mixopts" hidden style="display:flex;flex-direction:column;gap:6px">
-        <span class="note">Pick several objects below. Each square gets a random one, nudged off the grid so it looks natural.</span>
-        <label class="note" for="odens" id="odenslbl">Fill 70%</label>
-        <input type="range" id="odens" min="10" max="100" step="5" value="70">
-        <div class="row"><button class="btn sm" id="reroll">Re-roll</button><span class="note" id="mixlbl"></span></div>
+      <div class="tabs" role="tablist">
+        <button class="tab" role="tab" id="tab-objs" aria-selected="true">Objects</button>
+        <button class="tab" role="tab" id="tab-toks" aria-selected="false">Tokens</button>
       </div>
-      <span class="label">Objects</span>
+      <div class="arrange">
+        <div class="gridpick" id="gridpick" aria-label="Place as a grid" title="Drag to place a block; click squares for a pattern"></div>
+        <div class="side">
+          <div class="row"><span class="note" id="gridlbl">1 × 1</span><button class="btn sm ghost" id="gridreset" title="Back to one" style="margin-left:auto">Reset</button></div>
+          <label class="note" for="ogap" id="ogaplbl">Spacing</label>
+          <input type="range" id="ogap" min="0" max="16" step="1" value="2">
+          <label class="check note" for="omix"><input type="checkbox" id="omix"> Random mix</label>
+        </div>
+      </div>
+      <div id="mixopts" hidden style="display:flex;flex-direction:column;gap:6px">
+        <label class="row" for="odens"><span class="note" id="odenslbl" style="flex:none">Fill 70%</span><input type="range" id="odens" min="10" max="100" step="5" value="70"></label>
+        <div class="row"><span class="note" id="mixlbl"></span><button class="btn sm" id="mixreroll" style="margin-left:auto">Re-roll</button></div>
+      </div>
       <div class="list" id="objs"></div>
+      <div class="tokbody" id="toks" hidden></div>
     </div>
-    <div class="sec">
-      <span class="label">Settings</span>
-      <label class="note dmonly" for="msize">Map size (squares) · or zoom out and use the + tabs on the map edges</label>
-      <select id="msize" class="dmonly"></select>
-      <label class="note dmonly" for="rag">Edge roughness</label>
-      <input type="range" class="dmonly" id="rag" min="0" max="9" step="1" value="5">
-      <label class="check" for="grid"><input type="checkbox" id="grid" checked> Show 5 ft grid</label>
-      <label class="check" for="anim"><input type="checkbox" id="anim" checked> Animate tokens</label>
-    </div>
-    <p class="note dmonly">Your maps save in this browser automatically. Use <b>Map</b> at the top to switch maps or export them to a file.</p>
   </aside>
 
   <main>
     <div class="stage"><canvas id="map" aria-label="Map canvas"></canvas>
-      <div class="zoombar"><button class="btn" id="zout" title="Zoom out (−)">−</button><span id="zlabel">100%</span><button class="btn" id="zin" title="Zoom in (+)">+</button><button class="btn" id="zfit" title="Fit map (0)">Fit</button></div></div>
-    <div class="hint" id="hint"></div>
+      <div class="hint" id="hint" role="status"></div>
+      <div class="zoombar"><button class="btn" id="zout" title="Zoom out (−)" aria-label="Zoom out">−</button><span id="zlabel">100%</span><button class="btn" id="zin" title="Zoom in (+)" aria-label="Zoom in">+</button><button class="btn" id="zfit" title="Fit map (0)">Fit</button></div></div>
   </main>
 </div>
 
 <div class="modal" id="modal" hidden>
   <div class="card">
-    <div class="row"><b>Snapshot</b><span class="note" style="margin-left:auto">Right-click or long-press the image to save it.</span><button class="btn" id="mclose">Close</button></div>
+    <div class="row"><b>Snapshot</b><span class="note" style="margin-left:auto">Right-click or long-press to save</span><button class="btn" id="mclose">Close</button></div>
     <img id="snapimg" alt="Rendered map snapshot">
   </div>
 </div>
@@ -241,22 +267,20 @@ body.mp-player .dmonly{display:none!important}
 
 <div class="modal" id="libmodal" hidden>
   <div class="card lib" id="libcard" role="dialog" aria-labelledby="libtitle">
-    <div class="row"><b id="libtitle">Maps</b><span class="note">Saved in this browser</span><button class="btn" id="libclose" style="margin-left:auto">Close</button></div>
+    <div class="row"><b id="libtitle">Maps</b><button class="btn" id="libclose" style="margin-left:auto">Close</button></div>
     <div class="acts">
       <button class="btn primary" id="libnew">New map</button>
-      <button class="btn" id="libimport">Import file…</button>
-      <button class="btn" id="libexportall">Export all maps</button>
+      <button class="btn" id="libimport" title="Or drop .dustmap.json files here">Import…</button>
+      <button class="btn" id="libexportall">Export all</button>
       <input type="file" id="libfile" accept=".json,application/json" multiple hidden>
     </div>
     <div class="libmaps" id="libmaps"></div>
     <p class="note" id="libmsg" role="status"></p>
     <details id="libtx">
-      <summary class="note">Move maps as text instead of files</summary>
-      <p class="note">Export puts the map here when files can't be saved. To import, paste a map's text and press Import text.</p>
-      <textarea id="libtext" spellcheck="false" aria-label="Map file text"></textarea>
+      <summary class="note">Import or export as text</summary>
+      <textarea id="libtext" spellcheck="false" aria-label="Map file text" placeholder="Paste a map’s text here"></textarea>
       <div class="acts"><button class="btn" id="libpaste">Import text</button></div>
     </details>
-    <p class="note">You can also drop <b>.dustmap.json</b> files here.</p>
   </div>
 </div>
 
@@ -291,11 +315,16 @@ const OBJ=[
  {k:'shack',name:'Shack',sub:'Small · 2×2 squares',g:'Buildings'},{k:'saloon',name:'Saloon',sub:'Medium · 4×4 squares',g:'Buildings'},{k:'hotel',name:'Hotel',sub:'Large · 5×5 squares',g:'Buildings'},
  {k:'well',name:'Well',g:'Props'},{k:'wagon',name:'Wagon',g:'Props'},{k:'trough',name:'Trough',g:'Props'},{k:'barrels',name:'Barrels',g:'Props'},
  {k:'crates',name:'Crates',g:'Props'},{k:'boulder',name:'Boulder',g:'Props'},{k:'cactus',name:'Cactus',g:'Props'},{k:'rock',name:'Rock',g:'Props'},{k:'tree',name:'Dead tree',g:'Props'},
- {k:'cart',name:'Ore cart',g:'Mine & cave'},{k:'lantern',name:'Lantern',sub:'Casts a glow',g:'Mine & cave'},{k:'timber',name:'Timber supports',g:'Mine & cave'},{k:'rubble',name:'Rubble pile',g:'Mine & cave'},{k:'crystals',name:'Crystals',g:'Mine & cave'}];
+ {k:'cart',name:'Ore cart',g:'Mine & cave'},{k:'lantern',name:'Lantern',sub:'Casts a glow',g:'Mine & cave'},{k:'timber',name:'Timbers',g:'Mine & cave'},{k:'rubble',name:'Rubble',g:'Mine & cave'},{k:'crystals',name:'Crystals',g:'Mine & cave'}];
 // 16 px = one 5 ft square. Buildings are drawn a bit under true scale so towns read denser:
 // a shack is about 2¼×2 squares, a saloon 3¾×3¾, a hotel 5¼×4½ (still bigger than a token).
 const SIZE={cart:[14,12],lantern:[6,7],timber:[30,10],rubble:[16,12],crystals:[12,12],cactus:[7,9],rock:[5,4],skull:[3,3],shack:[36,32],saloon:[60,60],hotel:[84,72],well:[16,16],wagon:[34,16],trough:[20,8],barrels:[10,8],crates:[11,10],boulder:[14,11],tree:[26,24]};
-const TOOLS=[{id:'draw',name:'Shape',key:'D'},{id:'brush',name:'Brush',key:'B'},{id:'sculpt',name:'Sculpt',key:'E'},{id:'select',name:'Select',key:'V'},{id:'object',name:'Objects',key:'O'},{id:'fog',name:'Fog',key:'F'},{id:'measure',name:'Measure',key:'M'},{id:'ping',name:'Pointer',key:'P'},{id:'pan',name:'Pan',key:'H'}];
+// icon: SVG path data on a 24 × 24 grid, stroked
+const TOOLS=[{id:'select',name:'Select',key:'V',icon:'M6 3l13 8-6 1.5-3 6z'},{id:'draw',name:'Shape',key:'D',icon:'M5 8l7-5 7 5-2.5 11h-9z'},
+ {id:'brush',name:'Brush',key:'B',icon:'M19 3l2 2-9 9-2-2z M9 13c-3 0-4.5 2-4.5 4.5 0 1.5-1 2.5-2 2.5 3.5 1 8 .5 8.5-4.5'},{id:'sculpt',name:'Sculpt',key:'E',icon:'M2 20l7-12 4 6 3-4 6 10z'},
+ {id:'object',name:'Objects',key:'O',icon:'M4 8l8-4 8 4v8l-8 4-8-4z M4 8l8 4 8-4 M12 12v8'},{id:'fog',name:'Fog',key:'F',icon:'M7 18h10a4 4 0 000-8 6 6 0 00-11.5 1.5A3.5 3.5 0 007 18z'},
+  {id:'measure',name:'Measure',key:'M',icon:'M3 17L17 3l4 4L7 21z M7.5 12.5l2 2 M10.5 9.5l2 2 M13.5 6.5l2 2'},
+ {id:'ping',name:'Pointer',key:'P',icon:'M12 4a8 8 0 110 16 8 8 0 010-16z M12 10a2 2 0 110 4 2 2 0 010-4z'},{id:'pan',name:'Pan',key:'H',icon:'M12 3v18 M3 12h18 M9 6l3-3 3 3 M9 18l3 3 3-3 M6 9l-3 3 3 3 M18 9l3 3-3 3'}];
 const C={sand:[240,202,184],sand2:[236,196,178],sand3:[244,208,191],peb:[204,160,148],wet:[214,168,150],
  scrubg:[226,198,164],tuft:[140,130,72],tuftd:[104,96,52],tuftl:[170,160,92],
  mesa:[198,88,62],mesal:[218,112,80],mesad:[168,70,50],cliff:[140,54,40],cliffd:[108,40,30],
@@ -701,8 +730,8 @@ function objSwatch(k){const[w,h]=SIZE[k];const c=document.createElement('canvas'
   const g=c.getContext('2d');g.fillStyle='rgb(240,202,184)';g.fillRect(0,0,s,s);const img=g.getImageData(0,0,s,s);
   drawObject(img.data,s,s,{k,x:s/2,y:s/2,v:k==='saloon'?4:k==='hotel'?2:0});g.putImageData(img,0,0);return c}
 function itemBtn(id,cv,name,sub,key,on){const b=document.createElement('button');b.className='terr';b.id=id;b.setAttribute('aria-pressed','false');
-  b.append(cv);const t=document.createElement('span');t.innerHTML=`<span class="tn"></span><span class="ts"></span>`;t.querySelector('.tn').textContent=name;t.querySelector('.ts').textContent=sub||'';b.append(t);
-  if(key){const k=document.createElement('kbd');k.className='tk';k.textContent=key;b.append(k)}b.onclick=on;return b}
+  b.title=name+(sub?' · '+sub:'')+(key?` (${key})`:'');
+  b.append(cv);const t=document.createElement('span');t.className='tn';t.textContent=name;b.append(t);b.onclick=on;return b}
 const swCache={};
 function buildPaints(){const box=$('paints');box.replaceChildren();
   if(tab==='ground')TERR.forEach((t,i)=>{if(t.hidden)return;swCache['g'+i]=swCache['g'+i]||groundSwatch(i);box.append(itemBtn('p-g'+i,swCache['g'+i],t.name,t.sub,t.key,()=>pickPaint({layer:'ground',t:i})))});
@@ -768,13 +797,12 @@ function buildToks(){const box=$('toks');box.replaceChildren();let grp='',key=''
     if(k!==key){key=k;const r=document.createElement('div');r.className='tokrow';const n=document.createElement('span');n.className='tn';n.textContent=k;
       vars=document.createElement('div');vars.className='tokvars';r.append(n,vars);box.append(r)}
     const b=document.createElement('button');b.className='tokbtn';b.id='tk-'+s;b.title=tokLabel(s);b.setAttribute('aria-label',tokLabel(s));b.setAttribute('aria-pressed','false');
-    b.append(tokSwatch(s));b.onclick=()=>{objKind='tok:'+s;objMix=false;syncUI()};vars.append(b)});
-  $('toknote').textContent=TOKINFO.length+' tokens';
-  // remember whether the dropdown is open (per browser)
-  const dd=$('tokdrop');try{dd.open=localStorage.getItem('dustmap-tokdrop')==='1'}catch(e){}
-  dd.addEventListener('toggle',()=>{try{localStorage.setItem('dustmap-tokdrop',dd.open?'1':'0')}catch(e){}})}
-function buildTools(){const box=$('tools');TOOLS.forEach(t=>{const b=document.createElement('button');b.className='tool';b.id='t-'+t.id;b.setAttribute('aria-pressed','false');
-  b.innerHTML=`<span></span><kbd>${t.key}</kbd>`;b.firstChild.textContent=t.name;b.onclick=()=>setTool(t.id);box.append(b)})}
+    b.append(tokSwatch(s));b.onclick=()=>{objKind='tok:'+s;objMix=false;syncUI()};vars.append(b)})}
+// Objects / Tokens tabs: switching tabs picks up whatever was last chosen on that tab
+let lastObjKind='saloon',lastTokKind='tok:0';
+function setObjTab(t){if(t==='toks'){if(tokKind()<0){lastObjKind=objKind;objKind=lastTokKind;objMix=false}}else if(tokKind()>=0){lastTokKind=objKind;objKind=lastObjKind}syncUI()}
+function buildTools(){const box=$('tools');TOOLS.forEach(t=>{const b=document.createElement('button');b.className='tool';b.id='t-'+t.id;b.setAttribute('aria-pressed','false');b.title=`${t.name} (${t.key})`;
+  b.innerHTML=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${t.icon}"/></svg><span></span>`;b.lastChild.textContent=t.name;b.onclick=()=>setTool(t.id);box.append(b)})}
 function pickPaint(p){paint=p;
   if(tool==='select'&&sel&&sel.type==='op'){const op=st.ops[sel.i];
     if(op.layer===p.layer&&(p.layer==='ground'?op.t!==p.t:(op.h!==p.h||op.s!==p.s))){push();if(p.layer==='ground')op.t=p.t;else{op.h=p.h;op.s=p.s}markOp(op);save()}}
@@ -1102,7 +1130,7 @@ function saveStamp(){const list=selList();if(!list.length)return;const os=list.m
   objKind='stamp:'+(stamps.length-1);stampRot=0;setTool('object')}
 $('undo').onclick=undo;
 $('zin').onclick=()=>zoomStep(1);$('zout').onclick=()=>zoomStep(-1);$('zfit').onclick=fit;
-MSIZES.forEach(([c,r])=>{const o=document.createElement('option');o.value=c+'x'+r;o.textContent=`${c} × ${r}  (${c*5} × ${r*5} ft)`;$('msize').append(o)});
+MSIZES.forEach(([c,r])=>{const o=document.createElement('option');o.value=c+'x'+r;o.textContent=`${c} × ${r} squares`;$('msize').append(o)});
 $('msize').onchange=e=>{const[c,r]=e.target.value.split('x').map(Number);setMapSize(c,r)};
 function applySize(){W=st.cols*GRID;H=st.rows*GRID;ncache.clear();dirty=objDirty=true;sel=null}
 // grow or shrink around the centre, in whole squares so tokens stay on the grid
@@ -1117,10 +1145,15 @@ function setMapSize(cols,rows,ox,oy,keepView){if(cols===st.cols&&rows===st.rows)
 $('reroll').onclick=()=>{push();st.seed=Math.floor(Math.random()*100000);st.ops.forEach(o=>o.sid=Math.floor(Math.random()*1000));dirty=true;save()};
 $('example').onclick=()=>{push();const ex=example();Object.assign(st,{ops:ex.ops,objects:ex.objects,tokens:ex.tokens,seed:ex.seed,cols:ex.cols,rows:ex.rows,skip:[]});applySize();fit();save();syncUI()};
 const clr=$('clear');
-clr.onclick=()=>{if(!armedClear){armedClear=true;clr.textContent='Click again to clear';clr.classList.add('warn');setTimeout(()=>{armedClear=false;clr.textContent='Clear map';clr.classList.remove('warn')},3000);return}
-  push();st.ops=[];st.objects=[];sel=null;draft=[];dirty=objDirty=true;armedClear=false;clr.textContent='Clear map';clr.classList.remove('warn');save();syncUI()};
+clr.onclick=()=>{if(!armedClear){armedClear=true;clr.textContent='Click again to clear';clr.classList.add('armed');setTimeout(()=>{armedClear=false;clr.textContent='Clear map';clr.classList.remove('armed')},3000);return}
+  push();st.ops=[];st.objects=[];sel=null;draft=[];dirty=objDirty=true;armedClear=false;clr.textContent='Clear map';clr.classList.remove('armed');save();syncUI();menuShow(false)};
+// header overflow menu
+function menuShow(on){$('menu').hidden=!on;$('more').setAttribute('aria-expanded',on)}
+$('more').onclick=e=>{e.stopPropagation();menuShow($('menu').hidden)};
+document.addEventListener('pointerdown',e=>{if(!$('menu').hidden&&!e.target.closest('.menuwrap'))menuShow(false)});
+['reroll','example','snap'].forEach(id=>$(id).addEventListener('click',()=>menuShow(false)));
 $('rag').oninput=e=>{st.rag=+e.target.value;dirty=true};$('rag').onchange=save;
-$('bsize').oninput=e=>{bsize=+e.target.value};
+$('bsize').oninput=e=>{bsize=+e.target.value;$('bsizev').textContent=bsize};
 $('fog-hide').onclick=()=>{fogMode='hide';syncUI()};$('fog-reveal').onclick=()=>{fogMode='reveal';syncUI()};
 $('fog-brush').onclick=()=>{fogShape='brush';syncUI()};$('fog-box').onclick=()=>{fogShape='box';syncUI()};
 $('fogsize').oninput=e=>{fogR=+e.target.value;syncUI()};
@@ -1130,7 +1163,8 @@ $('ogap').oninput=e=>{objGap=+e.target.value};
 $('gridreset').onclick=()=>{objCells=new Set(['1,1']);syncUI()};
 $('omix').onchange=e=>{objMix=e.target.checked;if(objMix){if(objKind.startsWith('stamp:')||objKind.startsWith('tok:'))objKind='crates';if(!mixKinds.size)mixKinds.add(objKind)}syncUI()};
 $('odens').oninput=e=>{scatDens=+e.target.value;$('odenslbl').textContent=`Fill ${scatDens}%`};
-$('reroll').onclick=()=>{scatSeed++};
+$('mixreroll').onclick=()=>{scatSeed++};
+$('tab-objs').onclick=()=>setObjTab('objs');$('tab-toks').onclick=()=>setObjTab('toks');
 $('tab-ground').onclick=()=>setTab('ground');$('tab-height').onclick=()=>setTab('height');
 $('snap').onclick=()=>{const s=Math.max(1,Math.min(3,Math.floor(2400/W)));const c=document.createElement('canvas');c.width=W*s;c.height=H*s;const g=c.getContext('2d');g.setTransform(s,0,0,s,0,0);drawWorld(g,s);
   $('snapimg').src=c.toDataURL('image/png');$('modal').hidden=false};
@@ -1144,13 +1178,13 @@ window.addEventListener('keydown',e=>{const tg=e.target;if(tg.tagName==='INPUT'&
   if(e.key===' '&&tg.tagName!=='BUTTON'){e.preventDefault();spaceDown=true;cv.classList.add('pan');return}
   if(!e.ctrlKey&&!e.metaKey&&(e.key==='+'||e.key==='=')){zoomStep(1);return}if(!e.ctrlKey&&!e.metaKey&&(e.key==='-'||e.key==='_')){zoomStep(-1);return}if(e.key==='0'){fit();return}
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();undo();return}
-  if(e.key==='Escape'){if(!$('modal').hidden){$('modal').hidden=true;return}sculpt=null;draft=[];stroke=null;sel=null;measure=null;syncUI();return}
+  if(e.key==='Escape'){if(!$('menu').hidden){menuShow(false);return}if(!$('modal').hidden){$('modal').hidden=true;return}sculpt=null;draft=[];stroke=null;sel=null;measure=null;syncUI();return}
   if(e.key==='Shift'&&sculpt&&sculpt.phase==='paint'){toRaise();return}
   if(e.key==='Enter'&&tool==='draw'&&tg.tagName!=='BUTTON'){finish();return}
   if(e.key==='Backspace'||e.key==='Delete'){if(tool==='draw'&&draft.length){draft.pop();syncHint();e.preventDefault()}else if(sel){delSel();e.preventDefault()}return}
   if(e.ctrlKey||e.metaKey||e.altKey)return;
   if(tool==='fog'&&(e.key==='['||e.key===']')){fogR=Math.max(1,Math.min(6,fogR+(e.key===']'?1:-1)));syncUI();return}
-  if(e.key==='['){bsize=Math.max(2,bsize-1);$('bsize').value=bsize;return}if(e.key===']'){bsize=Math.min(28,bsize+1);$('bsize').value=bsize;return}
+  if(e.key==='['){bsize=Math.max(2,bsize-1);syncUI();return}if(e.key===']'){bsize=Math.min(28,bsize+1);syncUI();return}
   const k=e.key.toUpperCase();const t=TOOLS.find(t=>t.key===k);if(t){setTool(t.id);return}
   if(k==='R'&&tool==='object'&&tokKind()<0){rotatePlacement();return}
   if(k==='G'){$('grid').checked=!$('grid').checked;return}
@@ -1161,7 +1195,7 @@ function syncUI(){
   document.body.classList.toggle('mp-player',mp.role==='player');
   TOOLS.forEach(t=>{const b=$('t-'+t.id);b.setAttribute('aria-pressed',tool===t.id);b.hidden=mp.role==='player'&&!PLAYER_TOOLS.includes(t.id)});cv.classList.toggle('select',tool==='select');cv.classList.toggle('pan',tool==='pan');
   {const v=st.cols+'x'+st.rows,sel2=$('msize');[...sel2.options].forEach(o=>{if(o.dataset.custom&&o.value!==v)o.remove()});
-   if(![...sel2.options].some(o=>o.value===v)){const o=document.createElement('option');o.value=v;o.dataset.custom='1';o.textContent=`${st.cols} × ${st.rows}  (${st.cols*5} × ${st.rows*5} ft)`;sel2.append(o)}sel2.value=v}$('mapname').textContent=`${st.cols} × ${st.rows} squares · 5 ft each`;
+   if(![...sel2.options].some(o=>o.value===v)){const o=document.createElement('option');o.value=v;o.dataset.custom='1';o.textContent=`${st.cols} × ${st.rows} squares`;sel2.append(o)}sel2.value=v}
   $('tab-ground').setAttribute('aria-selected',tab==='ground');$('tab-height').setAttribute('aria-selected',tab==='height');
   TERR.forEach((t,i)=>{const b=$('p-g'+i);if(b)b.setAttribute('aria-pressed',paint.layer==='ground'&&paint.t===i)});
   ELEV.forEach((e,i)=>{const b=$('p-h'+i);if(b)b.setAttribute('aria-pressed',paint.layer==='height'&&paint.h===e.h&&paint.s===e.s)});
@@ -1169,48 +1203,48 @@ function syncUI(){
   $('ogap').value=objGap;$('gridlbl').textContent=objKind.startsWith('stamp:')?'Stamp'+(stampRot?` · ${stampRot*90}°`:''):cellLabel();paintPick(objCells);
   $('omix').checked=objMix;$('mixopts').hidden=!objMix;$('odens').value=scatDens;$('odenslbl').textContent=`Fill ${scatDens}%`;$('mixlbl').textContent=mixKinds.size?`${mixKinds.size} in the mix`:'Nothing picked yet';
   $('sec-paint').hidden=!(tool==='draw'||tool==='brush'||(tool==='select'&&sel&&sel.type==='op'));
-  $('paint-label').textContent=tool==='select'?'Change paint':'Paint';
+  $('paint-label').hidden=tool!=='select';
+  {const tk=tokKind()>=0;$('tab-objs').setAttribute('aria-selected',!tk);$('tab-toks').setAttribute('aria-selected',tk);$('objs').hidden=tk;$('toks').hidden=!tk;
+   $('ogaplbl').hidden=$('ogap').hidden=$('omix').parentNode.hidden=tk;if(tk)$('mixopts').hidden=true}
   $('sec-brush').hidden=!(tool==='brush'||tool==='sculpt');
   $('sec-obj').hidden=tool!=='object';
   $('sec-fog').hidden=tool!=='fog';$('fog-hide').setAttribute('aria-pressed',fogMode==='hide');$('fog-reveal').setAttribute('aria-pressed',fogMode==='reveal');
   $('fog-brush').setAttribute('aria-pressed',fogShape==='brush');$('fog-box').setAttribute('aria-pressed',fogShape==='box');
-  $('fogsize').value=fogR;$('fogsize').disabled=fogShape!=='brush';$('fogsizelbl').textContent=`Brush: ${2*fogR-1} square${fogR>1?'s':''} across`;$('fogprev').checked=fogPreview;
-  {const n=st.fog?[...st.fog].filter(c=>c==='1').length:0;$('fognote').textContent=n?`${n} of ${st.cols*st.rows} squares hidden from players.`:'Nothing is hidden. Players see the whole map.'}
-  $('rag').value=st.rag;$('bsize').value=bsize;syncHint()}
+  $('fogsize').value=fogR;$('fogsize').disabled=fogShape!=='brush';$('fogsizelbl').textContent=`Size ${2*fogR-1}`;$('fogprev').checked=fogPreview;
+  {const n=st.fog?[...st.fog].filter(c=>c==='1').length:0;$('fognote').textContent=n?`${n} of ${st.cols*st.rows} hidden`:'Nothing hidden'}
+  $('rag').value=st.rag;$('bsize').value=bsize;$('bsizev').textContent=bsize;syncHint()}
 function paintName(){return paint.layer==='ground'?TERR[paint.t].name:ELEV.find(e=>e.h===paint.h&&e.s===paint.s).name}
 function syncHint(){const h=$('hint');h.replaceChildren();
   const add=html=>{const s=document.createElement('span');s.innerHTML=html;h.append(s)};
   const pill=t=>{const s=document.createElement('span');s.className='pill';s.textContent=t;h.append(s)};
   const btn=(t,cls,fn)=>{const b=document.createElement('button');b.className='btn '+cls;b.textContent=t;b.onclick=fn;h.append(b)};
+  // one short line: what's active, and the next move. Buttons only where there's an action.
   if(tool==='draw'){pill(paintName());
-    if(!draft.length)add('Click on the map to start a shape. <b>Sand</b> cuts other terrain back; <b>Flatten</b> undoes elevation.');
-    else{add(`<b>${draft.length}</b> point${draft.length>1?'s':''}. Click the first point, double-click or press <kbd>Enter</kbd> to finish. <kbd>Esc</kbd> cancels.`);
-      if(draft.length>=3)btn('Finish shape','primary',finish);btn('Cancel','',()=>{draft=[];syncHint()})}}
-  else if(tool==='brush'){pill(paintName());add('Click and drag to paint. Small gaps you miss inside a stroke fill in automatically. <kbd>[</kbd> <kbd>]</kbd> change the size. Roads skip ground more than one level up or down.')}
+    if(!draft.length)add('Click to add points');
+    else{add(`${draft.length} point${draft.length>1?'s':''} · <kbd>Enter</kbd> finishes`);
+      if(draft.length>=3)btn('Finish','primary',finish);btn('Cancel','',()=>{draft=[];syncHint()})}}
+  else if(tool==='brush'){pill(paintName());add('Drag to paint · <kbd>[</kbd> <kbd>]</kbd> size')}
   else if(tool==='sculpt'){
-    if(sculpt&&sculpt.phase==='paint'){pill('Selecting');add('Drag over the area, then <b>hold still</b> for a moment (or press <kbd>Shift</kbd>) to start raising.')}
-    else if(sculpt){const lv=SLAD[sculpt.base+sculpt.delta];pill(sculpt.delta===0?'No change':lv.h===0?'Flatten':(lv.h>0?'Raise ':'Lower ')+lv.sh);add('Drag <b>up to raise</b> or <b>down to lower</b>, release to place. <kbd>Esc</kbd> cancels.')}
-    else add('Press and drag over an area, <b>pause</b>, then drag up or down to raise or lower it, all in one motion. For a single spot, press, hold, then drag. <kbd>[</kbd> <kbd>]</kbd> change the size.')}
-  else if(tool==='object'&&tokKind()>=0){pill(tokLabel(tokKind())+(objCells.size>1?` · ${cellLabel()}`:''));
-    add('Click to place the token on the square. Use the grid squares above to drop a group, one square apart. In <b>Select</b>, drag tokens to move them or press <kbd>Delete</kbd> to remove one.')}
+    if(sculpt&&sculpt.phase==='paint'){pill('Selecting');add('Hold still or <kbd>Shift</kbd> to raise')}
+    else if(sculpt){const lv=SLAD[sculpt.base+sculpt.delta];pill(sculpt.delta===0?'No change':lv.h===0?'Flatten':(lv.h>0?'Raise ':'Lower ')+lv.sh);add('Drag up or down, release to place')}
+    else{pill('Sculpt');add('Drag over an area, pause, then drag up or down')}}
+  else if(tool==='object'&&tokKind()>=0){pill(tokLabel(tokKind())+(objCells.size>1?` · ${cellLabel()}`:''));add('Click to place')}
   else if(tool==='object'){const st0=objKind.startsWith('stamp:');
-    if(!st0&&objMix){pill(`Random mix · ${mixKinds.size} kind${mixKinds.size===1?'':'s'} · ${cellLabel()}`);add(mixKinds.size?'Click to scatter. Right-click or <kbd>R</kbd> turns the grid 90°. Each click rolls a fresh layout; the outline shows the next one. Pick more objects in the list to add them to the mix.':'Pick the objects to mix from the list on the left.')}
-    else{pill(st0?(stamps[+objKind.slice(6)]||{name:'Stamp'}).name:OBJ.find(o=>o.k===objKind).name+(objCells.size>1?` · ${cellLabel()}`:''));
-    add(st0?'Click to stamp it. Right-click or <kbd>R</kbd> turns it 90°. Its objects move together; hold <kbd>Alt</kbd> in Select to grab just one.':'Click to place. Drag across the grid squares to place a block at once, or click single squares for a custom pattern. Right-click or <kbd>R</kbd> turns the pattern 90°. In <b>Select</b>, Shift-drag a box to grab several and save them as a stamp.')}}
-  else if(tool==='fog'){pill(fogMode==='hide'?'Hide':'Reveal');
-    add((fogShape==='brush'?'Drag over squares to ':'Drag a box to ')+(fogMode==='hide'?'hide them from players':'reveal them to players')+'. Hold <kbd>Shift</kbd> to '+(fogMode==='hide'?'reveal':'hide')+' instead. Hidden squares show hatched for you; players see darkness, and tokens standing there disappear for them.'+(fogShape==='brush'?' <kbd>[</kbd> <kbd>]</kbd> change the size.':''))}
-  else if(tool==='measure'){add(measure?'Drag from one square to another. Diagonals count as 5 ft, as in the 5e default rule.':'Drag from one square to another to measure movement.')}
-  else if(tool==='pan'){add('Drag to move around. Anytime: two-finger scroll, right-drag or hold <kbd>Space</kbd> to pan; pinch, mouse wheel or <kbd>+</kbd> <kbd>−</kbd> to zoom; <kbd>0</kbd> to fit.')}
-  else if(tool==='ping'){add('Click to ping a spot, or press and drag to point with a trail.')}
+    if(!st0&&objMix){pill(`Mix · ${mixKinds.size} · ${cellLabel()}`);add(mixKinds.size?'Click to scatter · R turns':'Pick objects to mix')}
+    else{pill(st0?(stamps[+objKind.slice(6)]||{name:'Stamp'}).name:OBJ.find(o=>o.k===objKind).name+(objCells.size>1?` · ${cellLabel()}`:''));add((st0?'Click to stamp':'Click to place')+' · R turns')}}
+  else if(tool==='fog'){pill(fogMode==='hide'?'Hide':'Reveal');add('Drag to '+fogMode+' · Shift for '+(fogMode==='hide'?'reveal':'hide'))}
+  else if(tool==='measure'){pill('Measure');add('Drag between squares')}
+  else if(tool==='pan'){pill('Pan');add('Drag to move around')}
+  else if(tool==='ping'){pill('Pointer');add('Click to ping · drag to point')}
   else if(mp.role==='player'){const mine=st.tokens.filter(t=>mpMayMove(t,mp.me)).map(t=>tokName(t.s));
-    if(mine.length){pill('Playing '+mine.join(' & '));add('Drag your token to move. Drag the ground to look around. <kbd>M</kbd> measures, <kbd>P</kbd> points and pings.')}
-    else add('Click <b>Pick a token</b> (top right) to join in. <kbd>M</kbd> measures, <kbd>P</kbd> points and pings.')}
-  else{if(!sel)add('Click anything to select or drag it: shapes, strokes, tokens, and single buildings, props, cacti or rocks. Drag empty ground to move around. Cowboys snap to half squares; hold <kbd>Alt</kbd> to place freely.');
-    else if(sel.type==='token'){const t=st.tokens[sel.i];pill(t?tokLabel(t.s)+' selected':'Token selected');add('Drag to move. Tokens snap to squares, edges and corners; hold <kbd>Alt</kbd> to place freely.');btn('Delete','warn',delSel)}
+    if(mine.length){pill('Playing '+mine.join(' & '));add('Drag to move')}
+    else{pill('Watching');add('Pick a token to join')}}
+  else{if(!sel)return;
+    if(sel.type==='token'){const t=st.tokens[sel.i];pill(t?tokLabel(t.s)+' selected':'Token selected');btn('Delete','warn',delSel)}
     else if(sel.type!=='op'){const l=selList();pill(l.length===1?OBJ.find(o=>o.k===st.objects[l[0]].k).name+' selected':`${l.length} objects selected`);
-      add('Drag to move. <kbd>Shift</kbd>-click to add or remove, <kbd>Shift</kbd>-drag a box to grab more.');btn('Save as stamp','primary',saveStamp);btn('Delete','warn',delSel)}
+      btn('Save as stamp','',saveStamp);btn('Delete','warn',delSel)}
     else{pill((st.ops[sel.i].layer==='ground'?TERR[st.ops[sel.i].t].name:ELEV.find(e=>e.h===st.ops[sel.i].h&&e.s===st.ops[sel.i].s).name)+' selected');
-      add(sel.type==='obj'?'Drag to move.':'Drag it again to move it, drag its corners to reshape it, or pick a paint to change it.');btn('Delete','warn',delSel)}}}
+      add('Drag to move, corners to reshape');btn('Delete','warn',delSel)}}}
 // ================= map library (Phase 3) =================
 // The open map is always st, saved to 'dustmap-v2' as before. Every map, the open one
 // included, is also kept under 'dustmap-map:<id>'; 'dustmap-library' lists them:
@@ -1279,7 +1313,7 @@ function libRender(){const box=$('libmaps');box.replaceChildren();
       nm.append(inp);setTimeout(()=>{inp.focus();inp.select()},0)}
     else{const b=document.createElement('b');b.textContent=m.name;nm.append(b)}
     const meta=document.createElement('span');meta.className='note';meta.textContent=`${m.cols} × ${m.rows} squares · edited ${ago(m.updated)}`;nm.append(meta);row.append(nm);
-    const btn=(t,fn,cls)=>{const b=document.createElement('button');b.className='btn'+(cls?' '+cls:'');b.textContent=t;b.onclick=fn;row.append(b);return b};
+    const btn=(t,fn,cls)=>{const b=document.createElement('button');b.className='btn '+(cls||'ghost');b.textContent=t;b.onclick=fn;row.append(b);return b};
     if(m.id===lib.cur){const p=document.createElement('span');p.className='pill';p.textContent='Open';row.insertBefore(p,nm.nextSibling)}
     else btn('Open',()=>{libSay('');if(libOpen(m.id,libGet(m.id)))libHide()},'primary');
     btn('Rename',()=>{libRename=m.id;libRender()});
@@ -1288,13 +1322,13 @@ function libRender(){const box=$('libmaps');box.replaceChildren();
     btn('Export',()=>libExport([m]));
     if(mp.gm){const mine=m.gid&&m.gid.startsWith(mp.gm.me+'_');
       if(mine){const p=document.createElement('span');p.className='pill';p.textContent='In group';p.title='Your changes reach the group library automatically';row.append(p)}
-      else btn('Share with group',()=>groupShare(m))}
+      else btn('Share with group',()=>groupShare(m),' ')}
     const del=btn(libArmed===m.id?'Click again to delete':'Delete',()=>{
       if(lib.maps.length<2)return libSay('This is your only map. Add another before deleting it.');
       if(libArmed!==m.id){libArmed=m.id;clearTimeout(libArmT);libArmT=setTimeout(()=>{libArmed=null;libRender()},3000);libRender();return}
       libArmed=null;const was=m.id===lib.cur;lib.maps=lib.maps.filter(q=>q!==m);try{localStorage.removeItem(MAPKEY+m.id)}catch(e){}
       if(was){const next=[...lib.maps].sort((a,b)=>b.updated-a.updated)[0];lib.cur=null;libOpen(next.id,libGet(next.id)||blankMap())}
-      libStore();libSay(`Deleted “${m.name}”.`);libRender()},libArmed===m.id?'warn':'');
+      libStore();libSay(`Deleted “${m.name}”.`);libRender()},libArmed===m.id?'warn':'ghost');
     if(lib.maps.length<2)del.disabled=true;
     box.append(row)});
   if(mp.gm)groupRender(box)}
@@ -1311,8 +1345,8 @@ function groupSync(m,j){if(!mp.gm||!m||!m.gid||!m.gid.startsWith(mp.gm.me+'_'))r
 function groupRender(box){const list=mp.gm.list().sort((a,b)=>b.updated-a.updated);
   const missing=[...new Set(list.map(g=>g.by))].filter(id=>id&&!(id in mp.profiles));
   if(missing.length&&mp.user){missing.forEach(id=>mp.profiles[id]={name:''});mp.user.profiles(missing).then(ps=>{Object.assign(mp.profiles,ps);if(!$('libmodal').hidden&&!libRename)libRender()}).catch(()=>{})}
-  const h=document.createElement('div');h.className='grp';h.style.marginTop='10px';h.textContent='Group maps · everyone with your room link sees these';box.append(h);
-  if(!list.length){const p=document.createElement('p');p.className='note';p.style.margin='0';p.textContent='Nothing shared yet. Use “Share with group” on one of your maps.';box.append(p);return}
+  const h=document.createElement('div');h.className='grp';h.style.marginTop='10px';h.textContent='Group maps';h.title='Everyone with your room link sees these';box.append(h);
+  if(!list.length){const p=document.createElement('p');p.className='note';p.style.margin='0';p.textContent='Nothing shared yet.';box.append(p);return}
   list.forEach(g=>{const row=document.createElement('div');row.className='libmap';const nm=document.createElement('div');nm.className='nm';
     const b=document.createElement('b');b.textContent=g.name;const meta=document.createElement('span');meta.className='note';
     meta.textContent=`${g.by===mp.gm.me?'You':mpName(g.by)} · ${g.cols} × ${g.rows} squares · ${ago(g.updated)}`;nm.append(b,meta);row.append(nm);

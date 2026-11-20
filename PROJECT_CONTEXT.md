@@ -49,7 +49,7 @@ All are tiny pixel art, hand-placed on a character grid for the smallest size, t
 
 ## Dustmap: features today
 
-- **Map:** 16 px = one 5 ft square. Sizes from 20×14 up to 60×40 squares (Settings dropdown, or zoom out and click the + tabs on each edge to add 10 squares on that side). Resizing keeps content in place and can be undone.
+- **Map:** 16 px = one 5 ft square. Sizes from 20×14 up to 60×40 squares (⋯ menu, or zoom out and click the + tabs on each edge to add 10 squares on that side). Resizing keeps content in place and can be undone.
 - **Camera:** trackpad two-finger scroll pans and pinch zooms; mouse wheel zooms in steps; right-drag, Space-drag, Pan tool (H) or dragging empty ground in Select pans; touch pinch/pan; `+` `−` zoom, `0` fits.
 - **Tools:** Shape (D, click polygon points), Brush (B), Sculpt (E), Select (V), Objects (O), Measure (M), Pointer (P), Pan (H).
 - **Terrain (Terrain tab):** Sand, Scrub, Mesa, Water, Badlands, Road, Town, Stone, Mine rail.
@@ -67,6 +67,7 @@ All are tiny pixel art, hand-placed on a character grid for the smallest size, t
 - **Pointer:** click for a radar ping; press and drag for a pointer with a fading tail.
 - **Map library:** the **Map: <name>** button in the header opens the list of maps saved in this browser. New map (blank 40×28 with the four cowboys), Open, Rename, Duplicate, Export, Delete (two-click confirm; the only map can't be deleted), Import file (one or many, or drop files on the dialog), Export all maps. Import never overwrites: every imported map is added as a new entry (names get " (2)" if taken), and a single imported map opens. If the page can't save files, the export text appears in a "Move maps as text" box to copy, and pasted text imports from the same box. Switching maps clears undo history.
 - **Fog of war (F):** the DM hides and reveals squares with a brush (1–11 squares across) or a box, Shift paints the opposite, plus Hide everything / Reveal everything. The DM sees hidden squares under a hatched veil and can preview the player view; players see darkness, and tokens standing in hidden squares are never sent to them (tokens handed to a player always show). Fog saves with the map, undoes, and moves with map resizes (new squares start hidden). In a session it is published on its own document (`live/fog`), so a reveal never resends the map. Limitation: the terrain and objects under fog are still in the shared map data, so a player who digs into the database could see the layout; tokens are not.
+- **Layout:** the page is one screen with no page scroll. Header: map name (opens the library), Undo, Play together, and a ⋯ menu holding map size, edge roughness, Reroll details, Load example, grid and animation toggles, Snapshot and Clear map. Left panel: an icon grid of the nine tools (Fog sits next to Objects and is DM-only), then only the options for the active tool (Objects has Objects / Tokens tabs). A one-line status chip sits over the map's bottom-left corner. Helper text was cut deliberately; longer explanations live in button tooltips.
 - **Other:** Undo (Ctrl/Cmd+Z), Reroll details, Clear map (two-click confirm), Load example, Snapshot (renders an image the user right-click saves), 5 ft grid toggle, edge roughness slider, token animation toggle. Maps autosave to `localStorage`.
 
 ## How the code works (`app/dustmap_src.html`)

@@ -7,11 +7,11 @@ const ok=(c,m)=>{if(!c){console.log('FAIL: '+m);process.exit(1)}};
 (async()=>{const b=await chromium.launch();const p=await b.newPage({viewport:{width:1440,height:960}});
 const errs=[];p.on('pageerror',e=>errs.push(e.message));
 await p.goto(PAGE);await p.evaluate(()=>localStorage.clear());await p.reload();await p.waitForTimeout(1500);
-await p.click('#clear');await p.click('#clear');
+await p.click('#more');await p.click('#clear');await p.click('#clear');
 const tokens=()=>p.evaluate(()=>JSON.parse(localStorage.getItem('dustmap-v2')).tokens);
 const n0=(await tokens()).length;
 await p.keyboard.press('o');
-await p.click('#tokdrop > summary');
+await p.click('#tab-toks');
 const count=await p.$$eval('.tokbtn',els=>els.length);ok(count===79,'expected 79 token buttons, got '+count);
 const rows=await p.$$eval('.tokrow .tn',els=>els.map(e=>e.textContent));ok(rows.includes('Bandit')&&rows.includes('Rattlesnake')&&rows[0]==='Cowboys','rows '+rows.slice(0,3));
 // Bandit variant B

@@ -30,7 +30,7 @@ npm run build               # app/dustmap_src.html -> app/dustmap.html
 npm test                    # build, then run both browser checks
 ```
 
-Open `app/dustmap.html` directly in a browser to use the editor. The **Map** button in the header holds the map library: switch maps, and export or import them as `.dustmap.json` files. When publishing as a claude.ai artifact, declare `capabilities: {downloads: true}` so Export can save files. Screenshots from the tests land in `app/tests/output/`.
+Open `app/dustmap.html` directly in a browser to use the editor. The map name in the header opens the map library: switch maps, and export or import them as `.dustmap.json` files. When publishing as a claude.ai artifact, declare `capabilities: {downloads: true}` so Export can save files. Screenshots from the tests land in `app/tests/output/`.
 
 `verify_partial_redraw.js` must keep passing: edits only repaint the changed area, and that repaint has to be pixel-identical to a full redraw. Any new noise, parity or `%` term in the paint code must use absolute map coordinates (`x+OX`, `y+OY`).
 

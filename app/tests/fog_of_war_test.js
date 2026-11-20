@@ -31,7 +31,7 @@ try{
   const sq=(f,cols,c,r)=>f&&f[r*cols+c];
 
   const dm=await open('u_dm',{owner:true,admin:true});
-  await dm.click('#example');await dm.waitForTimeout(600);
+  await dm.click('#more');await dm.click('#example');await dm.waitForTimeout(600);
   // two NPC tokens: one in the top-left corner (to be revealed), one far away (stays in fog)
   await dm.evaluate(()=>{const s=window.__dustmap().st;s.tokens.push({s:4,x:72,y:72,o:0},{s:5,x:552,y:392,o:0})});
   const p1=await open('u_p1');
@@ -49,8 +49,9 @@ try{
   await until(async()=>(await S(p1)).st.tokens.length===0,'tokens in fog are not sent to players');
   if(!(await dm.textContent('#fognote')).includes(`${cells} of ${cells}`))fail('fog count note');
   // a token handed to a player always shows, even in fog
-  await dm.click('#mpbtn');await until(async()=>(await dm.locator('.mpp',{hasText:'Alex'}).count())>0,'Alex listed');
-  await dm.locator('.mpp',{hasText:'Alex'}).locator('select').selectOption('3');await dm.click('#mpclose');
+  // (players pick their own token)
+  await p1.waitForTimeout(500);if(await p1.locator('#mpmodal').isHidden())await p1.click('#mpbtn');
+  await p1.locator('.mppick .tokbtn').nth(3).click();
   await until(async()=>{const t=(await S(p1)).st.tokens;return t.length===1&&t[0].s===3},'player sees their own token in fog');
   // player sees darkness where it's hidden
   await p1.waitForTimeout(300);if(await lum(p1,180,150)>40)fail('hidden ground should be dark for the player');
@@ -83,7 +84,7 @@ try{
   await dm.uncheck('#fogprev');
 
   // resizing keeps fog under the same ground; new squares start hidden
-  await dm.selectOption('#msize','50x34');
+  await dm.click('#more');await dm.selectOption('#msize','50x34');await dm.keyboard.press('Escape');
   f=(await S(dm)).st.fog;if(!f||f.length!==50*34)fail('fog resized');
   if(sq(f,50,5+5,3+5)!=='0'||sq(f,50,0,0)!=='1')fail('fog should move with the map');
   await until(async()=>{const d=await S(p1);return d.st.cols===50&&d.fog&&sq(d.fog,50,10,8)==='0'},'player gets the resized map and fog');
