@@ -10,14 +10,15 @@ await p.goto(PAGE);await p.evaluate(()=>localStorage.clear());await p.reload();a
 await p.click('#more');await p.click('#clear');await p.click('#clear');
 const tokens=()=>p.evaluate(()=>JSON.parse(localStorage.getItem('dustmap-v2')).tokens);
 const n0=(await tokens()).length;
-await p.keyboard.press('o');
-await p.click('#tab-toks');
-const count=await p.$$eval('.tokbtn',els=>els.length);ok(count===79,'expected 79 token buttons, got '+count);
-const rows=await p.$$eval('.tokrow .tn',els=>els.map(e=>e.textContent));ok(rows.includes('Bandit')&&rows.includes('Rattlesnake')&&rows[0]==='Cowboys','rows '+rows.slice(0,3));
-// Bandit variant B
-const s=await p.evaluate(()=>[...document.querySelectorAll('.tokbtn')].findIndex(b=>b.title==='Bandit (B)'));ok(s>3,'bandit B button');
+await p.keyboard.press('t');
+const groups=await p.$$eval('#toks .seg button',els=>els.map(e=>e.textContent));ok(groups.join()==='Party,Town,Enemies','token groups '+groups);
+const party=await p.$$eval('#toks .sw',els=>els.length);ok(party===4,'4 party tokens, got '+party);
+// Bandit variant B: open the Town group, pick Bandit, then its B colour
+await p.click('#tg-Townsfolk');
+const names=await p.$$eval('#toks .sw',els=>els.map(e=>e.getAttribute('aria-label')));ok(names.includes('Bandit (B)')&&names.includes('Sheriff'),'town '+names.slice(0,8));
+const s=+(await p.getAttribute('#toks .sw[aria-label="Bandit (B)"]','id')).slice(3);ok(s>3,'bandit B button');
 await p.click(`#tk-${s}`);
-const hint=await p.textContent('#hint');ok(/Bandit \(B\)/.test(hint),'hint shows token: '+hint);
+ok(await p.getAttribute(`#tk-${s}`,'aria-pressed')==='true','bandit B picked');
 const box=await (await p.$('#map')).boundingBox();
 const z=await p.evaluate(()=>parseInt(document.getElementById('zlabel').textContent)/100);
 const mapW=640*z,mapH=448*z,mx=box.x+(box.width-mapW)/2,my=box.y+(box.height-mapH)/2;const m=(x,y)=>[mx+x*z,my+y*z];
@@ -26,8 +27,8 @@ let [x,y]=m(203,183);await p.mouse.move(x,y);await p.waitForTimeout(100);await p
 let t=await tokens();ok(t.length===n0+1,'one token placed');const last=t[t.length-1];
 ok(last.s===s&&last.x===200&&last.y===184,'snapped to 8 px: '+JSON.stringify(last));
 // 2x2 group of rattlesnakes (variant A), one square apart
-const snake=await p.evaluate(()=>[...document.querySelectorAll('.tokbtn')].findIndex(b=>b.title==='Rattlesnake (A)'));
-await p.click(`#tk-${snake}`);await (await p.$('#gridpick')).scrollIntoViewIfNeeded();
+await p.click('#tg-Enemies');const snake=+(await p.getAttribute('#toks .sw[aria-label="Rattlesnake (A)"]','id')).slice(3);
+await p.click(`#tk-${snake}`);if(await p.isHidden('#gridpop'))await p.click('#gridbtn');
 const cell=async(c,r)=>{const bb=await (await p.$(`#gridpick span[data-c="${c}"][data-r="${r}"]`)).boundingBox();return[bb.x+bb.width/2,bb.y+bb.height/2]};
 {const [a1,a2]=await cell(1,1),[e1,e2]=await cell(2,2);await p.mouse.move(a1,a2);await p.mouse.down();await p.mouse.move(e1,e2,{steps:4});await p.mouse.up()}
 await p.evaluate(()=>window.scrollTo(0,0));[x,y]=m(328,296);await p.mouse.move(x,y);await p.waitForTimeout(150);

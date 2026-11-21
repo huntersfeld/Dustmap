@@ -79,9 +79,9 @@ try{
 
   // preview: the DM sees what players see
   await dm.waitForTimeout(200);const veil=await lum(dm,180,150);
-  await dm.check('#fogprev');await dm.waitForTimeout(200);const prev=await lum(dm,180,150);
+  await dm.click('#fogprev');await dm.waitForTimeout(200);const prev=await lum(dm,180,150);
   if(!(prev<40&&veil>prev+20))fail(`preview should darken hidden ground (veil ${veil}, preview ${prev})`);
-  await dm.uncheck('#fogprev');
+  await dm.click('#fogprev');
 
   // resizing keeps fog under the same ground; new squares start hidden
   await dm.click('#more');await dm.selectOption('#msize','50x34');await dm.keyboard.press('Escape');

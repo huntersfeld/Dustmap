@@ -8,7 +8,8 @@ const errs=[];p.on('pageerror',e=>errs.push('PAGEERR '+e.message));const fail=m=
 await p.goto(PAGE);await p.evaluate(()=>localStorage.clear());await p.reload();await p.waitForTimeout(2000);
 await p.click('#more');await p.uncheck('#anim');await p.click('#clear');await p.click('#clear');await p.waitForTimeout(500);
 await p.keyboard.press('o');
-const cell=async(c,r)=>{const h=await p.$(`#gridpick span[data-c="${c}"][data-r="${r}"]`);await h.scrollIntoViewIfNeeded();const bb=await h.boundingBox();return[bb.x+bb.width/2,bb.y+bb.height/2]};
+const gp=async()=>{if(await p.isHidden('#gridpop'))await p.click('#gridbtn')};
+const cell=async(c,r)=>{const h=await p.$(`#gridpick span[data-c="${c}"][data-r="${r}"]`);await gp();const bb=await h.boundingBox();return[bb.x+bb.width/2,bb.y+bb.height/2]};
 const drag=async(a,z)=>{const [x1,y1]=await cell(...a),[x2,y2]=await cell(...z);await p.mouse.move(x1,y1);await p.mouse.down();await p.mouse.move(x2,y2,{steps:6});await p.mouse.up()};
 const on=()=>p.$$eval('#gridpick span.on',els=>els.map(e=>e.dataset.c+','+e.dataset.r).sort());
 const objs=()=>p.evaluate(()=>JSON.parse(localStorage.getItem('dustmap-v2')).objects);
@@ -25,13 +26,13 @@ await p.mouse.click(...await cell(3,2));s=await on();if(s.includes('3,2')||s.len
 if(!/6 squares/.test(await p.textContent('#gridlbl')))fail('pattern label should count squares');
 await place();let o=await objs();if(o.length!==6)fail('expected 6 barrels placed, got '+o.length);
 // Reset goes back to one
-await p.click('#gridreset');if((await on()).length!==1)fail('reset should leave one square');
+await gp();await p.click('#gridreset');if((await on()).length!==1)fail('reset should leave one square');
 
 // random mix
-await p.check('#omix');await p.click('#o-rock');await p.click('#o-cactus');await p.click('#o-crates');
-const pressed=await p.$$eval('#objs .terr[aria-pressed="true"]',els=>els.map(e=>e.id));
+await gp();await p.check('#omix');await p.click('#o-rock');await p.click('#o-cactus');await p.click('#o-crates');
+const pressed=await p.$$eval('#objs .sw[aria-pressed="true"]',els=>els.map(e=>e.id));
 if(!['o-barrels','o-rock','o-cactus','o-crates'].every(k=>pressed.includes(k)))fail('mix should hold barrels, rock, cactus, crates: '+pressed);
-await drag([1,1],[6,6]);await p.fill('#odens','100');await p.dispatchEvent('#odens','input');
+await drag([1,1],[6,6]);await gp();await p.fill('#odens','100');await p.dispatchEvent('#odens','input');
 const before=(await objs()).length;await place(-200);o=await objs();const added=o.slice(before);
 if(added.length!==36)fail('100% fill of 6 x 6 should add 36, got '+added.length);
 const kinds=new Set(added.map(x=>x.k));if(kinds.size<3)fail('mix should use several kinds, got '+[...kinds]);
@@ -40,7 +41,7 @@ if([...kinds].some(k=>!['barrels','rock','cactus','crates'].includes(k)))fail('u
 await place(200);const second=(await objs()).slice(before+36);
 const sig=a=>a.map(x=>x.k).join();if(sig(second)===sig(added))fail('second scatter should re-roll');
 // lower fill leaves gaps
-await p.fill('#odens','30');await p.dispatchEvent('#odens','input');const b3=(await objs()).length;await place(0);const n3=(await objs()).length-b3;
+await gp();await p.fill('#odens','30');await p.dispatchEvent('#odens','input');const b3=(await objs()).length;await place(0);const n3=(await objs()).length-b3;
 if(n3<1||n3>=36)fail('30% fill should place some but not all, got '+n3);
 await p.screenshot({path:path.join(OUT,'scatter.png'),clip:box});
 await b.close();
