@@ -100,6 +100,7 @@ kbd{font-family:ui-monospace,monospace;font-size:11px;background:var(--bg);borde
 .gbadge{position:absolute;bottom:2px;right:3px;font-size:10px;font-weight:600;color:var(--accent)}
 /* grid / mix popover above the tray */
 .pop{position:absolute;z-index:8;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:12px;display:flex;flex-direction:column;gap:8px;width:250px}
+.placemode button{flex:1;height:30px}
 .arrange{display:flex;gap:10px;align-items:flex-start}
 .arrange .side{display:flex;flex-direction:column;gap:6px;flex:1;min-width:0}
 .gridpick{display:grid;grid-template-columns:repeat(6,13px);gap:2px;padding:3px;background:var(--bg);border-radius:6px;touch-action:none;user-select:none;flex:none}
@@ -269,10 +270,16 @@ body.mp-player .dmonly{display:none!important}
   </div>
 
   <div class="pop" id="gridpop" hidden>
+    <div class="seg placemode" id="placemode" role="group" aria-label="How to lay them out"><button id="pl-grid" aria-pressed="true">Grid</button><button id="pl-scat" aria-pressed="false">Random spots</button></div>
+    <div id="scatopts" hidden style="display:flex;flex-direction:column;gap:6px">
+      <label class="row" for="scount"><span class="note" id="scountlbl" style="flex:none;min-width:112px">6 objects</span><input type="range" id="scount" min="1" max="30" step="1" value="6"></label>
+      <label class="row" for="sarea"><span class="note" id="sarealbl" style="flex:none;min-width:112px">4 squares wide</span><input type="range" id="sarea" min="1" max="12" step="1" value="4"></label>
+      <div class="row"><span class="note">Shuffle the layout</span><button class="btn sm" id="scatreroll" style="margin-left:auto">Re-roll</button></div>
+    </div>
     <div class="arrange">
       <div class="gridpick" id="gridpick" aria-label="Place as a grid"></div>
       <div class="side">
-        <div class="row"><span class="note" id="gridlbl">1 × 1</span><button class="btn sm ghost" id="gridreset" style="margin-left:auto">Reset</button></div>
+        <div class="row" id="gridrow"><span class="note" id="gridlbl">1 × 1</span><button class="btn sm ghost" id="gridreset" style="margin-left:auto">Reset</button></div>
         <label class="note" for="ogap" id="ogaplbl">Spacing</label>
         <input type="range" id="ogap" min="0" max="16" step="1" value="2">
         <label class="check note" for="omix"><input type="checkbox" id="omix"> Random mix</label>
@@ -282,7 +289,7 @@ body.mp-player .dmonly{display:none!important}
       <label class="row" for="odens"><span class="note" id="odenslbl" style="flex:none">Fill 70%</span><input type="range" id="odens" min="10" max="100" step="5" value="70"></label>
       <div class="row"><span class="note" id="mixlbl"></span><button class="btn sm" id="mixreroll" style="margin-left:auto">Re-roll</button></div>
     </div>
-    <span class="note">Drag for a block, click squares for a pattern. Right-click the map or R turns it.</span>
+    <span class="note" id="gridnote">Drag for a block, click squares for a pattern. Right-click the map or R turns it.</span>
   </div>
 
   <div class="hint" id="hint" role="status"></div>
@@ -375,10 +382,11 @@ const OBJ=[
  {k:'shack',name:'Shack',sub:'Small · 2×2 squares',g:'Buildings'},{k:'saloon',name:'Saloon',sub:'Medium · 4×4 squares',g:'Buildings'},{k:'hotel',name:'Hotel',sub:'Large · 5×5 squares',g:'Buildings'},
  {k:'well',name:'Well',sub:'Stone well, 1 square',g:'Props'},{k:'wagon',name:'Wagon',sub:'Covered wagon, about 2 squares long',g:'Props'},{k:'trough',name:'Trough',sub:'Water trough',g:'Props'},{k:'barrels',name:'Barrels',sub:'Cover, under a square',g:'Props'},
  {k:'crates',name:'Crates',sub:'Cover, under a square',g:'Props'},{k:'boulder',name:'Boulder',sub:'Big rock, about 1 square',g:'Props'},{k:'cactus',name:'Cactus',sub:'Small desert cactus',g:'Props'},{k:'rock',name:'Rock',sub:'Small loose rock',g:'Props'},{k:'tree',name:'Dead tree',sub:'Bare tree, about 1½ squares',g:'Props'},
+ {k:'torch',name:'Torch',sub:'Standing torch · flickers and glows',g:'Props'},{k:'campfire',name:'Campfire',sub:'Ring of stones · flickers and glows',g:'Props'},
  {k:'cart',name:'Ore cart',sub:'Sits on mine rails',g:'Mine & cave'},{k:'lantern',name:'Lantern',sub:'Casts a glow',g:'Mine & cave'},{k:'timber',name:'Timbers',sub:'Mine tunnel supports',g:'Mine & cave'},{k:'rubble',name:'Rubble',sub:'Cave-in debris',g:'Mine & cave'},{k:'crystals',name:'Crystals',sub:'Glowing crystals',g:'Mine & cave'}];
 // 16 px = one 5 ft square. Buildings are drawn a bit under true scale so towns read denser:
 // a shack is about 2¼×2 squares, a saloon 3¾×3¾, a hotel 5¼×4½ (still bigger than a token).
-const SIZE={cart:[14,12],lantern:[6,7],timber:[30,10],rubble:[16,12],crystals:[12,12],cactus:[7,9],rock:[5,4],skull:[3,3],shack:[36,32],saloon:[60,60],hotel:[84,72],well:[16,16],wagon:[34,16],trough:[20,8],barrels:[10,8],crates:[11,10],boulder:[14,11],tree:[26,24]};
+const SIZE={torch:[6,15],campfire:[16,11],cart:[14,12],lantern:[6,7],timber:[30,10],rubble:[16,12],crystals:[12,12],cactus:[7,9],rock:[5,4],skull:[3,3],shack:[36,32],saloon:[60,60],hotel:[84,72],well:[16,16],wagon:[34,16],trough:[20,8],barrels:[10,8],crates:[11,10],boulder:[14,11],tree:[26,24]};
 // icon: SVG path data on a 24 × 24 grid, stroked
 const ICON={select:'M6 3l13 8-6 1.5-3 6z',
  paint:'M19 3l2 2-9 9-2-2z M9 13c-3 0-4.5 2-4.5 4.5 0 1.5-1 2.5-2 2.5 3.5 1 8 .5 8.5-4.5',
@@ -458,7 +466,7 @@ const mp={db:null,room:null,user:null,me:null,owner:false,edit:false,avail:false
   pushed:{map:null,tok:null,fog:null},fog:null,lastPos:new Map(),tokR:{},busy:false,again:false,timer:0,
   peers:[],profiles:{},trails:new Map(),pingSeen:new Map(),mvSeen:new Map(),ghost:new Map(),
   pres:{},pickSeen:new Map(),sent:'',myPing:0,myMv:0,pend:null,err:'',heldTok:null};
-let tool='select',paint={layer:'ground',t:3},tab='ground',paintMode='brush',groundPaint={layer:'ground',t:3},heightPaint={layer:'height',h:1,s:0},heightSculpt=true,tokGroup='Party',objKind='saloon',bsize=6,objCells=new Set(['1,1']),objMix=false,mixKinds=new Set(),scatDens=70,scatSeed=1,objGap=2,boxSel=null,stampRot=0;
+let tool='select',paint={layer:'ground',t:3},tab='ground',paintMode='brush',groundPaint={layer:'ground',t:3},heightPaint={layer:'height',h:1,s:0},heightSculpt=true,tokGroup='Party',objKind='saloon',bsize=6,objCells=new Set(['1,1']),objMix=false,mixKinds=new Set(),scatDens=70,scatSeed=1,objGap=2,boxSel=null,stampRot=0,objScat=false,scatCount=6,scatArea=4;
 let stamps=(()=>{try{return JSON.parse(localStorage.getItem('dustmap-stamps'))||[]}catch(e){return[]}})();
 const saveStamps=()=>{try{localStorage.setItem('dustmap-stamps',JSON.stringify(stamps))}catch(e){}};
 const selList=()=>!sel?[]:sel.type==='obj'?[sel.i]:sel.type==='objs'?sel.list:[];
@@ -604,6 +612,11 @@ function sprite(k,v){v=(v||0)%12;const key=k+':'+v;if(SPR.has(key))return SPR.ge
   else if(k==='cart'){for(const[x,y]of[[0,1],[11,1],[0,8],[11,8]])R(x,y,3,3,C.wheel);R(1,0,12,12,C.metal);R(1,0,12,1,C.metall);R(1,0,1,12,C.metall);R(3,2,8,8,C.ore);
     for(const[x,y]of[[4,3],[7,4],[5,7],[9,6],[8,8]])put(x,y,C.gold);R(3,2,8,1,mix(C.ore,LIGHT,.2))}
   else if(k==='lantern'){glow(w/2,h/2,14,[255,206,120]);R(1,0,4,1,C.metal);R(0,1,6,5,C.metal);R(1,2,4,3,C.lamp);put(2,2,[255,250,220]);R(2,6,2,1,C.metal)}
+  else if(k==='torch'){R(0,1,6,1,C.metall);R(0,2,6,2,C.metal);R(1,4,4,1,C.metal);R(1,1,4,1,[255,150,60]);R(2,5,1,9,C.wood);R(3,5,1,9,C.woodd);R(1,14,4,1,C.woodd)}
+  else if(k==='campfire'){E(8,6,6.5,3.6,[86,72,66]);E(8,6,4,2.2,[52,40,40]);
+    const log=(x0,y0,x1,y1,c,cd)=>{LN(x0,y0,x1,y1,c);LN(x0,y0+1,x1,y1+1,cd)};log(3,7,12,3,C.wood,C.woodd);log(4,3,13,7,mix(C.wood,LIGHT,.12),C.woodd);
+    R(6,5,4,2,[255,140,52]);put(7,5,[255,214,120]);
+    for(let i=0;i<11;i++){const a=i/11*Math.PI*2+.2,x=8+Math.cos(a)*7,y=6+Math.sin(a)*4;E(x,y,1.5,1.2,(xx,yy)=>xx+yy<x+y-.5?C.stone:C.stoned)}}
   else if(k==='timber'){R(0,2,w,5,C.wood);for(let i=0;i<w;i+=3)put(i,3+(i%2),C.woodd);R(0,6,w,1,C.woodd);R(0,0,4,h,C.woodd);R(w-4,0,4,h,C.woodd);R(0,0,4,1,C.wood);R(w-4,0,4,1,C.wood)}
   else if(k==='rubble'){for(const[cx,cy,rx,ry]of[[4,7,4,3.5],[10,8,5,3.5],[7,4,3.5,3],[13,4,2.5,2.2],[2,3,2,1.8]])E(cx,cy,rx,ry,(x,y)=>x+y<cx+cy-1?C.rockl:x+y>cx+cy+1?C.rockd:C.rock)}
   else if(k==='crystals'){glow(6,7,10,[170,150,255]);const sh=(x0,y0,x1,y1,wd)=>{for(let t=0;t<=1;t+=.05){const x=x0+(x1-x0)*t,y=y0+(y1-y0)*t,ww=wd*(1-t*.7);for(let k=-ww;k<=ww;k+=.5)put(x+k,y,t>.75?C.crystl:k<0?C.cryst:C.crystd)}};
@@ -813,7 +826,8 @@ function elevSwatch(e){const g=e.h<0?[{kind:'poly',layer:'ground',t:3,pts:full}]
   return sampleMap([...g,{kind:'poly',layer:'height',h:e.h,s:e.s,pts:top}],true)}
 function objSwatch(k){const[w,h]=SIZE[k];const c=document.createElement('canvas');const s=Math.max(w,h)+8;c.width=c.height=s;c.className='objsw';
   const g=c.getContext('2d');g.fillStyle='rgb(240,202,184)';g.fillRect(0,0,s,s);const img=g.getImageData(0,0,s,s);
-  drawObject(img.data,s,s,{k,x:s/2,y:s/2,v:k==='saloon'?4:k==='hotel'?2:0});g.putImageData(img,0,0);return c}
+  const o={k,x:s/2,y:s/2+(k==='torch'?3:k==='campfire'?3:0),v:k==='saloon'?4:k==='hotel'?2:0};drawObject(img.data,s,s,o);g.putImageData(img,0,0);
+  if(isFire(o)){const F=FIRE[k];g.drawImage(flameFrames(k)[2],Math.round(o.x-F.w/2),Math.round(flameTop(o)))}return c}
 function itemBtn(id,cv,name,sub,key,on){const b=document.createElement('button');b.className='sw';b.id=id;b.setAttribute('aria-pressed','false');b.setAttribute('aria-label',name);
   b.dataset.tip=name;if(sub)b.dataset.sub=sub;
   if(key){b.dataset.key=key;b.dataset.n=key;const k=document.createElement('span');k.className='k';k.textContent=key;b.append(k)}
@@ -832,6 +846,7 @@ function placementTokens(cx,cy){const s=tokKind();if(s<0)return[];const cells=ce
 function placementItems(cx,cy){
   if(tokKind()>=0)return[];
   if(objKind.startsWith('stamp:')){const sp=stamps[+objKind.slice(6)];if(!sp)return[];return sp.items.map(it=>{const[dx,dy]=rotQ(it.dx,it.dy,stampRot);return{k:it.k,v:it.v,x:Math.round(cx+dx),y:Math.round(cy+dy)}})}
+  if(objScat){const kinds=objMix?[...mixKinds]:[objKind];if(!kinds.length)return[];return scatterSpots(kinds).map(q=>({k:q.k,v:q.v,x:Math.round(cx+q.dx),y:Math.round(cy+q.dy)}))}
   const cells=cellList(),b=cellBox(cells);
   if(objMix){const kinds=[...mixKinds];if(!kinds.length)return[];
     // pitch fits the biggest object in the mix so neighbours rarely overlap
@@ -842,6 +857,7 @@ function placementItems(cx,cy){
 // right-click / R in the Objects tool: turn the placement a quarter turn clockwise (screen y points down, so (x,y) -> (-y,x))
 function rotQ(x,y,q){for(let i=0;i<q;i++)[x,y]=[-y,x];return[x+0,y+0]}
 function rotatePlacement(){
+  if(objScat&&!objKind.startsWith('stamp:')&&tokKind()<0){scatSeed++;return}   // nothing to turn in a random layout: R re-rolls it
   if(objKind.startsWith('stamp:')){stampRot=(stampRot+1)%4;syncUI();return}
   const cells=cellList();if(cells.length<2)return;const t=cells.map(([c,r])=>rotQ(c,r,1)),c0=Math.min(...t.map(q=>q[0])),r0=Math.min(...t.map(q=>q[1]));
   objCells=new Set(t.map(([c,r])=>(c-c0+1)+','+(r-r0+1)));syncUI()}
@@ -855,6 +871,17 @@ function scatterPlan(cells,kinds){const key=scatSeed+'|'+scatDens+'|'+kinds.join
   const R=mulberry(scatSeed*9973+7),plan=[];cells.forEach(([c,r])=>{const keep=R()*100<scatDens,k=kinds[Math.floor(R()*kinds.length)],v=Math.floor(R()*12),jx=R()-.5,jy=R()-.5;if(keep)plan.push({c,r,k,v,jx,jy})});
   if(!plan.length&&cells.length){const[c,r]=cells[Math.floor(R()*cells.length)];plan.push({c,r,k:kinds[Math.floor(R()*kinds.length)],v:Math.floor(R()*12),jx:R()-.5,jy:R()-.5})}
   scatCache={key,plan};return plan}
+// "Random spots": scatCount objects at random places inside a circle scatArea squares wide, keeping them apart where there's room.
+// Cached like scatterPlan so the ghost matches what lands; scatSeed moves on after every placement, so each click is a new layout.
+let spotCache=null;
+function scatterSpots(kinds){const key=scatSeed+'|'+scatCount+'|'+scatArea+'|'+objGap+'|'+kinds.join();if(spotCache&&spotCache.key===key)return spotCache.plan;
+  const R=mulberry(scatSeed*7919+13),rad=scatArea*GRID/2,plan=[];
+  for(let n=0;n<scatCount;n++){const k=kinds[Math.floor(R()*kinds.length)],[w,h]=SIZE[k],v=Math.floor(R()*12);let best=null,bestOv=Infinity;
+    for(let t=0;t<40&&bestOv>0;t++){const a=R()*Math.PI*2,r=rad*Math.sqrt(R()),dx=Math.cos(a)*r,dy=Math.sin(a)*r;let ov=0;
+      plan.forEach(q=>{const[qw,qh]=SIZE[q.k],ox=(w+qw)/2+objGap-Math.abs(dx-q.dx),oy=(h+qh)/2+objGap-Math.abs(dy-q.dy);if(ox>0&&oy>0)ov+=ox*oy});
+      if(ov<bestOv){bestOv=ov;best={k,v,dx,dy}}}
+    plan.push(best)}
+  spotCache={key,plan};return plan}
 function stampCanvas(sp){let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;sp.items.forEach(it=>{const[w,h]=SIZE[it.k];x0=Math.min(x0,it.dx-w/2);y0=Math.min(y0,it.dy-h/2);x1=Math.max(x1,it.dx+w/2);y1=Math.max(y1,it.dy+h/2)});
   const s=Math.ceil(Math.max(x1-x0,y1-y0))+10,c=document.createElement('canvas');c.width=c.height=s;c.className='objsw';const g=c.getContext('2d');g.fillStyle='rgb(240,202,184)';g.fillRect(0,0,s,s);
   const img=g.getImageData(0,0,s,s);const ox=s/2-(x0+x1)/2,oy=s/2-(y0+y1)/2;[...sp.items].sort((a,b)=>a.dy-b.dy).forEach(it=>drawObject(img.data,s,s,{k:it.k,v:it.v,x:it.dx+ox,y:it.dy+oy}));g.putImageData(img,0,0);return c}
@@ -981,8 +1008,35 @@ function paintRGBA(p,a){if(p.layer==='height'){if(p.h>0)return p.s?`rgba(120,60,
 function pathPoly(p){ctx.beginPath();p.forEach((q,i)=>i?ctx.lineTo(...q):ctx.moveTo(...q));if(p.length===1)ctx.lineTo(p[0][0]+.1,p[0][1])}
 // camera: Z = screen pixels per map pixel, cam = map pixel at the top-left of the view
 const cam={x:0,y:0};let dpr=1,viewW=800,viewH=560,fitted=false;
-function drawWorld(g,s){ // draw terrain, objects, tokens and grid in map units (transform already set)
-  g.imageSmoothingEnabled=false;g.drawImage(tcan,0,0);g.drawImage(ocan,0,0);
+// ---- fire: torches and campfires get a flickering flame and a soft warm glow, drawn every frame between the
+// objects and the fog (so fog still hides them; the glow never reveals anything). Flames are 8 pre-drawn pixel frames.
+const FIRE={torch:{w:7,h:10,by:3,glow:32,a:.6},campfire:{w:12,h:14,by:8,glow:48,a:.66}};   // by: where the flame's foot sits, px below the sprite's top
+const flameTop=o=>o.y-SIZE[o.k][1]/2+FIRE[o.k].by-FIRE[o.k].h;
+const FLAMES={};
+function flameFrames(k){if(FLAMES[k])return FLAMES[k];const{w,h}=FIRE[k],out=[];
+  for(let f=0;f<8;f++){const c=document.createElement('canvas');c.width=w;c.height=h;const g=c.getContext('2d'),im=g.createImageData(w,h),R=mulberry(f*131+(k==='torch'?7:3));
+    const sway=Math.sin(f/8*Math.PI*2)*.9,tip=R()*.25;
+    for(let y=0;y<h;y++)for(let x=0;x<w;x++){const ny=(y+.5)/h,lean=sway*(1-ny)*(1-ny),nx=(x+.5-w/2-lean)/(w/2),wd=.22+.78*Math.pow(ny,.7);
+      let heat=(1-Math.abs(nx)/wd)*(.25+.75*ny)+(R()-.5)*.38-tip*(1-ny);if(ny>.86)heat-=(ny-.86)*2.2;
+      const col=heat>.62?[255,246,196,255]:heat>.42?[255,204,72,255]:heat>.24?[246,128,40,255]:heat>.12?[196,64,30,190]:null;
+      if(col)im.data.set(col,(y*w+x)*4)}
+    if(k==='campfire')for(let n=0;n<2;n++){const x=Math.floor(R()*w),y=Math.floor(R()*h*.35);im.data.set([255,190,90,230],(y*w+x)*4)}
+    g.putImageData(im,0,0);out.push(c)}
+  return FLAMES[k]=out}
+const isFire=o=>o.k==='torch'||o.k==='campfire';
+function drawFires(g,ts){const list=st.objects.filter(isFire);if(!list.length)return;const still=!$('anim').checked||reduce.matches,t=still?0:ts||0;
+  g.save();g.globalCompositeOperation='screen';
+  list.forEach((o,i)=>{const F=FIRE[o.k],fl=still?1:.86+.08*Math.sin(t*.011+i*2.1)+.06*Math.sin(t*.027+i*5.3),r=F.glow*(still?1:.97+.03*Math.sin(t*.017+i));
+    const cy=flameTop(o)+F.h*.7,gr=g.createRadialGradient(o.x,cy,1,o.x,cy,r);
+    gr.addColorStop(0,`rgba(255,178,84,${F.a*fl})`);gr.addColorStop(.45,`rgba(255,140,60,${F.a*.45*fl})`);gr.addColorStop(1,'rgba(255,120,40,0)');g.fillStyle=gr;g.fillRect(o.x-r,cy-r,r*2,r*2);
+    // screen barely shows on pale sand, so lay a faint warm tint over it as well
+    g.globalCompositeOperation='source-over';const tg=g.createRadialGradient(o.x,cy,1,o.x,cy,r*.8);tg.addColorStop(0,`rgba(255,150,60,${.16*fl})`);tg.addColorStop(1,'rgba(255,150,60,0)');
+    g.fillStyle=tg;g.fillRect(o.x-r,cy-r,r*2,r*2);g.globalCompositeOperation='screen'});
+  g.restore();
+  list.forEach((o,i)=>{const F=FIRE[o.k],fr=flameFrames(o.k)[still?2:(Math.floor(t/105)+i*3)%8];
+    g.drawImage(fr,Math.round(o.x-F.w/2),Math.round(flameTop(o)))})}
+function drawWorld(g,s,ts){ // draw terrain, objects, tokens and grid in map units (transform already set)
+  g.imageSmoothingEnabled=false;g.drawImage(tcan,0,0);g.drawImage(ocan,0,0);drawFires(g,ts===undefined?performance.now():ts);
   const fv=fogView();drawFogSolid(g,fv);
   st.tokens.filter(t=>tokShown(fv,t)).map(t=>{const gh=t.id&&mp.ghost.get(t.id);return gh?{...t,x:gh[0],y:gh[1]}:t}).sort((a,b)=>a.y-b.y).forEach(t=>{g.drawImage(shadowImg,Math.round(t.x)-7,Math.round(t.y)-2);
     const f=(frame+(t.o||0))%8,im=sheets[t.s];if(im.complete)g.drawImage(im,f*32,0,32,32,Math.round(t.x)-16,Math.round(t.y)-31,32,32)});
@@ -1001,7 +1055,7 @@ function draw(ts){
   const busy=drag&&(drag.kind==='vertex'||drag.kind==='op');
   if(dirty)renderTerrain();else if(dRect&&lastR&&!(busy&&performance.now()-lastRenderT<40))renderRegion();if(objDirty)renderObjects();
   ctx.setTransform(1,0,0,1,0,0);ctx.fillStyle='#120f14';ctx.fillRect(0,0,cv.width,cv.height);
-  ctx.setTransform(dpr*Z,0,0,dpr*Z,-cam.x*Z*dpr,-cam.y*Z*dpr);drawWorld(ctx,Z);if(mp.role!=='player'&&!fogPreview)drawFogVeil(ctx,st.fog);
+  ctx.setTransform(dpr*Z,0,0,dpr*Z,-cam.x*Z*dpr,-cam.y*Z*dpr);drawWorld(ctx,Z,ts);if(mp.role!=='player'&&!fogPreview)drawFogVeil(ctx,st.fog);
   ctx.setTransform(dpr,0,0,dpr,-cam.x*Z*dpr,-cam.y*Z*dpr);   // overlays: map coords × Z, in CSS pixels
   ctx.strokeStyle='rgba(242,196,159,.35)';ctx.lineWidth=1;ctx.strokeRect(-.5,-.5,W*Z+1,H*Z+1);
   edgeTabs=[];const MAXC=60,MAXR=40;
@@ -1158,7 +1212,7 @@ cv.addEventListener('pointerdown',e=>{const p=toMap(e);cv.setPointerCapture(e.po
   if(tool==='brush'){stroke={pts:[clamp(p)],r:bsize};return}
   if(tool==='sculpt'){sculpt={phase:'paint',pts:[clamp(p)],cy:e.clientY,t:performance.now(),y0:0,base:0,delta:0};syncHint();return}
   if(tool==='object'&&tokKind()>=0){const ts=placementTokens(p[0],p[1]);if(!ts.length)return;push();ts.forEach(t=>st.tokens.push({...t,o:Math.floor(Math.random()*8)}));save();return}
-  if(tool==='object'){const items=placementItems(p[0],p[1]);if(!items.length)return;push();const g=items.length>1?'g'+Date.now().toString(36):undefined;items.forEach(it=>st.objects.push(g?{...it,g}:it));objDirty=true;save();if(objMix&&!objKind.startsWith('stamp:'))scatSeed++;return}
+  if(tool==='object'){const items=placementItems(p[0],p[1]);if(!items.length)return;push();const g=items.length>1?'g'+Date.now().toString(36):undefined;items.forEach(it=>st.objects.push(g?{...it,g}:it));objDirty=true;save();if((objMix||objScat)&&!objKind.startsWith('stamp:'))scatSeed++;return}
   if(tool==='fog'&&mp.role!=='player'){push();const before=st.fog||null,v=(fogMode==='hide')!==e.shiftKey?'1':'0',q=clamp(p);
     fogPaint={v,before,brush:fogShape==='brush',a:q,b:q,last:q};if(fogPaint.brush)fogStroke(q,q);return}
   if(tool==='measure'&&measure&&measure.follow){measure.follow=false;measure.b=measure.snap(p);return}
@@ -1272,7 +1326,9 @@ $('ogap').oninput=e=>{objGap=+e.target.value};
 $('gridreset').onclick=()=>{objCells=new Set(['1,1']);syncUI()};
 $('omix').onchange=e=>{objMix=e.target.checked;if(objMix){if(objKind.startsWith('stamp:')||objKind.startsWith('tok:'))objKind='crates';if(!mixKinds.size)mixKinds.add(objKind)}syncUI()};
 $('odens').oninput=e=>{scatDens=+e.target.value;$('odenslbl').textContent=`Fill ${scatDens}%`};
-$('mixreroll').onclick=()=>{scatSeed++};
+$('mixreroll').onclick=()=>{scatSeed++};$('scatreroll').onclick=()=>{scatSeed++};
+$('pl-grid').onclick=()=>{objScat=false;syncUI()};$('pl-scat').onclick=()=>{objScat=true;if(objKind.startsWith('stamp:'))objKind='crates';syncUI()};
+$('scount').oninput=e=>{scatCount=+e.target.value;syncUI()};$('sarea').oninput=e=>{scatArea=+e.target.value;syncUI()};
 $('pm-brush').onclick=()=>setPaintMode('brush');$('pm-draw').onclick=()=>setPaintMode('draw');
 $('pm-brush').innerHTML=svgI('paint');$('pm-draw').innerHTML=svgI('shape');
 $('fog-reveal').innerHTML=svgI('reveal');$('fog-hide').innerHTML=svgI('hide');$('fog-brush').innerHTML=svgI('paint');$('fog-box').innerHTML=svgI('box');
@@ -1337,7 +1393,13 @@ function syncUI(){
   $('ogap').value=objGap;$('gridlbl').textContent=objKind.startsWith('stamp:')?'Stamp'+(stampRot?` · ${stampRot*90}°`:''):cellLabel();paintPick(objCells);
   $('omix').checked=objMix;$('mixopts').hidden=!objMix;$('odens').value=scatDens;$('odenslbl').textContent=`Fill ${scatDens}%`;$('mixlbl').textContent=mixKinds.size?`${mixKinds.size} in the mix`:'Nothing picked yet';
   {const tk=tokKind()>=0;$('ogaplbl').hidden=$('ogap').hidden=$('omix').parentNode.hidden=tk;if(tk)$('mixopts').hidden=true;
-   const stp=objKind.startsWith('stamp:');$('gridbadge').textContent=stp?(stampRot?stampRot*90+'°':''):objMix&&!tk?'mix':objCells.size>1?cellLabel().replace(/ × /,'×').replace(' squares',''):''}
+   const stp=objKind.startsWith('stamp:'),scat=objScat&&!tk&&!stp;
+   $('placemode').hidden=tk;$('pl-grid').setAttribute('aria-pressed',String(!scat));$('pl-scat').setAttribute('aria-pressed',String(scat));
+   $('gridpick').hidden=$('gridrow').hidden=scat;$('scatopts').hidden=!scat;$('odens').parentNode.hidden=scat;
+   $('scount').value=scatCount;$('scountlbl').textContent=scatCount+(scatCount===1?' object':' objects');$('sarea').value=scatArea;$('sarealbl').textContent=scatArea+(scatArea===1?' square wide':' squares wide');
+   $('ogaplbl').textContent=scat?'Keep apart by':'Spacing';$('mixreroll').hidden=scat;
+   $('gridnote').textContent=scat?'Each click drops them in new random spots. R or Re-roll shuffles the preview.':'Drag for a block, click squares for a pattern. Right-click the map or R turns it.';
+   $('gridbadge').textContent=stp?(stampRot?stampRot*90+'°':''):scat?'×'+scatCount:objMix&&!tk?'mix':objCells.size>1?cellLabel().replace(/ × /,'×').replace(' squares',''):''}
   // the tray shows only what the active tool needs
   const show={'pane-mode':!pl&&(r==='paint'||r==='height')&&!opSel,paints:!pl&&(r==='paint'||r==='height'||opSel),'pane-size':!pl&&(tool==='brush'||tool==='sculpt'),
     objs:!pl&&r==='object',toks:!pl&&r==='token','pane-place':!pl&&(r==='object'||r==='token'),'sec-fog':!pl&&r==='fog','pane-mine':pl};
