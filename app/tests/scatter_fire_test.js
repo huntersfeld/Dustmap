@@ -37,6 +37,7 @@ const fire=all.find(o=>o.k==='campfire');
 const crop=async()=>p.evaluate(f=>{const c=document.getElementById('map');const g=c.getContext('2d');const d=window.devicePixelRatio||1;
   // map point -> canvas pixel not exposed; sample the whole canvas hash instead
   const im=g.getImageData(0,0,c.width,c.height).data;let h=0;for(let i=0;i<im.length;i+=97)h=(h*31+im[i])|0;return h},fire);
+if(await p.evaluate(()=>window.__dustmap().litFires)!==3)fail('all three fires should be lit before fog');
 const h1=await crop();await p.waitForTimeout(330);const h2=await crop();if(h1===h2)fail('flames should animate');
 await p.keyboard.press('Escape');await p.mouse.move(5,5);
 await shot('fire_and_scatter.png');
@@ -44,6 +45,7 @@ await shot('fire_and_scatter.png');
 await p.evaluate(()=>{});
 const sum=await p.evaluate(()=>{const s=JSON.parse(localStorage.getItem('dustmap-v2'));return s.cols+'x'+s.rows});
 await p.keyboard.press('f');await p.click('#fog-all').catch(()=>fail('no hide-all button'));await p.click('#fogprev');await p.waitForTimeout(300);
-const f1=await crop();await p.waitForTimeout(330);const f2=await crop();if(f1!==f2)fail('nothing should flicker through full fog');
+// the mist itself drifts, so check the fire layer directly: under full fog no fire gives off light or flame
+if(await p.evaluate(()=>window.__dustmap().litFires)!==0)fail('nothing should flicker through full fog');
 await shot('fire_under_fog.png');
 console.log(errs.length?'FAILED\n'+errs.join('\n'):'scatter_fire_test: all checks passed');await b.close();process.exit(errs.length?1:0)})();

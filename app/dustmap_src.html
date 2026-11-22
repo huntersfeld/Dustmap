@@ -93,6 +93,7 @@ kbd{font-family:ui-monospace,monospace;font-size:11px;background:var(--bg);borde
 .seg button:hover{color:var(--fg)}
 .seg button[aria-pressed="true"]{background:var(--raised);color:var(--fg)}
 .seg svg{width:18px;height:18px}
+.seg.walkr{align-items:center}.seg.walkr button{min-width:30px;font-size:16px}.seg.walkr span{min-width:38px;text-align:center;font-size:12px;font-weight:600;color:var(--fg);font-variant-numeric:tabular-nums}.seg[hidden]{display:none}
 .seg.col{flex-direction:column;padding:2px}
 .seg.col button{height:22px;font-size:11px;padding:0 8px}
 .seg .dot{display:block;border-radius:50%;background:currentColor}
@@ -257,12 +258,14 @@ body.mp-player .dmonly{display:none!important}
         <button class="sw" id="gridbtn" aria-label="Place as a grid" aria-expanded="false" data-tip="Place many at once" data-sub="Pick a grid or pattern, spacing and a random mix"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="6" height="6"/><rect x="14" y="4" width="6" height="6"/><rect x="4" y="14" width="6" height="6"/><rect x="14" y="14" width="6" height="6"/></svg><span class="gbadge" id="gridbadge"></span></button>
       </div>
       <div class="pane dmonly" id="sec-fog">
-        <div class="seg" role="group" aria-label="Fog brush paints"><button id="fog-reveal" aria-label="Reveal" data-tip="Reveal" data-sub="Drag over squares to show them to players. Shift hides."></button><button id="fog-hide" aria-label="Hide" data-tip="Hide" data-sub="Drag over squares to hide them from players. Shift reveals."></button></div>
+        <div class="seg" role="group" aria-label="Fog brush paints"><button id="fog-reveal" aria-label="Click reveals" data-tip="Click reveals" data-sub="Click or drag reveals. Double-click (and drag) hides."></button><button id="fog-hide" aria-label="Click hides" data-tip="Click hides" data-sub="Click or drag hides. Double-click (and drag) reveals."></button></div>
         <div class="seg" role="group" aria-label="Fog brush shape"><button id="fog-brush" aria-label="Brush" data-tip="Brush" data-sub="Paint squares as you drag"></button><button id="fog-box" aria-label="Box" data-tip="Box" data-sub="Drag a rectangle"></button></div>
         <div class="seg" id="fogsizes" role="group" aria-label="Fog brush size"></div>
         <span class="tsep"></span>
         <button class="sw" id="fog-none" aria-label="Reveal all" data-tip="Reveal everything" data-sub="Players see the whole map"></button>
         <button class="sw" id="fog-all" aria-label="Hide all" data-tip="Hide everything" data-sub="Start dark, then reveal as they explore"></button>
+        <button class="sw" id="fog-walk" aria-label="Players reveal as they walk" aria-pressed="false" data-tip="Players reveal as they walk" data-sub="Fog clears for everyone wherever a player's token goes"></button>
+        <div class="seg walkr" id="fogwalkr" role="group" aria-label="How far walking reveals"><button id="walkr-dn" aria-label="Reveal less" data-tip="Reveal less" data-sub="Squares cleared in every direction around a walking player">−</button><span id="walkr-v" aria-live="polite"></span><button id="walkr-up" aria-label="Reveal more" data-tip="Reveal more" data-sub="Squares cleared in every direction around a walking player">+</button></div>
         <span class="trnote" id="fognote"></span>
       </div>
       <div class="pane" id="pane-mine"></div>
@@ -403,6 +406,7 @@ const ICON={select:'M6 3l13 8-6 1.5-3 6z',
  box:'M4 4h4 M12 4h4 M20 4v4 M20 12v4 M20 20h-4 M12 20H8 M4 20v-4 M4 12V8',
  showall:'M3 3h18v18H3z M7 12s2-3 5-3 5 3 5 3-2 3-5 3-5-3-5-3z',
  hideall:'M3 3h18v18H3z M7 9h10 M7 13h10 M7 17h6',
+ walk:'M8 3.5c1.4 0 2.2 1.6 2.2 3.6S9.4 11 8 11 5.8 9.1 5.8 7.1 6.6 3.5 8 3.5z M6.3 13.5h3.4v1.6a1.7 1.7 0 01-3.4 0z M16 9c1.4 0 2.2 1.6 2.2 3.6s-.8 3.9-2.2 3.9-2.2-1.9-2.2-3.9S14.6 9 16 9z M14.3 19h3.4v.6a1.7 1.7 0 01-3.4 0z',
  copy:'M8 8h13v13H8z M4 16V4h12',
  trash:'M4 7h16 M10 11v6 M14 11v6 M6 7l1 13h10l1-13 M9 7V4h6v3',
  stamp:'M9 3h6v6l3 3v3H6v-3l3-3z M5 21h14'};
@@ -463,7 +467,7 @@ let st=load()||example();W=st.cols*GRID;H=st.rows*GRID;
 // multiplayer state (see the Play together section near the end)
 const mp={db:null,room:null,user:null,me:null,owner:false,edit:false,avail:false,sess:null,role:'off',
   meta:null,parts:new Map(),applied:null,tok:null,tokApplied:null,ready:{map:false,tok:false,sess:false,fog:false},
-  pushed:{map:null,tok:null,fog:null},fog:null,lastPos:new Map(),tokR:{},busy:false,again:false,timer:0,
+  pushed:{map:null,tok:null,fog:null},fog:null,walkLast:new Map(),lastPos:new Map(),tokR:{},busy:false,again:false,timer:0,
   peers:[],profiles:{},trails:new Map(),pingSeen:new Map(),mvSeen:new Map(),ghost:new Map(),
   pres:{},pickSeen:new Map(),sent:'',myPing:0,myMv:0,pend:null,err:'',heldTok:null};
 let tool='select',paint={layer:'ground',t:3},tab='ground',paintMode='brush',groundPaint={layer:'ground',t:3},heightPaint={layer:'height',h:1,s:0},heightSculpt=true,tokGroup='Party',objKind='saloon',bsize=6,objCells=new Set(['1,1']),objMix=false,mixKinds=new Set(),scatDens=70,scatSeed=1,objGap=2,boxSel=null,stampRot=0,objScat=false,scatCount=6,scatArea=4;
@@ -947,7 +951,8 @@ const shadowImg=(()=>{const c=document.createElement('canvas');c.width=14;c.heig
 // st.fog is null (nothing hidden) or one character per square, row by row: '1' hidden from players, '0' revealed.
 // It saves with the map. In a session the DM publishes it on its own (live/fog), so revealing a room never resends the map,
 // and tokens standing in hidden squares are left out of what players receive (party tokens handed to a player always show).
-let fogMode='hide',fogShape='brush',fogR=2,fogPreview=false,fogPaint=null;
+let fogMode='hide',fogShape='brush',fogR=2,fogPreview=false,fogPaint=null,fogLastClick=null;
+const FOG_DBL=350;   // ms between the two presses of a double click
 const fogAll=c=>c.repeat(st.cols*st.rows);
 function fogGet(){   // what this viewer has hidden right now: a string, or null for nothing
   if(mp.role==='player'){const f=mp.fog;
@@ -962,18 +967,42 @@ const tokShown=(f,t)=>!f||!tokHidden(f,t)||!!(mp.sess&&mp.sess.live&&mp.sess.ass
 const fogView=()=>mp.role==='player'?fogGet():fogPreview?st.fog||null:null;
 function fogCleanDoc(d){if(!d||typeof d!=='object')return null;const cols=Math.round(+d.cols),rows=Math.round(+d.rows),f=typeof d.f==='string'&&/^[01]*$/.test(d.f)?d.f:'';
   return{rev:fin(d.rev)?+d.rev:0,cols,rows,f}}
-const fogMask=document.createElement('canvas');let fogKey='',fogTex=null;
-function fogMaskFor(f){const k=st.cols+'x'+st.rows+':'+f;if(k!==fogKey){fogKey=k;fogMask.width=st.cols;fogMask.height=st.rows;const g=fogMask.getContext('2d'),im=g.createImageData(st.cols,st.rows);
-    for(let i=0;i<f.length;i++)if(f[i]==='1'){im.data[i*4]=18;im.data[i*4+1]=14;im.data[i*4+2]=22;im.data[i*4+3]=255}g.putImageData(im,0,0)}return fogMask}
 // hidden squares as one path (merged into runs per row, so no seams between squares)
 function fogPath(g,f){g.beginPath();for(let r=0;r<st.rows;r++){let c0=-1;for(let c=0;c<=st.cols;c++){const on=c<st.cols&&f[r*st.cols+c]==='1';
   if(on&&c0<0)c0=c;else if(!on&&c0>=0){g.rect(c0*GRID,r*GRID,(c-c0)*GRID,GRID);c0=-1}}}}
-// players: solid dark ground with a soft shadow falling onto the revealed edge
-function drawFogSolid(g,f){if(!f||!f.includes('1'))return;g.save();
-  g.imageSmoothingEnabled=true;g.globalAlpha=.8;g.drawImage(fogMaskFor(f),0,0,st.cols*GRID,st.rows*GRID);g.globalAlpha=1;g.imageSmoothingEnabled=false;
-  if(!fogTex){fogTex=document.createElement('canvas');fogTex.width=fogTex.height=32;const x=fogTex.getContext('2d');x.fillStyle='#16121b';x.fillRect(0,0,32,32);
-    for(let i=0;i<32;i++)for(let j=0;j<32;j++){const h=hash(i,j,913);if(h<.07){x.fillStyle=h<.025?'#2b2434':'#201a27';x.fillRect(i,j,1,1)}}}
-  fogPath(g,f);g.fillStyle=g.createPattern(fogTex,'repeat');g.fill();g.restore()}
+// players: hidden ground is a dark, slowly drifting mist. Built at FT texels per square and drawn smoothed, so edges are soft:
+// the mist thins out over about a quarter square into revealed ground, while hidden squares never get thinner than 94%.
+// The edge falloff is cached per fog; only the drift (two scrolling noise layers) is redone, about ten times a second.
+const FT=4,mistCan=document.createElement('canvas');let mistKey='',mistB=null,mistW=null,mistHid=null,mistIm=null,mistT=-1,mistNz=null;
+function mistNoise(){const S=64,L=8,g=[],n=new Float32Array(S*S),sm=t=>t*t*(3-2*t);for(let i=0;i<L*L;i++)g.push(hash(i%L,i/L|0,577));
+  const v=(i,j)=>g[(j%L)*L+(i%L)];
+  for(let y=0;y<S;y++)for(let x=0;x<S;x++){const gx=x*L/S,gy=y*L/S,x0=gx|0,y0=gy|0,fx=sm(gx-x0),fy=sm(gy-y0);
+    n[y*S+x]=(v(x0,y0)*(1-fx)+v(x0+1,y0)*fx)*(1-fy)+(v(x0,y0+1)*(1-fx)+v(x0+1,y0+1)*fx)*fy}return n}
+function nzAt(x,y){const S=64,n=mistNz;x=(x%S+S)%S;y=(y%S+S)%S;const x0=x|0,y0=y|0,fx=x-x0,fy=y-y0,x1=(x0+1)%S,y1=(y0+1)%S;
+  return(n[y0*S+x0]*(1-fx)+n[y0*S+x1]*fx)*(1-fy)+(n[y1*S+x0]*(1-fx)+n[y1*S+x1]*fx)*fy}
+function boxBlur(a,w,h,r){const t=new Float32Array(w*h),o=new Float32Array(w*h),n=2*r+1,cx=v=>Math.min(w-1,Math.max(0,v)),cy=v=>Math.min(h-1,Math.max(0,v));
+  for(let y=0;y<h;y++){const row=y*w;let s=0;for(let k=-r;k<=r;k++)s+=a[row+cx(k)];
+    for(let x=0;x<w;x++){t[row+x]=s/n;s+=a[row+cx(x+r+1)]-a[row+cx(x-r)]}}
+  for(let x=0;x<w;x++){let s=0;for(let k=-r;k<=r;k++)s+=t[cy(k)*w+x];
+    for(let y=0;y<h;y++){o[y*w+x]=s/n;s+=t[cy(y+r+1)*w+x]-t[cy(y-r)*w+x]}}return o}
+function mistUpdate(f,now){const w=st.cols*FT,h=st.rows*FT,k=st.cols+'x'+st.rows+':'+f;let fresh=false;
+  if(k!==mistKey){mistKey=k;const m=new Float32Array(w*h);
+    for(let y=0;y<h;y++)for(let x=0;x<w;x++)m[y*w+x]=f[(y/FT|0)*st.cols+(x/FT|0)]==='1'?1:0;
+    mistHid=m;mistB=boxBlur(boxBlur(m,w,h,2),w,h,2);mistW=boxBlur(boxBlur(m,w,h,4),w,h,4);mistCan.width=w;mistCan.height=h;mistIm=new ImageData(w,h);if(!mistNz)mistNz=mistNoise();fresh=true}
+  const live=$('anim').checked&&!reduce.matches;
+  if(!fresh&&(!live||now-mistT<90))return;mistT=now;
+  const t=live?now/1000:0,d=mistIm.data;
+  for(let i=0,y=0;y<h;y++)for(let x=0;x<w;x++,i++){const b=mistB[i],bw=mistW[i],j=i*4;if(bw<.02){d[j+3]=0;continue}
+    const n=nzAt(x*.8+t*.6,y*.8+t*.22)*.6+nzAt(x*1.6-t*.4+31,y*1.6+t*.45+17)*.4;   // 0..1, two layers drifting apart
+    let a=Math.min(1,Math.max(0,(b-.12+(n-.5)*.5)/.45));a=a*a*(3-2*a);if(mistHid[i])a=Math.max(a,.94);
+    const q=Math.max(-.12,Math.min(1,(1-a)*.6+(n-.5)*.35));   // the dark body churns a little and lightens as it thins
+    // pale wisps drifting over the edge, translucent so revealed ground still reads through them
+    const n2=nzAt(x*1.1+t*.9+7,y*1.1-t*.3+40),wv=Math.min(1,Math.max(0,(n2-.38)*2.4))*Math.min(1,bw*2.4)*.7*(1-a);
+    const oa=a+wv,ia=oa>0?1/oa:0;
+    d[j]=((22+56*q)*a+104*wv)*ia;d[j+1]=((18+52*q)*a+98*wv)*ia;d[j+2]=((27+65*q)*a+124*wv)*ia;d[j+3]=Math.min(1,oa)*255}
+  mistCan.getContext('2d').putImageData(mistIm,0,0)}
+function drawFogSolid(g,f){if(!f||!f.includes('1'))return;mistUpdate(f,performance.now());
+  g.save();g.imageSmoothingEnabled=true;g.imageSmoothingQuality='high';g.drawImage(mistCan,0,0,st.cols*GRID,st.rows*GRID);g.restore()}
 // DM: hidden squares stay visible under a hatched veil
 function drawFogVeil(g,f){if(!f||!f.includes('1'))return;g.save();fogPath(g,f);g.fillStyle='rgba(20,14,30,.45)';g.fill();g.clip();
   g.strokeStyle='rgba(200,180,230,.22)';g.lineWidth=Math.max(.5,1.5/Z);g.beginPath();for(let k=-H;k<W;k+=8){g.moveTo(k,0);g.lineTo(k+H,H)}g.stroke();
@@ -993,9 +1022,23 @@ function fogBoxCells(a,b){const cl=v=>Math.max(0,Math.min(st.cols-1,Math.floor(v
 function fogStroke(a,b){const d=dist(a,b),n=Math.max(1,Math.ceil(d/(GRID/2)));const cells=new Set();
   for(let k=0;k<=n;k++)fogBrushCells([a[0]+(b[0]-a[0])*k/n,a[1]+(b[1]-a[1])*k/n]).forEach(i=>cells.add(i));fogSet(cells,fogPaint.v)}
 function fogDone(){const fp=fogPaint;fogPaint=null;if(!fp)return;if(!fp.brush)fogSet(fogBoxCells(fp.a,fp.b),fp.v);
-  if(st.fog&&!st.fog.includes('1'))st.fog=null;
-  if((st.fog||null)===fp.before){hist.pop();updUndo()}else save();syncUI()}
+  if(st.fog&&!st.fog.includes('1'))st.fog=null;const saved=(st.fog||null)!==fp.before;
+  if(!saved){hist.pop();updUndo()}else save();
+  // a quick click (not a drag, not already the second click) may turn out to be the first half of a double click
+  fogLastClick=!fp.dbl&&fp.moved<GRID/2&&performance.now()-fp.t<FOG_DBL?{t:performance.now(),p:fp.a,before:fp.before,saved}:null;syncUI();syncHint()}
 function fogWhole(v){const nf=v==='1'?fogAll('1'):null;if(nf===(st.fog||null))return;push();st.fog=nf;save();syncUI()}
+// "Players reveal as they walk" (st.fogWalk, set by the DM, saved with the map): the DM's page clears the fog around a
+// party token wherever it goes, so everyone sees what that player walked through. In a live session that means tokens handed
+// to players; outside one, the four party cowboys, so the DM can try it alone. Returns true if anything was revealed.
+// st.fogWalkR: how far the reveal reaches, in squares in every direction (DM-set, default 4: a round patch 9 squares across)
+const WALK_DEF=4,WALK_MAX=10,walkR=()=>Number.isInteger(st.fogWalkR)?st.fogWalkR:WALK_DEF;
+const fogWalker=t=>!!t&&(mp.sess&&mp.sess.live?!!mp.sess.assign[t.s]:(TOKINFO[t.s]||{}).group==='Party');
+function fogWalk(t,a,b){if(!st.fogWalk||!st.fog||mp.role==='player'||!fogWalker(t))return false;
+  const pa=[a[0],a[1]-4],pb=[b[0],b[1]-4],n=Math.max(1,Math.ceil(dist(pa,pb)/(GRID/2))),f=st.fog.split(''),R=walkR(),Rr=R+.5;let ch=false;
+  for(let k=0;k<=n;k++){const x=pa[0]+(pb[0]-pa[0])*k/n,y=pa[1]+(pb[1]-pa[1])*k/n,c0=Math.floor(x/GRID),r0=Math.floor(y/GRID);
+    for(let dr=-R;dr<=R;dr++)for(let dc=-R;dc<=R;dc++){const c=c0+dc,r=r0+dr;
+      if(c<0||r<0||c>=st.cols||r>=st.rows||Math.hypot(dc,dr)>Rr)continue;const i=r*st.cols+c;if(f[i]==='1'){f[i]='0';ch=true}}}
+  if(!ch)return false;st.fog=f.includes('1')?f.join(''):null;return true}
 // map resized by (dx,dy) squares: keep fog under the same ground; new squares start hidden
 function fogResize(oc,or,cols,rows,dx,dy){if(!st.fog)return;const old=st.fog;let f='';
   for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){const oc2=c-dx,or2=r-dy;f+=oc2>=0&&or2>=0&&oc2<oc&&or2<or?old[or2*oc+oc2]:'1'}st.fog=f}
@@ -1024,7 +1067,8 @@ function flameFrames(k){if(FLAMES[k])return FLAMES[k];const{w,h}=FIRE[k],out=[];
     g.putImageData(im,0,0);out.push(c)}
   return FLAMES[k]=out}
 const isFire=o=>o.k==='torch'||o.k==='campfire';
-function drawFires(g,ts){const list=st.objects.filter(isFire);if(!list.length)return;const still=!$('anim').checked||reduce.matches,t=still?0:ts||0;
+const litFires=fv=>st.objects.filter(o=>isFire(o)&&!fogAt(fv,o.x,o.y));   // fires in squares the viewer can't see give off no light
+function drawFires(g,ts,fv){const list=litFires(fv);if(!list.length)return;const still=!$('anim').checked||reduce.matches,t=still?0:ts||0;
   g.save();g.globalCompositeOperation='screen';
   list.forEach((o,i)=>{const F=FIRE[o.k],fl=still?1:.86+.08*Math.sin(t*.011+i*2.1)+.06*Math.sin(t*.027+i*5.3),r=F.glow*(still?1:.97+.03*Math.sin(t*.017+i));
     const cy=flameTop(o)+F.h*.7,gr=g.createRadialGradient(o.x,cy,1,o.x,cy,r);
@@ -1036,8 +1080,8 @@ function drawFires(g,ts){const list=st.objects.filter(isFire);if(!list.length)re
   list.forEach((o,i)=>{const F=FIRE[o.k],fr=flameFrames(o.k)[still?2:(Math.floor(t/105)+i*3)%8];
     g.drawImage(fr,Math.round(o.x-F.w/2),Math.round(flameTop(o)))})}
 function drawWorld(g,s,ts){ // draw terrain, objects, tokens and grid in map units (transform already set)
-  g.imageSmoothingEnabled=false;g.drawImage(tcan,0,0);g.drawImage(ocan,0,0);drawFires(g,ts===undefined?performance.now():ts);
-  const fv=fogView();drawFogSolid(g,fv);
+  g.imageSmoothingEnabled=false;g.drawImage(tcan,0,0);g.drawImage(ocan,0,0);const fv=fogView();drawFires(g,ts===undefined?performance.now():ts,fv);
+  drawFogSolid(g,fv);
   st.tokens.filter(t=>tokShown(fv,t)).map(t=>{const gh=t.id&&mp.ghost.get(t.id);return gh?{...t,x:gh[0],y:gh[1]}:t}).sort((a,b)=>a.y-b.y).forEach(t=>{g.drawImage(shadowImg,Math.round(t.x)-7,Math.round(t.y)-2);
     const f=(frame+(t.o||0))%8,im=sheets[t.s];if(im.complete)g.drawImage(im,f*32,0,32,32,Math.round(t.x)-16,Math.round(t.y)-31,32,32)});
   if($('grid').checked&&GRID*s>=6){g.strokeStyle='rgba(60,40,40,.18)';g.lineWidth=1/s;g.beginPath();
@@ -1213,8 +1257,13 @@ cv.addEventListener('pointerdown',e=>{const p=toMap(e);cv.setPointerCapture(e.po
   if(tool==='sculpt'){sculpt={phase:'paint',pts:[clamp(p)],cy:e.clientY,t:performance.now(),y0:0,base:0,delta:0};syncHint();return}
   if(tool==='object'&&tokKind()>=0){const ts=placementTokens(p[0],p[1]);if(!ts.length)return;push();ts.forEach(t=>st.tokens.push({...t,o:Math.floor(Math.random()*8)}));save();return}
   if(tool==='object'){const items=placementItems(p[0],p[1]);if(!items.length)return;push();const g=items.length>1?'g'+Date.now().toString(36):undefined;items.forEach(it=>st.objects.push(g?{...it,g}:it));objDirty=true;save();if((objMix||objScat)&&!objKind.startsWith('stamp:'))scatSeed++;return}
-  if(tool==='fog'&&mp.role!=='player'){push();const before=st.fog||null,v=(fogMode==='hide')!==e.shiftKey?'1':'0',q=clamp(p);
-    fogPaint={v,before,brush:fogShape==='brush',a:q,b:q,last:q};if(fogPaint.brush)fogStroke(q,q);return}
+  if(tool==='fog'&&mp.role!=='player'){const q=clamp(p),now=performance.now(),lc=fogLastClick;fogLastClick=null;
+    // a second press right after a click on the same spot (a double click) takes that click back and paints the other way
+    const dbl=!!lc&&now-lc.t<FOG_DBL&&dist(lc.p,q)<GRID*1.5;
+    if(dbl&&lc.saved){st.fog=lc.before;hist.pop();updUndo();save()}
+    let v=(fogMode==='hide')!==e.shiftKey?'1':'0';if(dbl)v=v==='1'?'0':'1';
+    push();const before=st.fog||null;
+    fogPaint={v,before,brush:fogShape==='brush',a:q,b:q,last:q,t:now,moved:0,dbl};if(fogPaint.brush)fogStroke(q,q);syncHint();return}
   if(tool==='measure'&&measure&&measure.follow){measure.follow=false;measure.b=measure.snap(p);return}
   if(tool==='measure'){const s=q=>[Math.floor(q[0]/GRID)*GRID+GRID/2,Math.floor(q[1]/GRID)*GRID+GRID/2];measure={a:s(p),b:s(p),snap:s,down:true};return}
   if(tool==='ping'){pointer={trail:[{x:p[0],y:p[1],t:performance.now()}],down:true,end:0};return}
@@ -1244,7 +1293,7 @@ cv.addEventListener('pointermove',e=>{if(boxSel){boxSel.b=toMap(e);return}
   hoverScr=scrPt(e);const p=toMap(e);hover=p;
   if(tool==='brush'&&stroke){const lp=stroke.pts[stroke.pts.length-1];if(dist(lp,p)>=Math.max(1.5,stroke.r/2.5))stroke.pts.push(clamp(p));return}
   if(tool==='measure'&&measure&&(measure.down||measure.follow)){measure.b=measure.snap(p);return}
-  if(tool==='fog'&&fogPaint){const q=clamp(p);if(fogPaint.brush){fogStroke(fogPaint.last,q);fogPaint.last=q;mpChanged()}else fogPaint.b=q;return}
+  if(tool==='fog'&&fogPaint){const q=clamp(p);fogPaint.moved=Math.max(fogPaint.moved,dist(fogPaint.a,q));if(fogPaint.brush){fogStroke(fogPaint.last,q);fogPaint.last=q;mpChanged()}else fogPaint.b=q;return}
   if(tool==='ping'&&pointer&&pointer.down){pointer.trail.push({x:p[0],y:p[1],t:performance.now()});return}
   if(tool==='sculpt'&&sculpt){sculpt.cy=e.clientY;
     if(sculpt.phase==='paint'){const lp=sculpt.pts[sculpt.pts.length-1];if(dist(lp,p)>=1.5){sculpt.pts.push(clamp(p));sculpt.t=performance.now()}}
@@ -1252,7 +1301,8 @@ cv.addEventListener('pointermove',e=>{if(boxSel){boxSel.b=toMap(e);return}
     return}
   if(!drag)return;
   if(drag.kind==='vertex'){markOp(st.ops[drag.i]);st.ops[drag.i].pts[drag.v]=clamp(p);markOp(st.ops[drag.i])}
-  else if(drag.kind==='token'){const t=st.tokens[drag.i];t.x=Math.max(8,Math.min(W-8,p[0]+drag.off[0]));t.y=Math.max(30,Math.min(H-1,p[1]+drag.off[1]))}
+  else if(drag.kind==='token'){const t=st.tokens[drag.i],o=[t.x,t.y];t.x=Math.max(8,Math.min(W-8,p[0]+drag.off[0]));t.y=Math.max(30,Math.min(H-1,p[1]+drag.off[1]));
+    if(fogWalk(t,o,[t.x,t.y]))mpChanged()}
   else if(drag.kind==='objs'){const dx=p[0]-drag.start[0],dy=p[1]-drag.start[1];if(Math.abs(dx)+Math.abs(dy)>.5)drag.moved=true;drag.list.forEach((i,k)=>{st.objects[i].x=Math.round(drag.orig[k][0]+dx);st.objects[i].y=Math.round(drag.orig[k][1]+dy)});objDirty=true}
   else if(drag.kind==='op'){const dx=p[0]-drag.start[0],dy=p[1]-drag.start[1];if(Math.abs(dx)+Math.abs(dy)>.5)drag.moved=true;
     markOp(st.ops[drag.i]);st.ops[drag.i].pts=drag.orig.map(q=>[q[0]+dx,q[1]+dy]);markOp(st.ops[drag.i])}});
@@ -1269,7 +1319,7 @@ function up(){
   if(measure)measure.down=false;
   if(pointer&&pointer.down){pointer.down=false;pointer.end=performance.now();const h=pointer.trail[pointer.trail.length-1];pings.push({x:h.x,y:h.y,t0:pointer.end});mpPinged(h.x,h.y)}
   if(!drag)return;
-  if(drag.kind==='token'&&!altDown){const t=st.tokens[drag.i];t.x=Math.round(t.x/8)*8;t.y=Math.round(t.y/8)*8}
+  if(drag.kind==='token'&&!altDown){const t=st.tokens[drag.i],o=[t.x,t.y];t.x=Math.round(t.x/8)*8;t.y=Math.round(t.y/8)*8;fogWalk(t,o,[t.x,t.y])}
   if(drag.kind==='token')mpMoved(st.tokens[drag.i]);
   if((drag.kind==='op'||drag.kind==='objs')&&!drag.moved&&!drag.adopted){hist.pop();updUndo()}
   drag=null;save()}
@@ -1320,7 +1370,11 @@ document.addEventListener('pointerdown',e=>{if(!$('menu').hidden&&!e.target.clos
 $('rag').oninput=e=>{st.rag=+e.target.value;dirty=true};$('rag').onchange=save;
 $('fog-hide').onclick=()=>{fogMode='hide';syncUI()};$('fog-reveal').onclick=()=>{fogMode='reveal';syncUI()};
 $('fog-brush').onclick=()=>{fogShape='brush';syncUI()};$('fog-box').onclick=()=>{fogShape='box';syncUI()};
-$('fog-all').onclick=()=>fogWhole('1');$('fog-none').onclick=()=>fogWhole('0');
+$('fog-all').onclick=()=>fogWhole('1');
+const walkStep=d=>{const r=Math.max(1,Math.min(WALK_MAX,walkR()+d));if(r===walkR())return;push();if(r===WALK_DEF)delete st.fogWalkR;else st.fogWalkR=r;
+  st.tokens.forEach(t=>fogWalk(t,[t.x,t.y],[t.x,t.y]));save();syncUI()};
+$('walkr-dn').onclick=()=>walkStep(-1);$('walkr-up').onclick=()=>walkStep(1);
+$('fog-walk').onclick=()=>{push();st.fogWalk=!st.fogWalk;if(!st.fogWalk)delete st.fogWalk;else st.tokens.forEach(t=>fogWalk(t,[t.x,t.y],[t.x,t.y]));save();syncUI()};$('fog-none').onclick=()=>fogWhole('0');
 $('fogprev').onclick=()=>{fogPreview=!fogPreview;syncUI()};
 $('ogap').oninput=e=>{objGap=+e.target.value};
 $('gridreset').onclick=()=>{objCells=new Set(['1,1']);syncUI()};
@@ -1332,7 +1386,7 @@ $('scount').oninput=e=>{scatCount=+e.target.value;syncUI()};$('sarea').oninput=e
 $('pm-brush').onclick=()=>setPaintMode('brush');$('pm-draw').onclick=()=>setPaintMode('draw');
 $('pm-brush').innerHTML=svgI('paint');$('pm-draw').innerHTML=svgI('shape');
 $('fog-reveal').innerHTML=svgI('reveal');$('fog-hide').innerHTML=svgI('hide');$('fog-brush').innerHTML=svgI('paint');$('fog-box').innerHTML=svgI('box');
-$('fog-none').innerHTML=svgI('showall');$('fog-all').innerHTML=svgI('hideall');
+$('fog-none').innerHTML=svgI('showall');$('fog-walk').innerHTML=svgI('walk');$('fog-all').innerHTML=svgI('hideall');
 // size presets: small / medium / large dots; [ and ] still fine-tune in between
 const BSIZES=[[3,'Small brush'],[6,'Medium brush'],[12,'Large brush']],FSIZES=[[1,'1 square'],[2,'3 squares across'],[4,'7 squares across']];
 function sizeSeg(box,list,set){list.forEach(([v,nm],i)=>{const b=document.createElement('button');b.dataset.v=v;b.setAttribute('aria-label',nm);b.dataset.tip=nm;b.dataset.sub='[ and ] fine-tune the size';
@@ -1408,7 +1462,8 @@ function syncUI(){
   if(r!=='object'&&r!=='token')gridPop(false);
   $('fog-hide').setAttribute('aria-pressed',String(fogMode==='hide'));$('fog-reveal').setAttribute('aria-pressed',String(fogMode==='reveal'));
   $('fog-brush').setAttribute('aria-pressed',String(fogShape==='brush'));$('fog-box').setAttribute('aria-pressed',String(fogShape==='box'));
-  $('fogsizes').hidden=fogShape!=='brush';$('fogprev').setAttribute('aria-pressed',String(fogPreview));
+  $('fogsizes').hidden=fogShape!=='brush';$('fogprev').setAttribute('aria-pressed',String(fogPreview));$('fog-walk').setAttribute('aria-pressed',String(!!st.fogWalk));
+  $('fogwalkr').hidden=!st.fogWalk;$('walkr-v').textContent=walkR()+' sq';$('walkr-v').title=`Reveals ${walkR()} square${walkR()>1?'s':''} in every direction (${walkR()*5} ft)`;
   {const n=st.fog?[...st.fog].filter(c=>c==='1').length:0;$('fognote').textContent=n?`${n} of ${st.cols*st.rows} hidden`:'Nothing hidden'}
   if(pl)buildMine();
   $('rag').value=st.rag;syncHint()}
@@ -1430,6 +1485,8 @@ function syncHint(){const h=$('hint');h.replaceChildren();
     else{const lv=SLAD[sculpt.base+sculpt.delta];pill(sculpt.delta===0?'No change':lv.h===0?'Flatten':(lv.h>0?'Raise ':'Lower ')+lv.sh);add('Drag up or down, release to place')}}
   else if(tool==='object'&&tokKind()<0&&objMix&&!objKind.startsWith('stamp:')&&!mixKinds.size){pill('Mix');add('Pick objects to mix')}
   else if(tool==='measure'&&measure&&measure.follow){pill('Measure');add('Click where it ends')}
+  else if(tool==='fog'&&mp.role!=='player'){const once=fogMode==='hide'?'hides':'reveals',twice=fogMode==='hide'?'reveals':'hides';
+    if(fogPaint)pill(fogPaint.v==='1'?'Hiding':'Revealing');else pill('Fog');add(`Click or drag ${once} · double-click and drag ${twice}`)}
   else if(tool!=='select'){}
   else if(mp.role==='player'){const mine=st.tokens.filter(t=>mpMayMove(t,mp.me)).map(t=>tokName(t.s));
     if(mine.length){pill('Playing '+mine.join(' & '));add('Drag to move')}
@@ -1528,7 +1585,7 @@ function libClean(s){s=migrate(s&&typeof s==='object'?s:null);if(!s||!Array.isAr
   s.objects=(Array.isArray(s.objects)?s.objects:[]).filter(o=>o&&OBJ.some(q=>q.k===o.k)&&Number.isFinite(o.x)&&Number.isFinite(o.y));
   s.tokens=(Array.isArray(s.tokens)?s.tokens:[]).filter(t=>t&&Number.isInteger(t.s)&&t.s>=0&&t.s<SHEETS.length&&Number.isFinite(t.x)&&Number.isFinite(t.y));
   s.skip=(Array.isArray(s.skip)?s.skip:[]).filter(k=>typeof k==='string');
-  s.fog=typeof s.fog==='string'&&s.fog.length===s.cols*s.rows&&/^[01]*$/.test(s.fog)&&s.fog.includes('1')?s.fog:null;return s}
+  s.fog=typeof s.fog==='string'&&s.fog.length===s.cols*s.rows&&/^[01]*$/.test(s.fog)&&s.fog.includes('1')?s.fog:null;if(s.fogWalk!==true)delete s.fogWalk;if(!(Number.isInteger(s.fogWalkR)&&s.fogWalkR>=1&&s.fogWalkR<=10))delete s.fogWalkR;return s}
 // the four cowboys start near the middle, moved in whole squares so they stay snapped
 function blankMap(base,cols,rows){cols=cols||40;rows=rows||28;const ex=example(),dx=Math.round((cols*GRID/2-208)/GRID)*GRID,dy=Math.round((rows*GRID/2+56-374)/GRID)*GRID;
   return{v:3,cols,rows,base:BASES.includes(base)?base:0,seed:Math.floor(Math.random()*100000),rag:5,ops:[],objects:[],tokens:ex.tokens.map(t=>({...t,x:t.x+dx,y:t.y+dy})),skip:[]}}
@@ -1876,13 +1933,16 @@ function mpPeers(ch){mp.peers=ch.peers;const now=performance.now(),ghost=new Map
     else if(tr&&tr.down){tr.down=false;tr.end=now}
     const pg=pr.ping&&typeof pr.ping==='object'?pr.ping:null,n=pg?pg.n:0,seen=mp.pingSeen.get(key);mp.pingSeen.set(key,n);
     if(seen!==undefined&&n!==seen&&pg&&fin(pg.x)&&fin(pg.y))pings.push({x:+pg.x,y:+pg.y,t0:now,rgb:mpRgb(p.by||key)});
-    const dg=pr.drag;if(dg&&typeof dg.id==='string'&&fin(dg.x)&&fin(dg.y)){const t=st.tokens.find(t=>t.id===dg.id);if(t&&mpMayMove(t,p.by))ghost.set(dg.id,[Math.max(0,Math.min(W,+dg.x)),Math.max(0,Math.min(H,+dg.y))])}
+    const dg=pr.drag;if(dg&&typeof dg.id==='string'&&fin(dg.x)&&fin(dg.y)){const t=st.tokens.find(t=>t.id===dg.id);if(t&&mpMayMove(t,p.by)){const gp=[Math.max(0,Math.min(W,+dg.x)),Math.max(0,Math.min(H,+dg.y))];ghost.set(dg.id,gp);
+      // players reveal as they walk: follow the token while it's being dragged, not just where it lands
+      if(mp.role==='dm'){if(fogWalk(t,mp.walkLast.get(t.id)||[t.x,t.y],gp))commit=true;mp.walkLast.set(t.id,gp)}}}
     if(mp.role==='dm'){const mv=pr.mv;
       if(mv&&typeof mv.id==='string'&&mp.mvSeen.get(key)!==mv.n){mp.mvSeen.set(key,mv.n);const t=st.tokens.find(t=>t.id===mv.id);
         if(t&&p.by&&p.by!==mp.me&&mpMayMove(t,p.by)&&fin(mv.x)&&fin(mv.y)&&fin(mv.base)&&+mv.base>=(mp.tokR[t.id]||0)){
-          t.x=Math.max(8,Math.min(W-8,+mv.x));t.y=Math.max(30,Math.min(H-1,+mv.y));commit=true}}}}
+          const from=mp.walkLast.get(t.id)||[t.x,t.y];t.x=Math.max(8,Math.min(W-8,+mv.x));t.y=Math.max(30,Math.min(H-1,+mv.y));fogWalk(t,from,[t.x,t.y]);mp.walkLast.delete(t.id);commit=true}}}}
   for(const l of ch.left){mp.trails.delete(l.peer);mp.pingSeen.delete(l.peer);mp.mvSeen.delete(l.peer);mp.pickSeen.delete(l.peer)}
   if(mp.role==='dm'&&mpPicks(ch.peers))commit=true;
+  for(const id of [...mp.walkLast.keys()])if(!ghost.has(id))mp.walkLast.delete(id);
   mp.ghost=ghost;if(commit)save();mpUI()}
 // DM: players choose their own token (one each). A new choice takes that token if nobody else has it, and puts one on
 // the map if there isn't one; a token added for a player goes away when they choose another. The DM's own assignment
@@ -1989,7 +2049,7 @@ $('mpclose').onclick=()=>{$('mpmodal').hidden=true;mp.autoPick=false};
 $('mpmodal').onclick=e=>{if(e.target.id==='mpmodal')e.currentTarget.hidden=true};
 $('mpmodal').addEventListener('keydown',e=>{if(e.key==='Escape')$('mpmodal').hidden=true;e.stopPropagation()});
 // read-only peek for the tests
-window.__dustmap=()=>({st,fog:fogGet(),role:mp.role,cam:{...cam},Z,pings:pings.map(p=>({x:p.x,y:p.y,rgb:p.rgb||null})),tool,peers:mp.peers.length,busy:mp.busy,err:mp.err,again:mp.again});
+window.__dustmap=()=>({st,fog:fogGet(),litFires:litFires(fogView()).length,role:mp.role,cam:{...cam},Z,pings:pings.map(p=>({x:p.x,y:p.y,rgb:p.rgb||null})),tool,peers:mp.peers.length,busy:mp.busy,err:mp.err,again:mp.again});
 libInit();mpInit();
 buildTools();buildObjs();buildToks();buildPaints();updUndo();sizeCanvas();syncUI();requestAnimationFrame(loop);
 setTimeout(buildPaints,0);
