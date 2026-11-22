@@ -138,6 +138,24 @@ body.notray .hint{bottom:calc(12px + env(safe-area-inset-bottom,0px))}
 .qmenu button:hover{background:var(--raised)}
 .qmenu svg,.qmenu canvas{width:18px;height:18px;flex:none;image-rendering:pixelated}
 .qmenu .danger{color:#f0a493}
+.signcard{position:absolute;z-index:7;pointer-events:none;transform:translate(-50%,-100%);display:flex;flex-direction:column-reverse;align-items:center;gap:5px;max-width:min(320px,calc(100% - 16px))}
+.signcard .plank{position:relative;background:repeating-linear-gradient(180deg,rgba(0,0,0,0) 0 5px,rgba(90,54,30,.12) 5px 6px),linear-gradient(#cfa068,#b8864f);border:3px solid #5c3b24;border-radius:2px;
+  box-shadow:inset 0 2px 0 rgba(255,230,180,.35),0 3px 0 #3e2716,0 10px 22px rgba(0,0,0,.45);padding:9px 13px;color:#3a2414;font-family:var(--display);font-weight:500;font-size:15px;line-height:1.3;
+  white-space:pre-wrap;overflow-wrap:anywhere;text-align:center;max-width:100%}
+.signcard .plank::before,.signcard .plank::after{content:"";position:absolute;top:4px;width:4px;height:4px;background:#5c3b24;border-radius:1px}
+.signcard .plank::before{left:4px}.signcard .plank::after{right:4px}
+.signcard .plank.blank{font-family:var(--ui);font-size:12px;font-style:italic;color:#5c3b24}
+.signcard canvas{display:block;image-rendering:pixelated;max-width:100%}
+.sgtr{background:var(--glass);border:1px solid var(--line);border-radius:8px;padding:5px 9px;font-size:12px;line-height:1.4;color:var(--fg);white-space:pre-wrap;overflow-wrap:anywhere;box-shadow:var(--shadow);max-width:100%}
+.sgtr b{color:var(--accent);font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:.06em;margin-right:7px}
+.sgtr i{color:var(--muted)}
+.signedit{position:absolute;z-index:8;width:min(280px,calc(100% - 16px));padding:10px;display:flex;flex-direction:column;gap:8px}
+.signedit textarea{width:100%;resize:vertical;min-height:58px;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:7px 8px;font:14px/1.35 var(--display)}
+.signedit textarea:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.signedit select{flex:1;min-width:0}
+.signedit .seg button{height:32px;min-width:34px;padding:0 6px}
+.signedit .seg canvas{width:26px;height:auto;image-rendering:pixelated}
+#map.onsign{cursor:help}
 /* tooltip: name, key, one-line note */
 .tip{position:fixed;z-index:30;pointer-events:none;background:#0f0d12;border:1px solid var(--line);border-radius:8px;padding:6px 9px;max-width:240px;font-size:12px;line-height:1.4;box-shadow:var(--shadow)}
 .tip b{font-weight:600;color:var(--fg)}
@@ -275,6 +293,13 @@ body.mp-player .dmonly{display:none!important}
   <div class="hint" id="hint" role="status"></div>
   <div class="float selbar" id="selbar" hidden></div>
   <div class="float qmenu" id="qmenu" role="menu" hidden></div>
+  <div class="signcard" id="signcard" hidden><div class="sgtr" id="sgtrn" hidden></div><div class="plank" id="sgplank"></div></div>
+  <div class="float signedit" id="signedit" hidden role="dialog" aria-label="Edit sign">
+    <textarea id="sgtext" maxlength="300" rows="3" placeholder="What does the sign say?" aria-label="Sign text" spellcheck="true"></textarea>
+    <div class="row"><label class="note" for="sglang">Written in</label><select id="sglang"></select></div>
+    <label class="check note" id="sgtrrow" for="sgtr"><input type="checkbox" id="sgtr"> Players can read the translation</label>
+    <div class="row"><div class="seg" id="sgstyle" role="group" aria-label="Board"></div><button class="btn primary sm" id="sgdone" style="margin-left:auto">Done</button></div>
+  </div>
 
   <div class="float zoom">
     <button class="ib" id="zin" aria-label="Zoom in" data-tip="Zoom in" data-key="+">+</button>
@@ -445,7 +470,7 @@ let pointer=null,draft=[],stroke=null,hover=null,sel=null,drag=null,hist=[],fram
 let dirty=true,objDirty=true,lastR=null,lastGen=[],sculpt=null;
 const $=id=>document.getElementById(id);
 function push(){hist.push(JSON.stringify(st));if(hist.length>80)hist.shift();updUndo()}
-function undo(){if(!hist.length||mp.role==='player')return;const old=st;st=JSON.parse(hist.pop());redrawChanged(old);
+function undo(){if(!hist.length||mp.role==='player')return;signClose();const old=st;st=JSON.parse(hist.pop());redrawChanged(old);
   sel=null;draft=[];save();syncUI();updUndo()}
 // st was just replaced (undo, or a shared map arriving): redraw only what differs from old
 function redrawChanged(old){
@@ -583,6 +608,7 @@ function sprite(k,v){v=(v||0)%12;const key=k+':'+v;if(SPR.has(key))return SPR.ge
   else if(k==='rubble'){for(const[cx,cy,rx,ry]of[[4,7,4,3.5],[10,8,5,3.5],[7,4,3.5,3],[13,4,2.5,2.2],[2,3,2,1.8]])E(cx,cy,rx,ry,(x,y)=>x+y<cx+cy-1?C.rockl:x+y>cx+cy+1?C.rockd:C.rock)}
   else if(k==='crystals'){glow(6,7,10,[170,150,255]);const sh=(x0,y0,x1,y1,wd)=>{for(let t=0;t<=1;t+=.05){const x=x0+(x1-x0)*t,y=y0+(y1-y0)*t,ww=wd*(1-t*.7);for(let k=-ww;k<=ww;k+=.5)put(x+k,y,t>.75?C.crystl:k<0?C.cryst:C.crystd)}};
     sh(6,11,6,0,2.2);sh(3,11,1,4,1.6);sh(9,11,11,5,1.6)}
+  else if(k==='sign')signSprite(put,R,w,h,v);
   else if(k==='well'){E(8,8,8,8,(x,y)=>hash(x>>1,y>>1,3)>.5?C.stone:C.stoned);E(8,8,5,5,C.dark);E(8,8.5,3.5,3,C.water);put(7,7,C.water2);
     R(1,6,14,2,C.wood);R(1,5,2,4,C.woodd);R(13,5,2,4,C.woodd);put(8,8,[110,80,60])}
   else if(k==='wagon'){for(const x of [4,20]){R(x,0,7,2,C.wheel);R(x,h-2,7,2,C.wheel)}
@@ -1080,7 +1106,7 @@ function toRaise(){if(!sculpt||sculpt.phase!=='paint')return;
   let base=SLAD0,best=-1;for(const k in cnt)if(cnt[k]>best){best=cnt[k];base=+k}
   Object.assign(sculpt,{phase:'raise',y0:sculpt.cy,base,delta:0});syncHint()}
 let last=0;const reduce=matchMedia('(prefers-reduced-motion: reduce)');
-function loop(ts){mpTick();if(sculpt&&sculpt.phase==='paint'&&performance.now()-sculpt.t>DWELL)toRaise();if($('anim').checked&&!reduce.matches&&ts-last>150){frame=(frame+1)%8;last=ts}draw(ts);placeSelbar();requestAnimationFrame(loop)}
+function loop(ts){mpTick();if(sculpt&&sculpt.phase==='paint'&&performance.now()-sculpt.t>DWELL)toRaise();if($('anim').checked&&!reduce.matches&&ts-last>150){frame=(frame+1)%8;last=ts}draw(ts);placeSelbar();signTick();requestAnimationFrame(loop)}
 
 // ================= interaction =================
 const dist=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1]);
@@ -1133,7 +1159,7 @@ cv.addEventListener('pointerdown',e=>{const p=toMap(e);cv.setPointerCapture(e.po
   if(tool==='brush'){stroke={pts:[clamp(p)],r:bsize};return}
   if(tool==='sculpt'){sculpt={phase:'paint',pts:[clamp(p)],cy:e.clientY,t:performance.now(),y0:0,base:0,delta:0};syncHint();return}
   if(tool==='object'&&tokKind()>=0){const ts=placementTokens(p[0],p[1]);if(!ts.length)return;push();ts.forEach(t=>st.tokens.push({...t,o:Math.floor(Math.random()*8)}));save();return}
-  if(tool==='object'){const items=placementItems(p[0],p[1]);if(!items.length)return;push();const g=items.length>1?'g'+Date.now().toString(36):undefined;items.forEach(it=>st.objects.push(g?{...it,g}:it));objDirty=true;save();if(objMix&&!objKind.startsWith('stamp:'))scatSeed++;return}
+  if(tool==='object'){const items=placementItems(p[0],p[1]);if(!items.length)return;push();const g=items.length>1?'g'+Date.now().toString(36):undefined;items.forEach(it=>st.objects.push(signInit(g?{...it,g}:it)));objDirty=true;save();if(items.length===1&&items[0].k==='sign')signEdit(st.objects.length-1);if(objMix&&!objKind.startsWith('stamp:'))scatSeed++;return}
   if(tool==='fog'&&mp.role!=='player'){push();const before=st.fog||null,v=(fogMode==='hide')!==e.shiftKey?'1':'0',q=clamp(p);
     fogPaint={v,before,brush:fogShape==='brush',a:q,b:q,last:q};if(fogPaint.brush)fogStroke(q,q);return}
   if(tool==='measure'&&measure&&measure.follow){measure.follow=false;measure.b=measure.snap(p);return}
@@ -1377,6 +1403,7 @@ let selKey='';
 function buildSelbar(){const bar=$('selbar');bar.replaceChildren();const add=(icon,name,key,sub,fn,cls)=>{const b=document.createElement('button');b.className='ib'+(cls?' '+cls:'');b.innerHTML=svgI(icon,2);
     b.setAttribute('aria-label',name);b.dataset.tip=name;if(key)b.dataset.key=key;if(sub)b.dataset.sub=sub;b.onclick=fn;bar.append(b)};
   add('copy','Duplicate','Ctrl D','A copy, one square over',dupSel);
+  if(sel.type==='obj'&&isSign(sel.i))add('sign','Edit sign','Enter','Write the message and pick its language',()=>signEdit(sel.i));
   if(sel.type==='obj'||sel.type==='objs')add('stamp','Save as stamp','','Reuse this group from the Objects tray',saveStamp);
   add('trash','Delete','Del','',delSel,'danger')}
 function placeSelbar(){const bar=$('selbar'),b=tool==='select'&&sel&&!drag&&!boxSel&&mp.role!=='player'&&selBox();
@@ -1876,6 +1903,130 @@ $('mpbtn').onclick=()=>{$('mpmodal').hidden=false;mpKey='';mpSay('');mpUI();mpRe
 $('mpclose').onclick=()=>{$('mpmodal').hidden=true;mp.autoPick=false};
 $('mpmodal').onclick=e=>{if(e.target.id==='mpmodal')e.currentTarget.hidden=true};
 $('mpmodal').addEventListener('keydown',e=>{if(e.key==='Escape')$('mpmodal').hidden=true;e.stopPropagation()});
+// ================= signs =================
+// A signpost is an object like any other ({k:'sign',x,y,v}) that also carries its message: txt (what the DM typed),
+// lang (a SCRIPTS id) and tr (1 = players may read the plain text under the script). v picks the board: 0 plank, 1 arrow right, 2 arrow left.
+// Hovering a sign (tapping it on touch, or selecting it) shows a wooden card with the message written in its script.
+// Scripts other than Common are pixel alphabets built below: every letter has its own glyph, so a message always looks the same
+// and a player who works out the alphabet can decode it. Swap a script's `font` in for a real font later and Common-style text is used.
+OBJ.push({k:'sign',name:'Signpost',sub:'Hover to read. Double-click to write it.',g:'Signs'});
+SIZE.sign=[13,15];
+ICON.sign='M12 21v-8 M4 4h13l3 3.5-3 3.5H4z';
+const SCRIPTS=[
+ {id:'common',name:'Common',sub:'Plain text, everyone can read it'},
+ {id:'elvish',name:'Elvish',ink:'#24513a',sub:'Flowing loops joined along a line'},
+ {id:'dwarvish',name:'Dwarvish',ink:'#2e2a2c',sub:'Carved straight-line runes'},
+ {id:'draconic',name:'Draconic',ink:'#6e2416',sub:'Slashing claw strokes'},
+ {id:'infernal',name:'Infernal',ink:'#8c1a10',sub:'Barbed, spiky letters'},
+ {id:'celestial',name:'Celestial',ink:'#6e5208',sub:'Rings, dots and halos'},
+ {id:'orc',name:'Orc',ink:'#3a2716',sub:'Crude hacked marks'}];
+const scriptOf=id=>SCRIPTS.find(s=>s.id===id)||SCRIPTS[0];
+function signSprite(put,R,w,h,v){const b=v%3,wd=C.wood,wl=mix(C.wood,LIGHT,.25),dk=C.woodd;
+  R(6,6,2,9,dk);R(6,6,1,9,mix(dk,LIGHT,.15));                      // post
+  const x0=b===2?2:0,x1=b===1?10:b===2?12:12;                      // board, leaving room for an arrow tip
+  R(x0,1,x1-x0+1,6,wd);R(x0,1,x1-x0+1,1,wl);R(x0,6,x1-x0+1,1,dk);
+  if(b===1)for(let j=0;j<3;j++){R(11+j,2+j,1,5-2*j,wd)}           // arrow tip, right
+  if(b===2)for(let j=0;j<3;j++){R(1-j,2+j,1,5-2*j,wd)}             // arrow tip, left
+  R(x0+2,3,3,1,C.signd);R(x0+6,3,3,1,C.signd);R(x0+2,5,5,1,C.signd);  // scratched letters
+  put(x0+1,2,dk);put(x1-1,2,dk)}                                   // nails
+// ---- pixel alphabets ----
+// 40 glyphs per script: a–z, 0–9, then . , ! ?  Each is a few strokes on a small grid, picked by a seeded roll and kept only if it is new.
+const GLY={};
+function glyphs(id){if(GLY[id])return GLY[id];
+  const L=(x0,y0,x1,y1)=>{const o=[],n=Math.max(Math.abs(x1-x0),Math.abs(y1-y0))||1;for(let i=0;i<=n;i++)o.push([Math.round(x0+(x1-x0)*i/n),Math.round(y0+(y1-y0)*i/n)]);return o};
+  const A=(cx,cy,r,a0,a1)=>{const o=[];for(let a=a0;a<=a1+1e-6;a+=Math.PI/14)o.push([Math.round(cx+Math.cos(a)*r),Math.round(cy+Math.sin(a)*r)]);return o};
+  const ring=(cx,cy)=>[[cx-1,cy-1],[cx,cy-1],[cx+1,cy-1],[cx-1,cy],[cx+1,cy],[cx-1,cy+1],[cx,cy+1],[cx+1,cy+1]];
+  const P=(x,y)=>[[x,y]],PI=Math.PI;
+  // per script: grid size, the stroke pool, which strokes every glyph starts from, and how many more to add
+  const D={
+    dwarvish:{w:5,h:7,base:[L(2,0,2,6),L(0,0,0,6),L(4,0,4,6)],pool:[L(0,0,4,0),L(0,6,4,6),L(0,3,4,3),L(2,0,4,2),L(2,0,0,2),L(2,3,4,5),L(2,3,0,5),L(2,6,4,4),L(2,6,0,4),L(0,0,4,4),L(4,0,0,4),L(0,2,2,0),L(4,2,2,0),L(0,3,2,1),L(4,3,2,1),L(0,4,2,6),L(4,4,2,6)],n:[1,2],joined:true},
+    elvish:{w:5,h:7,base:[[]],pool:[A(2,3,2,PI,2*PI),A(2,3,2,0,PI),A(2,2,1.5,0,2*PI),A(2,3.5,1.5,0,2*PI),L(2,0,2,5),L(0,1,0,5),A(1,3,2,-PI/2,PI/2),A(3,3,2,PI/2,1.5*PI),A(3,1,1,PI,2.4*PI),A(1,1,1,.6*PI,2*PI),L(1,5,0,6),L(3,5,4,6),A(2,6,1.2,0,PI),P(4,0),P(0,0),P(2,0),L(1,0,4,0)],n:[1,2],joined:false},
+    draconic:{w:5,h:7,base:[L(0,6,2,0),L(2,6,4,0),L(1,6,3,0)],pool:[L(0,0,4,0),L(0,3,3,3),L(2,0,4,3),L(0,6,1,4),L(3,6,4,4),L(2,2,4,1),L(0,1,2,3),L(1,3,4,6),L(0,6,4,6),L(3,0,4,2),L(0,2,1,0)],n:[1,2],joined:true},
+    infernal:{w:5,h:8,base:[L(2,0,2,7)],pool:[L(2,1,0,0),L(2,1,4,0),L(2,3,0,2),L(2,3,4,2),L(2,5,0,4),L(2,5,4,4),[...L(2,7,4,7),[4,6]],[...L(2,7,0,7),[0,6]],[...L(0,0,0,2),...L(4,0,4,2),...L(0,2,4,2)],L(0,4,4,4),[...L(0,6,1,7)],L(3,7,4,6),A(2,1.5,1.5,PI,2*PI)],n:[2,3],joined:true},
+    celestial:{w:5,h:7,base:[ring(2,1),ring(2,3),ring(2,5),L(2,0,2,6),A(2,3,2,PI,2*PI)],pool:[P(2,3),P(0,6),P(4,6),P(0,0),P(4,0),L(0,6,4,6),L(1,0,3,0),ring(2,5),ring(2,1),L(2,3,2,6),A(2,4,2,0,PI),L(0,3,0,5),L(4,3,4,5)],n:[1,2],joined:false},
+    orc:{w:5,h:6,base:[L(0,0,0,5),L(4,0,4,5),L(2,0,2,5),L(0,0,4,5)],pool:[L(0,0,4,0),L(0,5,4,5),L(4,0,0,5),L(0,2,4,3),L(1,0,3,5),L(0,3,2,3),L(2,1,4,1),L(3,2,4,5),L(0,5,2,2)],n:[1,2],joined:true}};
+  const d=D[id];if(!d)return null;
+  const R=mulberry([...id].reduce((a,c)=>a*31+c.charCodeAt(0),7)),seen=new Set(),out=[];
+  const linked=ss=>{const sets=ss.map(s=>new Set(s.map(q=>q.join()))),on=[0];const done=new Set(on);
+    while(on.length){const i=on.pop();sets.forEach((s,j)=>{if(done.has(j))return;for(const q of sets[i]){const[x,y]=q.split(',').map(Number);
+      if([[0,0],[1,0],[-1,0],[0,1],[0,-1]].some(([a,b])=>s.has((x+a)+','+(y+b)))){done.add(j);on.push(j);break}}})}return done.size===sets.length};
+  for(let tries=0;out.length<40&&tries<20000;tries++){
+    const parts=[d.base[Math.floor(R()*d.base.length)]],n=d.n[0]+Math.floor(R()*(d.n[1]-d.n[0]+1));
+    for(let k=0;k<n;k++){const s=d.pool[Math.floor(R()*d.pool.length)];if(!parts.includes(s))parts.push(s)}
+    const use=parts.filter(p=>p.length);if(d.joined&&!linked(use))continue;
+    const px=new Set();use.flat().forEach(([x,y])=>{if(x>=0&&y>=0&&x<d.w&&y<d.h)px.add(x+','+y)});
+    if(px.size<4)continue;const key=[...px].sort().join(';');if(seen.has(key))continue;seen.add(key);out.push([...px].map(s=>s.split(',').map(Number)))}
+  return GLY[id]={w:d.w,h:d.h,list:out,flow:id==='elvish'}}
+// which glyph a character takes: a–z, 0–9, . , ! ?; anything else picks a letter by its code so it still reads the same every time
+function glyphIdx(ch){const c=ch.toLowerCase();if(c>='a'&&c<='z')return c.charCodeAt(0)-97;if(c>='0'&&c<='9')return 26+(+c);
+  const p='.,!?'.indexOf(c);if(p>=0)return 36+p;const n=c.normalize('NFD').charAt(0);if(n>='a'&&n<='z')return n.charCodeAt(0)-97;return c.charCodeAt(0)%26}
+// the message as a canvas of pixel glyphs, wrapped on spaces; s = screen pixels per glyph pixel
+function scriptCanvas(text,id,s=3,maxW=92){const g=glyphs(id),sc=scriptOf(id),gap=g.flow?0:1,adv=g.w+gap+(g.flow?1:0),sp=4,lh=g.h+4;
+  const lines=[];String(text).split('\n').forEach(par=>{let cur=[],cw=0;par.split(/ +/).forEach(wd=>{if(!wd)return;const ww=[...wd].length*adv;
+    if(cur.length&&cw+sp+ww>maxW){lines.push(cur);cur=[];cw=0}cur.push(wd);cw+=(cw?sp:0)+ww});lines.push(cur)});
+  const widths=lines.map(l=>l.reduce((a,wd,i)=>a+(i?sp:0)+[...wd].length*adv,0)),Wd=Math.max(8,...widths),Hd=Math.max(1,lines.length)*lh;
+  const c=document.createElement('canvas');c.width=(Wd+2)*s;c.height=(Hd+2)*s;c.style.width=c.width+'px';c.style.height=c.height+'px';const x=c.getContext('2d');
+  const dot=(px,py,col)=>{x.fillStyle=col;x.fillRect((px+1)*s,(py+1)*s,s,s)};
+  lines.forEach((l,li)=>{let cx=Math.round((Wd-widths[li])/2);const y0=li*lh+2;
+    l.forEach(wd=>{const chars=[...wd],start=cx;
+      chars.forEach(ch=>{const gl=g.list[glyphIdx(ch)%g.list.length];gl.forEach(([gx,gy])=>{dot(cx+gx,y0+gy+1,'rgba(255,236,196,.45)')});gl.forEach(([gx,gy])=>dot(cx+gx,y0+gy,sc.ink));cx+=adv});
+      if(g.flow&&chars.length>1){for(let i=start;i<cx-1;i++){dot(i,y0+6,'rgba(255,236,196,.45)');dot(i,y0+5,sc.ink)}}   // Elvish letters join along a line
+      cx+=sp})});
+  return c}
+// ---- the card ----
+let signPin=null,signEd=null,signShown='';
+const signAt=p=>{if(!p)return-1;for(let i=st.objects.length-1;i>=0;i--){const o=st.objects[i];if(o.k!=='sign')continue;const[w,h]=SIZE.sign;if(Math.abs(p[0]-o.x)<=w/2+1&&Math.abs(p[1]-o.y)<=h/2+1)return i}return-1};
+const isSign=i=>i!=null&&i>=0&&st.objects[i]&&st.objects[i].k==='sign';
+// players (and the DM previewing) can't read a sign standing in fog
+const signHidden=o=>{const f=fogView();return!!f&&fogAt(f,o.x,o.y)};
+function signTarget(){if(signEd&&isSign(signEd.i))return signEd.i;
+  if(!$('libmodal').hidden||!$('mpmodal').hidden||!$('modal').hidden)return-1;
+  if(isSign(signPin)&&!signHidden(st.objects[signPin])&&(st.objects[signPin].txt||mp.role!=='player'))return signPin;
+  if(tool==='select'&&sel&&sel.type==='obj'&&isSign(sel.i)&&mp.role!=='player'&&!drag)return sel.i;
+  if(drag||panning||boxSel)return-1;
+  if(!['select','measure','ping','pan'].includes(tool)&&mp.role!=='player')return-1;
+  const i=signAt(hover);if(i<0)return-1;const o=st.objects[i];if(signHidden(o))return-1;if(!o.txt&&mp.role==='player')return-1;return i}
+function signCard(o){const card=$('signcard'),pl=$('sgplank'),tr=$('sgtrn'),sc=scriptOf(o.lang),dm=mp.role!=='player'&&!fogPreview,txt=String(o.txt||'');
+  const key=[o.lang,txt,o.tr,dm].join('|');if(key===signShown)return;signShown=key;pl.replaceChildren();tr.replaceChildren();tr.hidden=true;
+  if(!txt.trim()){pl.classList.add('blank');pl.textContent=dm?'A blank sign. Double-click it to write on it.':'';return}
+  pl.classList.remove('blank');
+  if(sc.id==='common'){pl.textContent=txt}
+  else{pl.append(scriptCanvas(txt,sc.id));tr.hidden=false;const b=document.createElement('b');b.textContent=sc.name;tr.append(b);
+    if(dm||o.tr)tr.append(document.createTextNode(txt));else tr.append(document.createTextNode('You can’t read this script.'));
+    if(dm&&!o.tr){const n=document.createElement('i');n.textContent=' Only you see the translation.';tr.append(n)}}}
+function signTick(){const card=$('signcard'),i=signTarget();cv.classList.toggle('onsign',i>=0&&!signEd&&signAt(hover)===i);
+  if(i<0){card.hidden=true;signShown='';signPlaceEd();return}
+  const o=st.objects[i],[w,h]=SIZE.sign;signCard(o);card.hidden=false;
+  const sx=(o.x-cam.x)*Z,sy=(o.y-h/2-cam.y)*Z-6,cw=card.offsetWidth,ch=card.offsetHeight;
+  card.style.left=Math.max(cw/2+8,Math.min(viewW-cw/2-8,sx))+'px';card.style.top=Math.max(ch+8,sy)+'px';signPlaceEd()}
+// ---- the DM's editor: text, script, who can read it, board shape ----
+function signEdit(i){if(!isSign(i)||mp.role==='player')return;signClose();const o=st.objects[i];
+  signEd={i,before:JSON.stringify(st),start:JSON.stringify([o.txt||'',o.lang||'common',o.tr||0,o.v])};
+  $('sgtext').value=o.txt||'';$('sglang').value=scriptOf(o.lang).id;$('sgtr').checked=!!o.tr;signSyncEd();$('signedit').hidden=false;signPlaceEd();
+  setTimeout(()=>{$('sgtext').focus();$('sgtext').select()},0)}
+function signSyncEd(){if(!signEd)return;const o=st.objects[signEd.i];if(!o)return;$('sgtrrow').hidden=scriptOf(o.lang).id==='common';
+  [...$('sgstyle').children].forEach((b,k)=>b.setAttribute('aria-pressed',String(o.v%3===k)))}
+function signApply(fn){if(!signEd||!isSign(signEd.i))return;const o=st.objects[signEd.i];fn(o);if(!o.tr)delete o.tr;objDirty=true;signSyncEd();save()}
+function signClose(){if(!signEd)return;const e=signEd;signEd=null;$('signedit').hidden=true;
+  const o=st.objects[e.i];if(o&&JSON.stringify([o.txt||'',o.lang||'common',o.tr||0,o.v])!==e.start){hist.push(e.before);if(hist.length>80)hist.shift();updUndo()}
+  if(document.activeElement&&$('signedit').contains(document.activeElement))document.activeElement.blur()}
+function signPlaceEd(){const ed=$('signedit');if(!signEd)return;if(!isSign(signEd.i)){signClose();return}
+  const o=st.objects[signEd.i],[w,h]=SIZE.sign,sx=(o.x-cam.x)*Z,sy=(o.y+h/2-cam.y)*Z+10,ew=ed.offsetWidth,eh=ed.offsetHeight;
+  ed.style.left=Math.max(8,Math.min(viewW-ew-8,sx-ew/2))+'px';ed.style.top=Math.max(64,Math.min(viewH-eh-8,sy))+'px'}
+function signInit(o){if(o.k==='sign'){o.v=0;o.txt=o.txt||'';o.lang=o.lang||'common'}return o}
+{const ls=$('sglang');SCRIPTS.forEach(s=>{const op=document.createElement('option');op.value=s.id;op.textContent=s.name;op.title=s.sub;ls.append(op)});
+ ['Plank','Arrow right','Arrow left'].forEach((nm,k)=>{const b=document.createElement('button');const c=document.createElement('canvas');const sp=sprite('sign',k);
+   c.width=sp.sw;c.height=sp.sh;const g=c.getContext('2d'),im=g.createImageData(sp.sw,sp.sh);im.data.set(sp.px);g.putImageData(im,0,0);b.append(c);
+   b.setAttribute('aria-label',nm);b.dataset.tip=nm;b.onclick=()=>signApply(o=>{o.v=k});$('sgstyle').append(b)});
+ $('sgtext').addEventListener('input',e=>signApply(o=>{o.txt=e.target.value.slice(0,300)}));
+ ls.onchange=e=>signApply(o=>{o.lang=e.target.value});$('sgtr').onchange=e=>signApply(o=>{o.tr=e.target.checked?1:0});
+ $('sgdone').onclick=signClose;
+ $('signedit').addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Escape'||(e.key==='Enter'&&(e.ctrlKey||e.metaKey))){e.preventDefault();signClose()}});
+ $('signedit').addEventListener('pointerdown',e=>e.stopPropagation());
+ // a click on the map closes the editor; clicking a sign pins its card (that's how touch screens read them)
+ cv.addEventListener('pointerdown',e=>{if(signEd)signClose();if(e.button!==0)return;const i=signAt(toMap(e));signPin=i>=0&&(mp.role==='player'||tool!=='select')?i:null},true);
+ cv.addEventListener('dblclick',e=>{if(tool!=='select'||mp.role==='player')return;const i=signAt(toMap(e));if(i>=0){e.preventDefault();setObjSel([i]);signEdit(i);syncUI()}});
+ window.addEventListener('keydown',e=>{if(e.key!=='Enter'||e.target!==document.body&&e.target.tagName!=='CANVAS')return;if(tool==='select'&&sel&&sel.type==='obj'&&isSign(sel.i)&&mp.role!=='player'){e.preventDefault();signEdit(sel.i)}})}
 // read-only peek for the tests
 window.__dustmap=()=>({st,fog:fogGet(),role:mp.role,cam:{...cam},Z,pings:pings.map(p=>({x:p.x,y:p.y,rgb:p.rgb||null})),tool,peers:mp.peers.length,busy:mp.busy,err:mp.err,again:mp.again});
 libInit();mpInit();
