@@ -1161,7 +1161,7 @@ cv.addEventListener('pointerdown',e=>{const p=toMap(e);cv.setPointerCapture(e.po
   if(tool==='brush'){stroke={pts:[clamp(p)],r:bsize};return}
   if(tool==='sculpt'){sculpt={phase:'paint',pts:[clamp(p)],cy:e.clientY,t:performance.now(),y0:0,base:0,delta:0};syncHint();return}
   if(tool==='object'&&tokKind()>=0){const ts=placementTokens(p[0],p[1]);if(!ts.length)return;push();ts.forEach(t=>st.tokens.push({...t,o:Math.floor(Math.random()*8)}));save();return}
-  if(tool==='object'){const items=placementItems(p[0],p[1]);if(!items.length)return;push();const g=items.length>1?'g'+Date.now().toString(36):undefined;items.forEach(it=>st.objects.push(signInit(g?{...it,g}:it)));objDirty=true;save();if(items.length===1&&items[0].k==='sign')signEdit(st.objects.length-1);if(objMix&&!objKind.startsWith('stamp:'))scatSeed++;return}
+  if(tool==='object'){const items=placementItems(p[0],p[1]);if(!items.length)return;push();const g=items.length>1?'g'+Date.now().toString(36):undefined;items.forEach(it=>st.objects.push(g?{...it,g}:it));objDirty=true;save();if(objMix&&!objKind.startsWith('stamp:'))scatSeed++;return}
   if(tool==='fog'&&mp.role!=='player'){push();const before=st.fog||null,v=(fogMode==='hide')!==e.shiftKey?'1':'0',q=clamp(p);
     fogPaint={v,before,brush:fogShape==='brush',a:q,b:q,last:q};if(fogPaint.brush)fogStroke(q,q);return}
   if(tool==='measure'&&measure&&measure.follow){measure.follow=false;measure.b=measure.snap(p);return}
@@ -2027,6 +2027,10 @@ function signInit(o){if(o.k==='sign'){o.v=0;o.txt=o.txt||'';o.lang=o.lang||'comm
  $('signedit').addEventListener('pointerdown',e=>e.stopPropagation());
  // a click on the map closes the editor; clicking a sign pins its card (that's how touch screens read them)
  cv.addEventListener('pointerdown',e=>{if(signEd)signClose();if(e.button!==0)return;const i=signAt(toMap(e));signPin=i>=0&&(mp.role==='player'||tool!=='select')?i:null},true);
+ // a signpost the Objects tool just placed starts blank, on a plank, and opens its editor
+ let signN=0;cv.addEventListener('pointerdown',()=>{signN=st.objects.length},true);
+ cv.addEventListener('pointerdown',()=>{if(tool!=='object'||st.objects.length<=signN)return;const fresh=st.objects.slice(signN);if(!fresh.some(o=>o.k==='sign'))return;
+   fresh.forEach(signInit);objDirty=true;save();if(fresh.length===1)signEdit(signN)});
  cv.addEventListener('dblclick',e=>{if(tool!=='select'||mp.role==='player')return;const i=signAt(toMap(e));if(i>=0){e.preventDefault();setObjSel([i]);signEdit(i);syncUI()}});
  window.addEventListener('keydown',e=>{if(e.key!=='Enter'||e.target!==document.body&&e.target.tagName!=='CANVAS')return;if(tool==='select'&&sel&&sel.type==='obj'&&isSign(sel.i)&&mp.role!=='player'){e.preventDefault();signEdit(sel.i)}})}
 // ---- the tour map: a small world where every sign explains the tool that built the ground around it ----
