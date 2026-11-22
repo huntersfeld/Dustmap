@@ -1,0 +1,18 @@
+{"id":123456789,"success":true,"message":"Character successfully received.","data":{
+ "id":123456789,"name":"Mara Dunwell","decorations":{"avatarUrl":"https://www.dndbeyond.com/avatars/1/2/3-123456789.jpeg?width=150&height=150&fit=crop"},
+ "race":{"fullName":"Hill Dwarf","baseName":"Dwarf","weightSpeeds":{"normal":{"walk":25}}},
+ "classes":[{"level":3,"isStartingClass":true,"definition":{"name":"Fighter"},"subclassDefinition":{"name":"Battle Master"}},{"level":2,"isStartingClass":false,"definition":{"name":"Rogue"},"subclassDefinition":null}],
+ "stats":[{"id":1,"value":15},{"id":2,"value":14},{"id":3,"value":14},{"id":4,"value":10},{"id":5,"value":12},{"id":6,"value":8}],
+ "bonusStats":[{"id":1,"value":null},{"id":2,"value":null},{"id":3,"value":null},{"id":4,"value":null},{"id":5,"value":null},{"id":6,"value":null}],
+ "overrideStats":[{"id":1,"value":null},{"id":2,"value":null},{"id":3,"value":null},{"id":4,"value":null},{"id":5,"value":null},{"id":6,"value":null}],
+ "baseHitPoints":30,"bonusHitPoints":null,"overrideHitPoints":null,"removedHitPoints":9,"temporaryHitPoints":8,
+ "modifiers":{"race":[{"type":"bonus","subType":"strength-score","value":2,"componentId":1},{"type":"bonus","subType":"hit-points-per-level","value":1,"componentId":2}],
+   "class":[],"background":[],"feat":[{"type":"bonus","subType":"constitution-score","value":1,"componentId":3}],
+   "item":[{"type":"bonus","subType":"armor-class","value":1,"componentId":5001},{"type":"bonus","subType":"armor-class","value":1,"componentId":5002}]},
+ "inventory":[
+   {"id":1,"equipped":true,"isAttuned":false,"definition":{"id":4001,"name":"Chain Mail","armorClass":16,"armorTypeId":3,"canAttune":false}},
+   {"id":2,"equipped":true,"isAttuned":false,"definition":{"id":4002,"name":"Shield","armorClass":2,"armorTypeId":4,"canAttune":false}},
+   {"id":3,"equipped":true,"isAttuned":true,"definition":{"id":5001,"name":"Ring of Protection","armorClass":null,"canAttune":true}},
+   {"id":4,"equipped":false,"isAttuned":false,"definition":{"id":5002,"name":"Cloak of Protection","armorClass":null,"canAttune":true}},
+   {"id":5,"equipped":false,"isAttuned":false,"definition":{"id":4003,"name":"Plate","armorClass":18,"armorTypeId":3,"canAttune":false}}],
+ "characterValues":[]}}
