@@ -235,6 +235,7 @@ body.mp-player .dmonly{display:none!important}
         <label class="mrow dmonly" for="rag"><span>Edges</span><input type="range" id="rag" min="0" max="9" step="1" value="5" aria-label="Edge roughness"></label>
         <button class="mi dmonly" id="reroll" role="menuitem">Reroll details</button>
         <button class="mi dmonly" id="example" role="menuitem">Load example map</button>
+        <button class="mi dmonly" id="tour" role="menuitem">Open the tour map</button>
         <hr class="dmonly">
         <label class="mi check" for="grid"><input type="checkbox" id="grid" checked> Grid <kbd>G</kbd></label>
         <label class="mi check" for="anim"><input type="checkbox" id="anim" checked> Animate tokens</label>
@@ -330,6 +331,7 @@ body.mp-player .dmonly{display:none!important}
     <div class="row"><b id="libtitle">Maps</b><button class="btn" id="libclose" style="margin-left:auto">Close</button></div>
     <div class="acts">
       <button class="btn primary" id="libnew">New map</button>
+      <button class="btn" id="libtour" title="A small map whose signs explain every tool">Tour map</button>
       <button class="btn" id="libimport" title="Or drop .dustmap.json files here">Import…</button>
       <button class="btn" id="libexportall">Export all</button>
       <input type="file" id="libfile" accept=".json,application/json" multiple hidden>
@@ -2027,6 +2029,58 @@ function signInit(o){if(o.k==='sign'){o.v=0;o.txt=o.txt||'';o.lang=o.lang||'comm
  cv.addEventListener('pointerdown',e=>{if(signEd)signClose();if(e.button!==0)return;const i=signAt(toMap(e));signPin=i>=0&&(mp.role==='player'||tool!=='select')?i:null},true);
  cv.addEventListener('dblclick',e=>{if(tool!=='select'||mp.role==='player')return;const i=signAt(toMap(e));if(i>=0){e.preventDefault();setObjSel([i]);signEdit(i);syncUI()}});
  window.addEventListener('keydown',e=>{if(e.key!=='Enter'||e.target!==document.body&&e.target.tagName!=='CANVAS')return;if(tool==='select'&&sel&&sel.type==='obj'&&isSign(sel.i)&&mp.role!=='player'){e.preventDefault();signEdit(sel.i)}})}
+// ---- the tour map: a small world where every sign explains the tool that built the ground around it ----
+function tourMap(){const S=(x,y,txt,o={})=>({k:'sign',x,y,v:o.v||0,txt,lang:o.lang||'common',...(o.tr?{tr:1}:{})});
+  const ops=[
+    // north-west: paint
+    {kind:'poly',layer:'ground',t:3,pts:[[26,36],[118,22],[170,64],[150,126],[70,140],[22,100]]},
+    {kind:'stroke',layer:'ground',t:1,r:10,pts:[[178,30],[196,80],[186,130],[150,160],[96,166]]},
+    // north: hills and cliffs
+    {kind:'poly',layer:'ground',t:2,pts:[[232,24],[318,18],[340,70],[312,118],[244,112],[222,66]]},
+    {kind:'poly',layer:'ground',t:1,pts:[[350,30],[430,26],[450,96],[400,132],[346,104]]},
+    {kind:'poly',layer:'height',h:1,s:0,pts:[[360,40],[420,34],[440,92],[396,124],[356,100]]},
+    {kind:'poly',layer:'height',h:-1,s:1,pts:[[250,140],[300,136],[310,170],[262,178]]},
+    // north-east: town, with a street running up through it
+    {kind:'poly',layer:'ground',t:6,pts:[[468,22],[626,22],[626,180],[470,186]]},
+    {kind:'stroke',layer:'ground',t:5,r:8,pts:[[548,232],[548,140],[552,60],[556,0]]},
+    // the main road, west to east
+    {kind:'stroke',layer:'ground',t:5,r:9,pts:[[0,232],[120,228],[250,236],[380,226],[520,234],[640,228]]},
+    // south-west: badlands for measuring
+    {kind:'poly',layer:'ground',t:4,pts:[[18,300],[176,292],[196,372],[160,436],[30,430]]},
+    // south: a cave hidden in fog
+    {kind:'poly',layer:'ground',t:7,pts:[[244,290],[410,286],[420,448],[240,448]]},
+    {kind:'stroke',layer:'height',h:2,s:1,r:7,pts:[[260,306],[396,302],[404,448]]},
+    {kind:'stroke',layer:'height',h:2,s:1,r:7,pts:[[258,306],[258,448]]},
+    // south-east: the mine
+    {kind:'poly',layer:'ground',t:7,pts:[[452,284],[640,280],[640,448],[446,448]]},
+    {kind:'stroke',layer:'height',h:2,s:1,r:8,pts:[[630,292],[630,448]]},
+    {kind:'stroke',layer:'height',h:2,s:1,r:8,pts:[[560,440],[640,440]]},
+    {kind:'stroke',layer:'ground',t:9,r:5,pts:[[470,320],[510,336],[550,356],[590,384],[620,420]]}].map((o,i)=>({...o,sid:100+i}));
+  const objects=[
+    S(104,200,'Welcome to Dustmap!\nHover a sign to read it. Each one explains the tool that made the ground around it. Follow the road east.',{v:1}),
+    S(150,262,'TOKENS (T)\nParty, townsfolk and enemies. Click a character for its colours, then click the map. Drag a token to move it; it snaps to squares. Hold Alt to place freely.'),
+    S(200,150,'PAINT GROUND (B)\nPick sand, water, roads, towns and more in the tray, then brush it on. Press D to draw a shape instead: click the corners, Enter to finish.'),
+    S(330,150,'HILLS AND CLIFFS (E)\nBrush a hill, a cliff or a pit. Sculpt: drag over an area, hold still until the ring fills, then drag up or down.'),
+    S(452,196,'TOWNS\nPaint Town and it fills itself with buildings. A road through town becomes its street. In Select, click a building to pick it up and move it.',{v:1}),
+    S(210,204,'SELECT (V)\nClick anything to move it. Shift-drag a box to grab several, then Save as stamp to reuse them. Right-click the map for quick actions. Ctrl Z undoes.'),
+    S(300,262,'Signs can be written in another script. Tick “Players can read the translation” and they see this text under it.',{lang:'elvish',tr:1}),
+    S(344,204,'Only the DM can read this one. Players see runes until you let them read it.',{lang:'dwarvish'}),
+    S(388,262,'SIGNS\nObjects (O), then Signpost. Double-click a sign to write on it, pick its script and its board. Players read signs by hovering, or tapping on a phone.'),
+    S(232,280,'FOG OF WAR (F)\nThe cave to the south is hidden from players. Paint Reveal over it to show it, or right-click and pick Reveal around here. The eye at the top shows what players see.',{v:2}),
+    S(330,380,'Turn back, mortal. What sleeps here does not forgive.',{lang:'infernal'}),
+    S(188,282,'MEASURE (M) AND PING (P)\nDrag between squares to see the distance. Click to ping, drag to point. In a session everyone sees them.',{v:2}),
+    S(440,276,'MINES\nStone is cave floor; raise it for rock walls. Mine rail follows your stroke. Objects (O) has carts, lanterns, timbers and crystals.',{v:1}),
+    S(600,262,'PLAY TOGETHER\nThe button at the top right starts a live session. Players pick a token and move only their own. You see the whole map; they see what you reveal.'),
+    {k:'wagon',x:56,y:186,v:2},{k:'barrels',x:26,y:196,v:0},{k:'crates',x:130,y:190,v:0},
+    {k:'boulder',x:70,y:340,v:0},{k:'boulder',x:130,y:400,v:3},{k:'rock',x:100,y:372,v:0},
+    {k:'cart',x:550,y:356,v:0},{k:'lantern',x:480,y:300,v:0},{k:'lantern',x:600,y:330,v:0},{k:'timber',x:500,y:420,v:0},{k:'crystals',x:610,y:420,v:0},{k:'rubble',x:620,y:300,v:0},
+    {k:'crystals',x:290,y:420,v:1},{k:'tree',x:210,y:110,v:0},{k:'well',x:520,y:200,v:0}];
+  const tokens=[{s:0,x:56,y:232,o:0},{s:1,x:72,y:232,o:3},{s:2,x:56,y:248,o:5},{s:3,x:72,y:248,o:2},{s:4,x:344,y:392,o:1}];
+  // the cave (columns 16–25, rows 18–27) starts hidden
+  const cols=40,rows=28;let fog='';for(let r=0;r<rows;r++)for(let c=0;c<cols;c++)fog+=c>=16&&c<=25&&r>=18?'1':'0';
+  return{v:3,cols,rows,seed:4242,rag:5,ops,objects,tokens,skip:[],fog}}
+function tourOpen(){const s=libClean(tourMap());if(!s)return;const m=libAdd('Dustmap tour',s,true);if(m)libHide()}
+$('libtour').onclick=tourOpen;$('tour').onclick=()=>{menuShow(false);tourOpen()};
 // read-only peek for the tests
 window.__dustmap=()=>({st,fog:fogGet(),role:mp.role,cam:{...cam},Z,pings:pings.map(p=>({x:p.x,y:p.y,rgb:p.rgb||null})),tool,peers:mp.peers.length,busy:mp.busy,err:mp.err,again:mp.again});
 libInit();mpInit();

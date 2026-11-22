@@ -35,7 +35,6 @@ if(!/Dragons sleep below/.test(await p.textContent('#sgtrn')))fail('the DM shoul
 await p.screenshot({path:path.join(OUT,'sign_card_dm.png'),clip:{x:mid[0]-220,y:mid[1]-220,width:440,height:300}});
 await p.mouse.move(mid[0]+300,mid[1]+200);await p.waitForTimeout(150);if(await p.isVisible('#signcard'))fail('card should hide when the mouse leaves');
 // every script renders and differs
-const shapes=await p.evaluate(()=>{const ids=['elvish','dwarvish','draconic','infernal','celestial','orc'];return ids.map(id=>{const o=window.__dustmap().st.objects.find(o=>o.k==='sign');return id})});
 for(const id of ['dwarvish','draconic','infernal','celestial','orc','common']){await p.keyboard.press('v');await p.mouse.dblclick(mid[0],mid[1]-2);await p.waitForTimeout(100);await p.selectOption('#sglang',id);await p.click('#sgdone');
   await p.keyboard.press('m');await p.mouse.move(mid[0],mid[1]-2);await p.waitForTimeout(120);await p.screenshot({path:path.join(OUT,`sign_${id}.png`),clip:{x:mid[0]-220,y:mid[1]-220,width:440,height:300}})}
 // player view through fog preview: hidden sign shows nothing
@@ -44,5 +43,10 @@ if(await p.isVisible('#signcard'))fail('a sign in fog should not show its card')
 await p.click('#fogprev');
 // saved maps keep the message
 await p.reload();await p.waitForTimeout(1200);o=(await objs()).find(o=>o.k==='sign');if(!o||o.txt!=='The old mine lies east. Dragons sleep below.')fail('the sign should survive a reload: '+JSON.stringify(o));
+// the tour map opens as a new map in the library, with its signs and the cave hidden
+await p.click('#more');await p.click('#tour');await p.waitForTimeout(800);
+const tour=await p.evaluate(()=>{const d=window.__dustmap();return{n:d.st.objects.filter(o=>o.k==='sign'&&o.txt).length,fog:(d.st.fog||'').includes('1'),title:document.title,langs:[...new Set(d.st.objects.filter(o=>o.k==='sign').map(o=>o.lang))]}});
+if(tour.n<10||!tour.fog||!/Dustmap tour/.test(tour.title)||tour.langs.length<3)fail('tour map: '+JSON.stringify(tour));
+const nmaps=await p.evaluate(()=>JSON.parse(localStorage.getItem('dustmap-library')).maps.length);if(nmaps!==2)fail('tour should be added as a second map, got '+nmaps);
 await b.close();
 console.log(errs.length?'FAIL: '+JSON.stringify(errs):'PASS: signs');if(errs.length)process.exit(1)})().catch(e=>{console.error(e);process.exit(1)});
