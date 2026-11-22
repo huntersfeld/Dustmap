@@ -2296,7 +2296,9 @@ function tourMap(){const S=(x,y,txt,o={})=>({k:'sign',x,y,v:o.v||0,txt,lang:o.la
     {kind:'stroke',layer:'ground',t:9,r:5,pts:[[470,320],[510,336],[550,356],[590,384],[620,420]]}].map((o,i)=>({...o,sid:100+i}));
   const objects=[
     S(104,200,'Welcome to Dustmap!\nHover a sign to read it. Each one explains the tool that made the ground around it. Follow the road east.',{v:1}),
-    S(150,262,'TOKENS (T)\nParty, townsfolk and enemies. Click a character for its colours, then click the map. Drag a token to move it; it snaps to squares. Hold Alt to place freely.'),
+    S(150,262,'TOKENS (T)\nClick a character to open its colours above it (↑ ↓ step through them), then click the map. Ctrl-click several to mix them and scatter them on random squares. Drag a token to move it; it snaps to squares. Alt places freely.'),
+    S(104,262,'NEW MAPS (N)\nThe + by the map name, or N, opens New map: give it a name, pick the ground that fills it (sand, scrub, mesa, water, badlands or stone) and its size. Your last choice is remembered.'),
+    S(60,150,'TORCHES AND CAMPFIRES\nObjects (O) → Props. They flicker and glow, and fog still hides them. Random spots in the grid popover drops a set number of objects in new random places on every click.',{v:1}),
     S(200,150,'PAINT GROUND (B)\nPick sand, water, roads, towns and more in the tray, then brush it on. Press D to draw a shape instead: click the corners, Enter to finish.'),
     S(330,150,'HILLS AND CLIFFS (E)\nBrush a hill, a cliff or a pit. Sculpt: drag over an area, hold still until the ring fills, then drag up or down.'),
     S(452,196,'TOWNS\nPaint Town and it fills itself with buildings. A road through town becomes its street. In Select, click a building to pick it up and move it.',{v:1}),
@@ -2304,12 +2306,13 @@ function tourMap(){const S=(x,y,txt,o={})=>({k:'sign',x,y,v:o.v||0,txt,lang:o.la
     S(300,262,'Signs can be written in another script. Tick “Players can read the translation” and they see this text under it.',{lang:'elvish',tr:1}),
     S(344,204,'Only the DM can read this one. Players see runes until you let them read it.',{lang:'dwarvish'}),
     S(388,262,'SIGNS\nObjects (O), then Signpost. Double-click a sign to write on it, pick its script and its board. Players read signs by hovering, or tapping on a phone.'),
-    S(232,280,'FOG OF WAR (F)\nThe cave to the south is hidden from players. Paint Reveal over it to show it, or right-click and pick Reveal around here. The eye at the top shows what players see.',{v:2}),
+    S(232,280,'FOG OF WAR (F)\nThe cave to the south is hidden from players. Paint Reveal over it, or double-click to paint the opposite way. Turn on Players reveal as they walk and fog clears wherever their tokens go. The eye shows what players see.',{v:2}),
     S(330,380,'Turn back, mortal. What sleeps here does not forgive.',{lang:'infernal'}),
     S(188,282,'MEASURE (M) AND PING (P)\nDrag between squares to see the distance. Click to ping, drag to point. In a session everyone sees them.',{v:2}),
     S(440,276,'MINES\nStone is cave floor; raise it for rock walls. Mine rail follows your stroke. Objects (O) has carts, lanterns, timbers and crystals.',{v:1}),
-    S(600,262,'PLAY TOGETHER\nThe button at the top right starts a live session. Players pick a token and move only their own. You see the whole map; they see what you reveal.'),
-    {k:'wagon',x:56,y:186,v:2},{k:'barrels',x:26,y:196,v:0},{k:'crates',x:130,y:190,v:0},
+    S(600,262,'PLAY TOGETHER\nThe button at the top right starts a live session. Players pick a token and move only their own, which glows gold for them. You see the whole map; they see what you reveal.'),
+    {k:'wagon',x:56,y:186,v:2},{k:'barrels',x:26,y:196,v:0},{k:'crates',x:130,y:190,v:0},{k:'campfire',x:166,y:188,v:0},
+    {k:'torch',x:462,y:290,v:0},{k:'torch',x:498,y:290,v:0},
     {k:'boulder',x:70,y:340,v:0},{k:'boulder',x:130,y:400,v:3},{k:'rock',x:100,y:372,v:0},
     {k:'cart',x:550,y:356,v:0},{k:'lantern',x:480,y:300,v:0},{k:'lantern',x:600,y:330,v:0},{k:'timber',x:500,y:420,v:0},{k:'crystals',x:610,y:420,v:0},{k:'rubble',x:620,y:300,v:0},
     {k:'crystals',x:290,y:420,v:1},{k:'tree',x:210,y:110,v:0},{k:'well',x:520,y:200,v:0}];

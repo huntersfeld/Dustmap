@@ -45,7 +45,8 @@ await p.click('#fogprev');
 await p.reload();await p.waitForTimeout(1200);o=(await objs()).find(o=>o.k==='sign');if(!o||o.txt!=='The old mine lies east. Dragons sleep below.')fail('the sign should survive a reload: '+JSON.stringify(o));
 // the tour map opens as a new map in the library, with its signs and the cave hidden
 await p.click('#more');await p.click('#tour');await p.waitForTimeout(800);
-const tour=await p.evaluate(()=>{const d=window.__dustmap();return{n:d.st.objects.filter(o=>o.k==='sign'&&o.txt).length,fog:(d.st.fog||'').includes('1'),title:document.title,langs:[...new Set(d.st.objects.filter(o=>o.k==='sign').map(o=>o.lang))]}});
+const tour=await p.evaluate(()=>{const d=window.__dustmap();return{n:d.st.objects.filter(o=>o.k==='sign'&&o.txt).length,fog:(d.st.fog||'').includes('1'),title:document.title,fire:d.st.objects.some(o=>o.k==='campfire')&&d.st.objects.some(o=>o.k==='torch'),topics:['NEW MAPS','TORCHES AND CAMPFIRES','FOG OF WAR','TOKENS'].filter(h=>!d.st.objects.some(o=>o.k==='sign'&&(o.txt||'').startsWith(h))),langs:[...new Set(d.st.objects.filter(o=>o.k==='sign').map(o=>o.lang))]}});
+if(!tour.fire||tour.topics.length)fail('tour map is missing newer features: '+JSON.stringify(tour));
 if(tour.n<10||!tour.fog||!/Dustmap tour/.test(tour.title)||tour.langs.length<3)fail('tour map: '+JSON.stringify(tour));
 const nmaps=await p.evaluate(()=>JSON.parse(localStorage.getItem('dustmap-library')).maps.length);if(nmaps!==2)fail('tour should be added as a second map, got '+nmaps);
 await b.close();
