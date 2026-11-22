@@ -20,7 +20,7 @@ try{
       if(m.t==='hello'){await src.page.evaluate(m=>window.__hubRecv(m),{t:'init',store:[...store],peers:[...pres.values()]})}
       if(m.t==='set'){store.set(m.path,m.data);await broadcast(m)}
       if(m.t==='pres'){pres.set(m.peer,{peer:m.peer,by:m.by,kind:'viewer',guest:false,presence:m.presence});await broadcast(m)}});
-    await ctx.addInitScript(`window.__names=${JSON.stringify(NAMES)};(${install.toString()})(${JSON.stringify({id,name:NAMES[id],owner,admin})})`);
+    await ctx.addInitScript(`window.__starterExample=true;window.__names=${JSON.stringify(NAMES)};(${install.toString()})(${JSON.stringify({id,name:NAMES[id],owner,admin})})`);
     await p.goto(PAGE);await p.waitForTimeout(1200);pages.push(p);p.id=id;return p}
   const pick=async(p,i)=>{await p.waitForTimeout(500);if(await p.locator('#mpmodal').isHidden())await p.click('#mpbtn');
     await p.locator('.mppick .tokbtn').nth(i).click()};   // players choose their own token; no DM step

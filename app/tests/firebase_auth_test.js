@@ -18,7 +18,7 @@ try{
   const url=`http://127.0.0.1:${srv.address().port}/dustmap`;
   const ctx=await b.newContext({viewport:{width:1280,height:860}});
   await ctx.route(/cdn\.jsdelivr\.net\/npm\/firebase@[^/]+\/(.+)$/,r=>{const f=r.request().url().match(/firebase@[^/]+\/(.+)$/)[1];r.fulfill({path:path.join(SDK,f),contentType:'text/javascript'})});
-  await ctx.addInitScript(`window.__fbTest={host:'${HOST}',port:${PORT},auth:'${AUTH}'};if(!/as=player/.test(location.search))localStorage.setItem('dustmap-name','Hunter')`);
+  await ctx.addInitScript(`window.__starterExample=true;window.__fbTest={host:'${HOST}',port:${PORT},auth:'${AUTH}'};if(!/as=player/.test(location.search))localStorage.setItem('dustmap-name','Hunter')`);
   const errs=[];const S=p=>p.evaluate(()=>window.__dustmap());
   const open=async u=>{const p=await ctx.newPage();p.on('pageerror',e=>errs.push(e.message));await p.goto(u);return p};
   let dm=await open(url);await until(()=>dm.isVisible('#mpbtn'),'Play together button');
@@ -41,7 +41,7 @@ try{
   await until(async()=>{const d=await S(dm);return d.st.tokens.length===n0+1&&d.st.tokens.some(q=>q.s===12)&&!d.st.tokens.some(q=>q.s===10)},'switching swaps the token');
   // someone else in the room: the taken token is disabled for them, and they can start their own room
   const ctx2=await b.newContext();await ctx2.route(/cdn\.jsdelivr\.net\/npm\/firebase@[^/]+\/(.+)$/,r=>{const f=r.request().url().match(/firebase@[^/]+\/(.+)$/)[1];r.fulfill({path:path.join(SDK,f),contentType:'text/javascript'})});
-  await ctx2.addInitScript(`window.__fbTest={host:'${HOST}',port:${PORT},auth:'${AUTH}'};localStorage.setItem('dustmap-name','Alex')`);
+  await ctx2.addInitScript(`window.__starterExample=true;window.__fbTest={host:'${HOST}',port:${PORT},auth:'${AUTH}'};localStorage.setItem('dustmap-name','Alex')`);
   const p2=await ctx2.newPage();p2.on('pageerror',e=>errs.push(e.message));await p2.goto(url+hash);
   await until(()=>p2.isVisible('.mppick'),'picker for Alex');
   if(!(await p2.locator('.mppick .tokbtn').nth(12).isDisabled()))fail('a taken token should be disabled for others');
