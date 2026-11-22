@@ -112,7 +112,15 @@ try{
   await dm.waitForTimeout(200);
   t0=await walk(-96);
   const col=x=>Math.floor(x/16),row=Math.floor((t0.y-4)/16);
-  await until(async()=>{const f=(await S(dm)).st.fog;return [0,-2,-4,-6].every(d=>sq(f,50,col(t0.x)+d,row)==='0')&&sq(f,50,col(t0.x)-6,row+3)==='1'},'DM fog clears along the walked path');
+  // default reach: 4 squares in every direction
+  await until(async()=>{const f=(await S(dm)).st.fog;return [0,-2,-4,-6].every(d=>sq(f,50,col(t0.x)+d,row)==='0')&&sq(f,50,col(t0.x)-6,row+4)==='0'&&sq(f,50,col(t0.x)-6,row+6)==='1'},'DM fog clears along the walked path');
+  if((await dm.textContent('#walkr-v')).trim()!=='4 sq')fail('walk reach shows 4 squares by default');
+  // the DM can change the reach: 6 squares clears further out around where the token stands
+  await dm.click('#walkr-up');await dm.click('#walkr-up');
+  if((await dm.textContent('#walkr-v')).trim()!=='6 sq')fail('walk reach steps up to 6');
+  {const t=(await S(dm)).st.tokens.find(t=>t.s===3),c=col(t.x),r=Math.floor((t.y-4)/16);const f=(await S(dm)).st.fog;
+   if(r+6<34&&sq(f,50,c,r+6)!=='0')fail('a larger reach reveals further');if(r+7<34&&sq(f,50,c,r+7)!=='1')fail('reach stops at 6')}
+  if((await dm.evaluate(()=>JSON.parse(localStorage.getItem('dustmap-v2')).fogWalkR))!==6)fail('walk reach saves with the map');
   await until(async()=>sq((await S(p1)).fog,50,col(t0.x)-3,row)==='0','player gets the walked reveal');
   if(!(await dm.evaluate(()=>JSON.parse(localStorage.getItem('dustmap-v2')).fogWalk)))fail('walk option saves with the map');
   await p1.screenshot({path:path.join(OUT,'fog_walk_player.png')});

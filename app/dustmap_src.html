@@ -93,6 +93,7 @@ kbd{font-family:ui-monospace,monospace;font-size:11px;background:var(--bg);borde
 .seg button:hover{color:var(--fg)}
 .seg button[aria-pressed="true"]{background:var(--raised);color:var(--fg)}
 .seg svg{width:18px;height:18px}
+.seg.walkr{align-items:center}.seg.walkr button{min-width:30px;font-size:16px}.seg.walkr span{min-width:38px;text-align:center;font-size:12px;font-weight:600;color:var(--fg);font-variant-numeric:tabular-nums}.seg[hidden]{display:none}
 .seg.col{flex-direction:column;padding:2px}
 .seg.col button{height:22px;font-size:11px;padding:0 8px}
 .seg .dot{display:block;border-radius:50%;background:currentColor}
@@ -250,6 +251,7 @@ body.mp-player .dmonly{display:none!important}
         <button class="sw" id="fog-none" aria-label="Reveal all" data-tip="Reveal everything" data-sub="Players see the whole map"></button>
         <button class="sw" id="fog-all" aria-label="Hide all" data-tip="Hide everything" data-sub="Start dark, then reveal as they explore"></button>
         <button class="sw" id="fog-walk" aria-label="Players reveal as they walk" aria-pressed="false" data-tip="Players reveal as they walk" data-sub="Fog clears for everyone wherever a player's token goes"></button>
+        <div class="seg walkr" id="fogwalkr" role="group" aria-label="How far walking reveals"><button id="walkr-dn" aria-label="Reveal less" data-tip="Reveal less" data-sub="Squares cleared in every direction around a walking player">−</button><span id="walkr-v" aria-live="polite"></span><button id="walkr-up" aria-label="Reveal more" data-tip="Reveal more" data-sub="Squares cleared in every direction around a walking player">+</button></div>
         <span class="trnote" id="fognote"></span>
       </div>
       <div class="pane" id="pane-mine"></div>
@@ -976,13 +978,14 @@ function fogWhole(v){const nf=v==='1'?fogAll('1'):null;if(nf===(st.fog||null))re
 // "Players reveal as they walk" (st.fogWalk, set by the DM, saved with the map): the DM's page clears the fog around a
 // party token wherever it goes, so everyone sees what that player walked through. In a live session that means tokens handed
 // to players; outside one, the four party cowboys, so the DM can try it alone. Returns true if anything was revealed.
-const WALK_R=1.5;   // squares whose centres are within 1.5 squares of the token: a 3×3 block
+// st.fogWalkR: how far the reveal reaches, in squares in every direction (DM-set, default 4: a round patch 9 squares across)
+const WALK_DEF=4,WALK_MAX=10,walkR=()=>Number.isInteger(st.fogWalkR)?st.fogWalkR:WALK_DEF;
 const fogWalker=t=>!!t&&(mp.sess&&mp.sess.live?!!mp.sess.assign[t.s]:(TOKINFO[t.s]||{}).group==='Party');
 function fogWalk(t,a,b){if(!st.fogWalk||!st.fog||mp.role==='player'||!fogWalker(t))return false;
-  const pa=[a[0],a[1]-4],pb=[b[0],b[1]-4],n=Math.max(1,Math.ceil(dist(pa,pb)/(GRID/2))),f=st.fog.split('');let ch=false;
+  const pa=[a[0],a[1]-4],pb=[b[0],b[1]-4],n=Math.max(1,Math.ceil(dist(pa,pb)/(GRID/2))),f=st.fog.split(''),R=walkR(),Rr=R+.5;let ch=false;
   for(let k=0;k<=n;k++){const x=pa[0]+(pb[0]-pa[0])*k/n,y=pa[1]+(pb[1]-pa[1])*k/n,c0=Math.floor(x/GRID),r0=Math.floor(y/GRID);
-    for(let dr=-2;dr<=2;dr++)for(let dc=-2;dc<=2;dc++){const c=c0+dc,r=r0+dr;
-      if(c<0||r<0||c>=st.cols||r>=st.rows||Math.hypot(dc,dr)>WALK_R)continue;const i=r*st.cols+c;if(f[i]==='1'){f[i]='0';ch=true}}}
+    for(let dr=-R;dr<=R;dr++)for(let dc=-R;dc<=R;dc++){const c=c0+dc,r=r0+dr;
+      if(c<0||r<0||c>=st.cols||r>=st.rows||Math.hypot(dc,dr)>Rr)continue;const i=r*st.cols+c;if(f[i]==='1'){f[i]='0';ch=true}}}
   if(!ch)return false;st.fog=f.includes('1')?f.join(''):null;return true}
 // map resized by (dx,dy) squares: keep fog under the same ground; new squares start hidden
 function fogResize(oc,or,cols,rows,dx,dy){if(!st.fog)return;const old=st.fog;let f='';
@@ -1286,6 +1289,9 @@ $('rag').oninput=e=>{st.rag=+e.target.value;dirty=true};$('rag').onchange=save;
 $('fog-hide').onclick=()=>{fogMode='hide';syncUI()};$('fog-reveal').onclick=()=>{fogMode='reveal';syncUI()};
 $('fog-brush').onclick=()=>{fogShape='brush';syncUI()};$('fog-box').onclick=()=>{fogShape='box';syncUI()};
 $('fog-all').onclick=()=>fogWhole('1');
+const walkStep=d=>{const r=Math.max(1,Math.min(WALK_MAX,walkR()+d));if(r===walkR())return;push();if(r===WALK_DEF)delete st.fogWalkR;else st.fogWalkR=r;
+  st.tokens.forEach(t=>fogWalk(t,[t.x,t.y],[t.x,t.y]));save();syncUI()};
+$('walkr-dn').onclick=()=>walkStep(-1);$('walkr-up').onclick=()=>walkStep(1);
 $('fog-walk').onclick=()=>{push();st.fogWalk=!st.fogWalk;if(!st.fogWalk)delete st.fogWalk;else st.tokens.forEach(t=>fogWalk(t,[t.x,t.y],[t.x,t.y]));save();syncUI()};$('fog-none').onclick=()=>fogWhole('0');
 $('fogprev').onclick=()=>{fogPreview=!fogPreview;syncUI()};
 $('ogap').oninput=e=>{objGap=+e.target.value};
@@ -1365,6 +1371,7 @@ function syncUI(){
   $('fog-hide').setAttribute('aria-pressed',String(fogMode==='hide'));$('fog-reveal').setAttribute('aria-pressed',String(fogMode==='reveal'));
   $('fog-brush').setAttribute('aria-pressed',String(fogShape==='brush'));$('fog-box').setAttribute('aria-pressed',String(fogShape==='box'));
   $('fogsizes').hidden=fogShape!=='brush';$('fogprev').setAttribute('aria-pressed',String(fogPreview));$('fog-walk').setAttribute('aria-pressed',String(!!st.fogWalk));
+  $('fogwalkr').hidden=!st.fogWalk;$('walkr-v').textContent=walkR()+' sq';$('walkr-v').title=`Reveals ${walkR()} square${walkR()>1?'s':''} in every direction (${walkR()*5} ft)`;
   {const n=st.fog?[...st.fog].filter(c=>c==='1').length:0;$('fognote').textContent=n?`${n} of ${st.cols*st.rows} hidden`:'Nothing hidden'}
   if(pl)buildMine();
   $('rag').value=st.rag;syncHint()}
@@ -1486,7 +1493,7 @@ function libClean(s){s=migrate(s&&typeof s==='object'?s:null);if(!s||!Array.isAr
   s.objects=(Array.isArray(s.objects)?s.objects:[]).filter(o=>o&&OBJ.some(q=>q.k===o.k)&&Number.isFinite(o.x)&&Number.isFinite(o.y));
   s.tokens=(Array.isArray(s.tokens)?s.tokens:[]).filter(t=>t&&Number.isInteger(t.s)&&t.s>=0&&t.s<SHEETS.length&&Number.isFinite(t.x)&&Number.isFinite(t.y));
   s.skip=(Array.isArray(s.skip)?s.skip:[]).filter(k=>typeof k==='string');
-  s.fog=typeof s.fog==='string'&&s.fog.length===s.cols*s.rows&&/^[01]*$/.test(s.fog)&&s.fog.includes('1')?s.fog:null;if(s.fogWalk!==true)delete s.fogWalk;return s}
+  s.fog=typeof s.fog==='string'&&s.fog.length===s.cols*s.rows&&/^[01]*$/.test(s.fog)&&s.fog.includes('1')?s.fog:null;if(s.fogWalk!==true)delete s.fogWalk;if(!(Number.isInteger(s.fogWalkR)&&s.fogWalkR>=1&&s.fogWalkR<=10))delete s.fogWalkR;return s}
 function blankMap(){const ex=example();return{v:3,cols:40,rows:28,seed:Math.floor(Math.random()*100000),rag:5,ops:[],objects:[],tokens:ex.tokens,skip:[]}}
 function libInit(){try{lib=JSON.parse(localStorage.getItem(LIBKEY))}catch(e){lib=null}
   if(!lib||!Array.isArray(lib.maps))lib={cur:null,maps:[]};
