@@ -1,6 +1,7 @@
 const {chromium}=require('playwright');const path=require('path');const fs=require('fs');const {pathToFileURL}=require('url');
 // Fog of war: the DM hides and reveals squares (box, brush, everything), players get the fog live and see darkness there,
 // tokens standing in fog never reach players (unless handed to a player), undo and map resize carry the fog along.
+// Click hides and double click reveals; with "Players reveal as they walk" on, a player's token clears fog along its path.
 // Uses tests/mock_claude_runtime.js in place of claude.ai's db / room / user.
 const PAGE=pathToFileURL(path.resolve(__dirname,'..','dustmap.html')).href;
 const OUT=path.join(__dirname,'output');fs.mkdirSync(OUT,{recursive:true});
@@ -91,6 +92,31 @@ try{
 
   // fog saves with the map
   const saved=await dm.evaluate(()=>JSON.parse(localStorage.getItem('dustmap-v2')).fog);if(saved!==f)fail('fog should save with the map');
+  // single click hides, double click (and drag) reveals; one undo takes the whole double click back
+  await dm.click('#fog-all');await dm.click('#fog-hide');await dm.click('#fog-brush');
+  const c12=await scr(dm,12*16+8,12*16+8);
+  await dm.mouse.dblclick(...c12);await dm.waitForTimeout(200);
+  f=(await S(dm)).st.fog;if(sq(f,50,12,12)!=='0'||sq(f,50,13,12)!=='0'||sq(f,50,20,20)!=='1')fail('double click should reveal around the click');
+  await dm.mouse.move(...c12);await dm.mouse.down();await dm.mouse.up();await dm.waitForTimeout(450);
+  f=(await S(dm)).st.fog;if(sq(f,50,12,12)!=='1')fail('a single click should hide again');
+  await dm.mouse.move(...c12);await dm.mouse.down();await dm.mouse.up();await dm.waitForTimeout(60);await dm.mouse.down();
+  const c16=await scr(dm,16*16+8,12*16+8);for(let k=1;k<=6;k++){await dm.mouse.move(c12[0]+(c16[0]-c12[0])*k/6,c12[1]);await dm.waitForTimeout(30)}await dm.mouse.up();await dm.waitForTimeout(200);
+  f=(await S(dm)).st.fog;if(sq(f,50,12,12)!=='0'||sq(f,50,16,12)!=='0')fail('double click and drag should reveal along the drag');
+  await dm.click('#undo');f=(await S(dm)).st.fog;if(f&&f.includes('0'))fail('undo should take back the double-click stroke: '+[...f].filter(c=>c==='0').length);
+
+  // players reveal as they walk: off by default; with it on, the player's own token clears fog for everyone along its path
+  const me=(await S(p1)).st.tokens.find(t=>t.s===3);if(!me)fail('player token');
+  const walk=async(dx)=>{const t=(await S(p1)).st.tokens.find(t=>t.s===3);await dragMap(p1,[t.x,t.y-10],[t.x+dx,t.y-10]);await p1.waitForTimeout(600);return t};
+  let t0=await walk(48);f=(await S(dm)).st.fog;if(f&&f.includes('0'))fail('walking should not reveal while the option is off');
+  await dm.click('#fog-walk');if(await dm.getAttribute('#fog-walk','aria-pressed')!=='true')fail('walk toggle should show as on');
+  await dm.waitForTimeout(200);
+  t0=await walk(-96);
+  const col=x=>Math.floor(x/16),row=Math.floor((t0.y-4)/16);
+  await until(async()=>{const f=(await S(dm)).st.fog;return [0,-2,-4,-6].every(d=>sq(f,50,col(t0.x)+d,row)==='0')&&sq(f,50,col(t0.x)-6,row+3)==='1'},'DM fog clears along the walked path');
+  await until(async()=>sq((await S(p1)).fog,50,col(t0.x)-3,row)==='0','player gets the walked reveal');
+  if(!(await dm.evaluate(()=>JSON.parse(localStorage.getItem('dustmap-v2')).fogWalk)))fail('walk option saves with the map');
+  await p1.screenshot({path:path.join(OUT,'fog_walk_player.png')});
+
   // reveal everything
   await dm.click('#fog-none');
   await until(async()=>(await S(p1)).fog===null,'player sees everything again');
@@ -98,6 +124,6 @@ try{
   // a player can't use the fog tool
   await p1.keyboard.press('f');if((await S(p1)).tool==='fog')fail('player should not get the fog tool');
   for(const p of pages)if(p.errs.length)fail(p.id+' page errors: '+p.errs.join('; '));
-  console.log('PASS: fog of war hide/reveal, live to players, hidden tokens, undo, preview, resize');
+  console.log('PASS: fog of war hide/reveal, live to players, hidden tokens, undo, preview, resize, double click, reveal by walking');
 }catch(e){console.error('FAIL:',e.message);code=1}
 finally{await b.close();process.exit(code)}})();
