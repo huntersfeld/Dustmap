@@ -534,7 +534,9 @@ function migrate(s){if(!s)return null;if((s.v===2||s.v===3)&&s.ops){s.cols=s.col
 function load(){try{const a=localStorage.getItem('dustmap-v2');if(a)return migrate(JSON.parse(a));return migrate(JSON.parse(localStorage.getItem('dustmap-v1')))}catch(e){return null}}
 // while playing in someone else's session the shared map is on screen: it never overwrites this browser's own maps
 function save(){if(mp.role==='player')return;const j=JSON.stringify(st);try{localStorage.setItem('dustmap-v2',j)}catch(e){}libSaved(j);mpChanged()}
-let st=load()||example();W=st.cols*GRID;H=st.rows*GRID;
+// fresh: nothing saved in this browser yet, so libInit opens the tour map instead of the starter example
+// (tests written against the example set window.__starterExample before the page loads)
+const fresh=!load()&&!window.__starterExample;let st=load()||example();W=st.cols*GRID;H=st.rows*GRID;
 // multiplayer state (see the Play together section near the end)
 const mp={db:null,room:null,user:null,me:null,owner:false,edit:false,avail:false,sess:null,role:'off',
   meta:null,parts:new Map(),applied:null,tok:null,tokApplied:null,ready:{map:false,tok:false,sess:false,fog:false},
@@ -1727,7 +1729,9 @@ function blankMap(base,cols,rows){cols=cols||40;rows=rows||28;const ex=example()
 function libInit(){try{lib=JSON.parse(localStorage.getItem(LIBKEY))}catch(e){lib=null}
   if(!lib||!Array.isArray(lib.maps))lib={cur:null,maps:[]};
   lib.maps=lib.maps.filter(m=>m&&typeof m.id==='string');lib.maps.forEach(m=>m.name=String(m.name||'Untitled map').slice(0,60));
-  if(!libCur()){const id=libId();lib.maps.unshift({id,name:libUniq(lib.maps.length?'Recovered map':'My first map'),...libMeta(st)});lib.cur=id}
+  // a first visit lands on the tour map (it's built here, once signs and every object kind are registered)
+  const tour=fresh&&!lib.maps.length?libClean(tourMap()):null;if(tour){st=tour;applySize()}
+  if(!libCur()){const id=libId();lib.maps.unshift({id,name:libUniq(tour?'Dustmap tour':lib.maps.length?'Recovered map':'My first map'),...libMeta(st)});lib.cur=id}
   const m=libCur();m.cols=st.cols;m.rows=st.rows;m.updated=m.updated||Date.now();
   const j=JSON.stringify(st);try{localStorage.setItem('dustmap-v2',j)}catch(e){}libPut(m.id,j);libStore();libLabel()}
 function libLabel(){const m=libCur();$('libname').textContent=m?m.name:'';document.title=m?`${m.name} · Dustmap`:'Dustmap'}

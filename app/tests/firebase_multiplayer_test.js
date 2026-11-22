@@ -22,7 +22,7 @@ try{
   async function open(uid,name,hash=''){
     const ctx=await b.newContext({viewport:{width:1280,height:860}});
     await ctx.route(/cdn\.jsdelivr\.net\/npm\/firebase@[^/]+\/(.+)$/,(r)=>{const f=r.request().url().match(/firebase@[^/]+\/(.+)$/)[1];r.fulfill({path:path.join(SDK,f),contentType:'text/javascript'})});
-    await ctx.addInitScript(`window.__fbTest={host:'${HOST}',port:${PORT},uid:'${uid}'};${name?`localStorage.setItem('dustmap-name','${name}')`:''}`);
+    await ctx.addInitScript(`window.__starterExample=true;window.__fbTest={host:'${HOST}',port:${PORT},uid:'${uid}'};${name?`localStorage.setItem('dustmap-name','${name}')`:''}`);
     const p=await ctx.newPage();p.errs=[];p.on('pageerror',e=>p.errs.push(e.message));p.uid=uid;
     await p.goto(page+hash);await p.waitForTimeout(1500);pages.push(p);return p}
   const pick=async(p,i)=>{await p.waitForTimeout(500);if(await p.locator('#mpmodal').isHidden())await p.click('#mpbtn');
