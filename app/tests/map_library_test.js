@@ -17,14 +17,15 @@ let L=await lib(p);if(L.maps.length!==1||L.maps[0].id!==L.cur)fail('expected one
 const exampleOps=(await cur(p)).ops.length;if(!exampleOps)fail('example map should have shapes');
 if(!(await p.textContent('#libname')).trim())fail('header should show the map name');
 
-// new blank map, renamed by typing
+// new blank map from the library's New map button: the new map dialog takes the name
 await p.click('#libbtn');await p.click('#libnew');await p.waitForTimeout(300);
-await p.fill('.libmap input','Mine level 1');await p.press('.libmap input','Enter');
+if(!await p.isVisible('#newmodal'))fail('New map should open the new map dialog');
+await p.fill('#newname','Mine level 1');await p.click('#newgo');await p.waitForTimeout(300);
 L=await lib(p);if(L.maps.length!==2)fail('new map not added');
 if(L.maps.find(m=>m.id===L.cur).name!=='Mine level 1')fail('rename failed: '+JSON.stringify(L.maps));
 if((await cur(p)).ops.length!==0)fail('new map should be blank');
 if(await p.isDisabled('#undo')===false)fail('undo history should not carry over to a new map');
-await p.click('#libclose');
+if(await p.isVisible('#newmodal')||await p.isVisible('#libmodal'))fail('dialogs should close after creating a map');
 // draw a shape on it
 const box=await (await p.$('#map')).boundingBox();const c=[box.x+box.width/2,box.y+box.height/2];
 await p.keyboard.press('d');for(const [dx,dy] of [[-60,-40],[60,-40],[60,40],[-60,40]])await p.mouse.click(c[0]+dx,c[1]+dy);await p.keyboard.press('Enter');await p.waitForTimeout(400);

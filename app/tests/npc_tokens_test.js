@@ -15,10 +15,20 @@ const groups=await p.$$eval('#toks .seg button',els=>els.map(e=>e.textContent));
 const party=await p.$$eval('#toks .sw',els=>els.length);ok(party===4,'4 party tokens, got '+party);
 // Bandit variant B: open the Town group, pick Bandit, then its B colour
 await p.click('#tg-Townsfolk');
-const names=await p.$$eval('#toks .sw',els=>els.map(e=>e.getAttribute('aria-label')));ok(names.includes('Bandit (B)')&&names.includes('Sheriff'),'town '+names.slice(0,8));
-const s=+(await p.getAttribute('#toks .sw[aria-label="Bandit (B)"]','id')).slice(3);ok(s>3,'bandit B button');
+const names=await p.$$eval('#toks .sw',els=>els.map(e=>e.getAttribute('aria-label')));ok(names.includes('Bandit')&&names.includes('Sheriff')&&!names.includes('Bandit (B)'),'town, one swatch per character '+names.slice(0,8));
+// clicking a character with colours opens them in a column above its swatch
+await p.click('#toks .sw[aria-label="Bandit"]');ok(await p.isVisible('#tokvars'),'colour column opens');
+const vb=await p.$$eval('#tokvars .sw',els=>els.map(e=>{const r=e.getBoundingClientRect();return[e.getAttribute('aria-label'),Math.round(r.left),Math.round(r.top)]}));
+ok(vb.length>1&&vb.every(q=>q[1]===vb[0][1])&&vb.every((q,i)=>!i||q[2]>vb[i-1][2]),'colours stack vertically '+JSON.stringify(vb));
+const tray=await (await p.$('#tray')).boundingBox();ok(vb.every(q=>q[2]<tray.y),'column sits above the tray');
+const s=+(await p.getAttribute('#tokvars .sw[aria-label="Bandit (B)"]','id')).slice(3);ok(s>3,'bandit B button');
+await p.screenshot({path:path.join(OUT,'tok_colours_column.png'),clip:{x:Math.max(0,tray.x),y:Math.max(0,vb[0][2]-30),width:Math.min(900,tray.width),height:tray.y+tray.height-vb[0][2]+40}});
 await p.click(`#tk-${s}`);
-ok(await p.getAttribute(`#tk-${s}`,'aria-pressed')==='true','bandit B picked');
+ok(await p.isHidden('#tokvars'),'column closes after picking');
+ok(await p.getAttribute('#toks .sw[aria-label="Bandit"]','aria-pressed')==='true'&&await p.evaluate(s=>!!document.querySelector('#toks .sw[aria-label="Bandit"]').dataset.toks.split(',').includes(String(s)),s),'bandit B picked');
+// arrow keys step through the colours
+await p.keyboard.press('ArrowDown');ok(await p.isVisible('#tokvars')&&await p.getAttribute(`#tk-${s}`,'aria-pressed')==='false','arrow down picks the next colour');
+await p.keyboard.press('ArrowUp');ok(await p.getAttribute(`#tk-${s}`,'aria-pressed')==='true','arrow up goes back');await p.keyboard.press('Escape');ok(await p.isHidden('#tokvars'),'Escape closes the column');
 const box=await (await p.$('#map')).boundingBox();
 const z=await p.evaluate(()=>parseInt(document.getElementById('zlabel').textContent)/100);
 const mapW=640*z,mapH=448*z,mx=box.x+(box.width-mapW)/2,my=box.y+(box.height-mapH)/2;const m=(x,y)=>[mx+x*z,my+y*z];
@@ -27,7 +37,7 @@ let [x,y]=m(203,183);await p.mouse.move(x,y);await p.waitForTimeout(100);await p
 let t=await tokens();ok(t.length===n0+1,'one token placed');const last=t[t.length-1];
 ok(last.s===s&&last.x===200&&last.y===184,'snapped to 8 px: '+JSON.stringify(last));
 // 2x2 group of rattlesnakes (variant A), one square apart
-await p.click('#tg-Enemies');const snake=+(await p.getAttribute('#toks .sw[aria-label="Rattlesnake (A)"]','id')).slice(3);
+await p.click('#tg-Enemies');await p.click('#toks .sw[aria-label="Rattlesnake"]');const snake=+(await p.getAttribute('#tokvars .sw[aria-label="Rattlesnake (A)"]','id')).slice(3);
 await p.click(`#tk-${snake}`);if(await p.isHidden('#gridpop'))await p.click('#gridbtn');
 const cell=async(c,r)=>{const bb=await (await p.$(`#gridpick span[data-c="${c}"][data-r="${r}"]`)).boundingBox();return[bb.x+bb.width/2,bb.y+bb.height/2]};
 {const [a1,a2]=await cell(1,1),[e1,e2]=await cell(2,2);await p.mouse.move(a1,a2);await p.mouse.down();await p.mouse.move(e1,e2,{steps:4});await p.mouse.up()}

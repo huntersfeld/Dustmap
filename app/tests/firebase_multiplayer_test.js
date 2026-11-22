@@ -94,7 +94,7 @@ try{
   // group maps: end the session, Sam builds a map on his own and shares it; Hunter opens it, Sam edits, Hunter gets the latest
   await dm.click('#mpbtn');await dm.click('#mpbody button:has-text("End session")');await dm.click('#mpclose');
   await until(async()=>(await S(p3)).role==='off'&&(await S(dm)).role==='off','session ended');
-  await p3.click('#libbtn');await p3.click('#libnew');await p3.fill('.libmap input','Sam canyon');await p3.press('.libmap input','Enter');await p3.click('#libclose');
+  await p3.click('#libbtn');await p3.click('#libnew');await p3.fill('#newname','Sam canyon');await p3.click('#newgo');
   await p3.keyboard.press('d');{const box=await (await p3.$('#map')).boundingBox();const c=[box.x+box.width/2,box.y+box.height/2];
     for(const[dx,dy]of[[-50,-30],[50,-30],[50,30]])await p3.mouse.click(c[0]+dx,c[1]+dy);await p3.keyboard.press('Enter')}
   await p3.click('#libbtn');await p3.locator('.libmap',{hasText:'Sam canyon'}).getByRole('button',{name:'Share with group'}).click();

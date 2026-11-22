@@ -60,6 +60,12 @@ try{
   await dm.click('#mpclose').catch(()=>{});
   await until(async()=>(await p1.textContent('#hint')).includes('Wizard'),'player hint shows their cowboy');
   await until(async()=>p1.evaluate(()=>document.getElementById('mpmodal').hidden),'character picker opened for the player closes once they have one');
+  // the player's own token gets a gold aura; the DM sees only a faint ring on it
+  {const gold=p=>p.evaluate(()=>{const d=window.__dustmap(),t=d.st.tokens.find(t=>t.s===3),cv=document.getElementById('map'),g=cv.getContext('2d'),k=cv.width/cv.clientWidth;
+     let n=0;for(const[dx,dy]of[...[-12,-11,-10,-9,-8].flatMap(x=>[-2,-1,0,1,2].map(y=>[x,y])),...[-1,0,1].flatMap(x=>[-41,-40,-39,-38,-37,-36,-35].map(y=>[x,y]))]){const sx=((t.x+dx-d.cam.x)*d.Z)*k,sy=((t.y+dy-d.cam.y)*d.Z)*k,q=g.getImageData(Math.round(sx),Math.round(sy),1,1).data;if(q[0]>225&&q[1]>180&&q[1]<235&&q[2]<170)n++}return n});
+   await wait(300);const a1=await gold(p1),a0=await gold(dm);if(!(a1>0))fail('player token has no aura');if(a0>0)fail('DM view shows the player aura');
+   for(let i=0;i<3;i++)await p1.keyboard.press('+');await p1.click('#me-3');await wait(250);{const t=(await S(p1)).st.tokens.find(t=>t.s===3),c=await scr(p1,t.x,t.y-14);await p1.screenshot({path:path.join(OUT,'mp_player_aura.png'),clip:{x:Math.max(0,c[0]-160),y:Math.max(0,c[1]-130),width:320,height:240}})}await p1.keyboard.press('0');await wait(200);
+  }
 
   // player drags the Wizard one square-ish right and down
   let tk=(await S(p1)).st.tokens;const wiz=tk.find(t=>t.s===3),har=tk.find(t=>t.s===0);
