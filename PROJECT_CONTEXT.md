@@ -194,6 +194,15 @@ Shared documents: `live/session {live, dm, assign:{<sheet>:<user id>}}`, `live/m
 - **Roles:** assignments are per character (sheet index), so they survive map switches. The owner can make someone else DM (their page saves the shared map as "Session map" in their library and carries on) and take it back.
 - Tests: `multiplayer_test.js` (claude.ai transport, mocked) and `firebase_multiplayer_test.js` (Firebase transport + rules, against the local database emulator: `java -jar firebase-database-emulator-*.jar --port 9000`, with `FIREBASE_SDK` pointing at an installed `firebase@10.12.2`).
 
+## Characters from D&D Beyond
+
+- Any token can carry a character card: name, race, classes, level, HP (current / max / temp), AC, speed, the six scores and the portrait. The DM opens it from the selection bar, the right-click menu or a double-click; a player opens their own from their tray or Play together.
+- **Import:** paste the character link (`dndbeyond.com/characters/<id>`, share links and bare ids work too). The page tries `character-service.dndbeyond.com/character/v5/character/<id>` first, but D&D Beyond only allows its own site to read it from a browser (CORS), so normally the dialog falls back to: open that URL in a new tab, copy everything, paste it back. Only **Public** characters work (private / campaign-only return `success:false`, shown as a "make it public" message). The endpoint is unofficial and may change.
+- `DDB_PROXY` (top of the characters section in `dustmap_src.html`) is empty; set it to a server URL containing `{id}` that returns the same JSON (e.g. a route on the Vercel site) and the import becomes one step. D&D Beyond's terms discourage automated access, so this was left off.
+- `ddbParse` derives the numbers: ability scores from base + racial/feat/item bonuses (items only when equipped and attuned) or overrides; HP = base + (CON mod + per-level bonuses) × level + bonus, or the override, minus damage taken; AC from worn armor (light + DEX, medium + DEX ≤ 2, heavy), unarmored defense, shield, bonuses and the sheet's AC override (`characterValues` typeId 1, magic 2, misc 3). Only the summary (`charClean`, < 1 KB) is kept or shared, never the full JSON.
+- Storage: the DM's (and solo) cards by sheet index in `localStorage['dustmap-chars']`; a player's own in `dustmap-mychar`. Live: the player's card goes out on presence (`ch:{c,n}`), the DM's page takes it for the token they play, and publishes `live/chars {c:{<sheet>:summary}}` (only tokens someone plays or can see). HP/AC edits by the DM flow back to the player's copy. Everyone sees an HP bar under character tokens, and name / HP / AC on hover.
+- Test: `app/tests/ddb_import_test.js` with `app/tests/fixtures/ddb_character.json`.
+
 ## Known limitations
 
 - Full redraws are slow on 60×40 maps; maps above 60×40 are disabled.

@@ -224,6 +224,34 @@ body.mp-player .dmonly{display:none!important}
 .mppick .tokbtn canvas{width:32px;height:32px;image-rendering:pixelated}
 .mppick .tokbtn[aria-pressed="true"]{border-color:var(--accent);background:var(--raised)}
 .mppick .tokbtn:disabled{opacity:.3;cursor:default}
+.chcard{width:min(520px,100%)}
+.chtop{display:flex;align-items:center;gap:12px}
+.chtop img{width:56px;height:56px;border-radius:8px;object-fit:cover;background:var(--bg);image-rendering:auto;flex:none}
+.chtop .nm{display:flex;flex-direction:column;gap:2px;min-width:0}
+.chtop .nm b{font-family:var(--display);font-size:20px;color:var(--accent)}
+.chtop .nm span{color:var(--muted);font-size:13px}
+.chstats{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.chstat{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:6px 8px;display:flex;flex-direction:column;gap:3px;min-width:0}
+.chstat.hp{grid-column:1/-1}
+.chstat .lbl,.chab .lbl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.chstat b{font-size:18px}
+.chstat input{width:100%;min-width:0;background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:5px;padding:3px 6px;font:600 16px var(--ui)}
+.hprow{display:flex;align-items:center;gap:6px}
+.hprow input{width:72px;flex:none}
+.hprow .of{color:var(--muted);font-size:15px;margin-right:auto}
+.hprow .btn{width:32px;justify-content:center;padding:4px}
+.hpbar{height:6px;border-radius:3px;background:var(--line);overflow:hidden}
+.hpbar i{display:block;height:100%}
+.chabs{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
+.chab{display:flex;flex-direction:column;align-items:center;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:5px 2px}
+.chab b{font-size:17px}
+.chab .sc{font-size:12px;color:var(--muted)}
+.chin{flex:1;min-width:0;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:7px 9px;font:inherit}
+.chsteps{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:8px;line-height:1.45}
+.chsteps a{color:var(--accent)}
+.chpaste{display:block;width:100%;min-height:80px;margin-top:6px;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:8px;font:12px/1.4 ui-monospace,monospace;resize:vertical}
+a.btn{text-decoration:none;color:var(--fg)}
+@media (max-width:480px){.chstats{grid-template-columns:repeat(2,1fr)}.chabs{grid-template-columns:repeat(3,1fr)}}
 @media (max-width:760px){
   .brand{display:none}
   .topl{max-width:calc(100% - 262px);padding-left:6px}
@@ -357,6 +385,13 @@ body.mp-player .dmonly{display:none!important}
   </div>
 </div>
 
+<div class="modal" id="chmodal" hidden>
+  <div class="card chcard" role="dialog" aria-labelledby="chtitle">
+    <div class="row"><b id="chtitle">Character</b><span class="note" id="chsub"></span><button class="btn" id="chclose" style="margin-left:auto">Close</button></div>
+    <div id="chbody" class="mpbody"></div>
+  </div>
+</div>
+
 <div class="modal" id="libmodal" hidden>
   <div class="card lib" id="libcard" role="dialog" aria-labelledby="libtitle">
     <div class="row"><b id="libtitle">Maps</b><button class="btn" id="libclose" style="margin-left:auto">Close</button></div>
@@ -444,7 +479,8 @@ const ICON={select:'M6 3l13 8-6 1.5-3 6z',
  walk:'M8 3.5c1.4 0 2.2 1.6 2.2 3.6S9.4 11 8 11 5.8 9.1 5.8 7.1 6.6 3.5 8 3.5z M6.3 13.5h3.4v1.6a1.7 1.7 0 01-3.4 0z M16 9c1.4 0 2.2 1.6 2.2 3.6s-.8 3.9-2.2 3.9-2.2-1.9-2.2-3.9S14.6 9 16 9z M14.3 19h3.4v.6a1.7 1.7 0 01-3.4 0z',
  copy:'M8 8h13v13H8z M4 16V4h12',
  trash:'M4 7h16 M10 11v6 M14 11v6 M6 7l1 13h10l1-13 M9 7V4h6v3',
- stamp:'M9 3h6v6l3 3v3H6v-3l3-3z M5 21h14'};
+ stamp:'M9 3h6v6l3 3v3H6v-3l3-3z M5 21h14',
+ sheet:'M6 3h9l4 4v14H6z M14 3v5h5 M9 12h7 M9 16h7'};
 const svgI=(k,w=1.8)=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${ICON[k]}"/></svg>`;
 // the tool rail. Paint and Hills each cover both brush and shape drawing (tool 'brush' / 'draw'); Hills also holds Sculpt.
 // Objects and Tokens are both the 'object' tool underneath (objKind 'tok:<s>' places tokens). Pan (H) has no button: drag empty ground.
@@ -504,7 +540,7 @@ const mp={db:null,room:null,user:null,me:null,owner:false,edit:false,avail:false
   meta:null,parts:new Map(),applied:null,tok:null,tokApplied:null,ready:{map:false,tok:false,sess:false,fog:false},
   pushed:{map:null,tok:null,fog:null},fog:null,walkLast:new Map(),lastPos:new Map(),tokR:{},busy:false,again:false,timer:0,
   peers:[],profiles:{},trails:new Map(),pingSeen:new Map(),mvSeen:new Map(),ghost:new Map(),
-  pres:{},pickSeen:new Map(),sent:'',myPing:0,myMv:0,pend:null,err:'',heldTok:null};
+  pres:{},pickSeen:new Map(),chars:null,chSeen:new Map(),chPend:false,sent:'',myPing:0,myMv:0,pend:null,err:'',heldTok:null};
 let tool='select',paint={layer:'ground',t:3},tab='ground',paintMode='brush',groundPaint={layer:'ground',t:3},heightPaint={layer:'height',h:1,s:0},heightSculpt=true,tokGroup='Party',objKind='saloon',bsize=6,objCells=new Set(['1,1']),objMix=false,mixKinds=new Set(),scatDens=70,scatSeed=1,objGap=2,boxSel=null,stampRot=0,objScat=false,scatCount=6,scatArea=4,tokMix=new Set(),tokScatter=false,tokSeed=1;
 let stamps=(()=>{try{return JSON.parse(localStorage.getItem('dustmap-stamps'))||[]}catch(e){return[]}})();
 const saveStamps=()=>{try{localStorage.setItem('dustmap-stamps',JSON.stringify(stamps))}catch(e){}};
@@ -1264,7 +1300,7 @@ function draw(ts){
   // pointer with a fading tail
   if(pointer){const now2=performance.now();
     if(!pointer.down&&now2-pointer.end>TAIL)pointer=null;else drawTrail(pointer.trail,pointer.down,'242,196,159',now2)}
-  mpDraw();
+  drawChars();mpDraw();
   // pings
   const now=performance.now();pings=pings.filter(p=>now-p.t0<1600);
   pings.forEach(p=>{const t=(now-p.t0)/1600,rgb=p.rgb||'242,196,159';for(let k=0;k<2;k++){const tt=(t+k*.25)%1;ctx.beginPath();ctx.arc(p.x*Z,p.y*Z,8+tt*46,0,7);ctx.strokeStyle=`rgba(${rgb},${(1-tt)*(1-t*.6)})`;ctx.lineWidth=4;ctx.stroke()}
@@ -1563,9 +1599,10 @@ function syncUI(){
   $('rag').value=st.rag;syncHint()}
 // a player's tray: their own token(s); click one to find it on the map
 let mineKey='';
-function buildMine(){const box=$('pane-mine'),mine=st.tokens.filter(t=>mpMayMove(t,mp.me)),k=mine.map(t=>t.s).join();if(k===mineKey&&box.childElementCount)return;mineKey=k;box.replaceChildren();
+function buildMine(){const box=$('pane-mine'),mine=st.tokens.filter(t=>mpMayMove(t,mp.me)),k=mine.map(t=>t.s).join()+'|'+(myChar?myChar.name:'');if(k===mineKey&&box.childElementCount)return;mineKey=k;box.replaceChildren();
   if(!mine.length){const b=document.createElement('button');b.className='btn primary';b.textContent='Pick a token';b.onclick=()=>$('mpbtn').click();box.append(b);return}
-  mine.forEach(t=>{const b=itemBtn('me-'+t.s,tokSwatch(t.s),tokLabel(t.s),'Your token. Click to find it on the map.','',()=>{const q=st.tokens.find(q=>q.s===t.s);if(q){cam.x=q.x-viewW/Z/2;cam.y=q.y-viewH/Z/2;clampCam()}});b.classList.add('tok');box.append(b)})}
+  mine.forEach(t=>{const b=itemBtn('me-'+t.s,tokSwatch(t.s),tokLabel(t.s),'Your token. Click to find it on the map.','',()=>{const q=st.tokens.find(q=>q.s===t.s);if(q){cam.x=q.x-viewW/Z/2;cam.y=q.y-viewH/Z/2;clampCam()}});b.classList.add('tok');box.append(b)});
+  const c=myChar,cb=document.createElement('button');cb.className='btn';cb.id='mychar';cb.textContent=c?c.name:'Add your character';cb.dataset.tip=c?'Your character':'Add your character';cb.dataset.sub=c?'HP, AC and ability scores':'Import from D&D Beyond';cb.onclick=()=>openChar('me');box.append(cb)}
 function paintName(){return paint.layer==='ground'?TERR[paint.t].name:ELEV.find(e=>e.h===paint.h&&e.s===paint.s).name}
 function syncHint(){const h=$('hint');h.replaceChildren();
   const add=html=>{const s=document.createElement('span');s.innerHTML=html;h.append(s)};
@@ -1619,6 +1656,7 @@ function selBox(){if(!sel)return null;if(sel.type==='token'){const t=st.tokens[s
 let selKey='';
 function buildSelbar(){const bar=$('selbar');bar.replaceChildren();const add=(icon,name,key,sub,fn,cls)=>{const b=document.createElement('button');b.className='ib'+(cls?' '+cls:'');b.innerHTML=svgI(icon,2);
     b.setAttribute('aria-label',name);b.dataset.tip=name;if(key)b.dataset.key=key;if(sub)b.dataset.sub=sub;b.onclick=fn;bar.append(b)};
+  if(sel.type==='token'){const t=st.tokens[sel.i];if(t)add('sheet',charFor(t.s)?'Character':'Add a character','',charFor(t.s)?'HP, AC and ability scores':'Import from D&D Beyond',()=>openChar(t.s))}
   add('copy','Duplicate','Ctrl D','A copy, one square over',dupSel);
   if(sel.type==='obj'&&isSign(sel.i))add('sign','Edit sign','Enter','Write the message and pick its language',()=>signEdit(sel.i));
   if(sel.type==='obj'||sel.type==='objs')add('stamp','Save as stamp','','Reuse this group from the Objects tray',saveStamp);
@@ -1640,6 +1678,7 @@ function openQuick(cx,cy,p){const m=$('qmenu'),pl=mp.role==='player';m.replaceCh
     b.append(label);b.onclick=()=>{qClose();fn()};m.append(b)};
   add('ping','Ping here',()=>{pings.push({x:p[0],y:p[1],t0:performance.now()});mpPinged(p[0],p[1])});
   add('measure','Measure from here',()=>{setTool('measure');const sn=q=>[Math.floor(q[0]/GRID)*GRID+GRID/2,Math.floor(q[1]/GRID)*GRID+GRID/2];measure={a:sn(p),b:sn(p),snap:sn,down:false,follow:true};syncHint()});
+  {const h=hit(p);if(h&&h.type==='token'){const s=st.tokens[h.i].s,c=charFor(s);if(c||charMine(s))add('sheet',c?c.name+'’s character':'Add a character to '+tokLabel(s),()=>openChar(s))}}
   if(!pl){const h=hit(p);
     if(h&&(h.type==='token'||h.type==='obj')){const pickIt=()=>{setTool('select');if(h.type==='token')sel={type:'token',i:h.i};else{const o=st.objects[h.i];setObjSel(o.g?st.objects.map((q,i)=>q.g===o.g?i:-1).filter(i=>i>=0):[h.i])}};
       const nm=h.type==='token'?tokLabel(st.tokens[h.i].s):OBJ.find(o=>o.k===st.objects[h.i].k).name;
@@ -1949,6 +1988,7 @@ async function mpInit(){
   db.doc('live/map').onSnapshot(sn=>{mp.ready.map=true;mp.meta=sn.exists?sn.data():null;mpTryMap()},mpFail);
   db.collection('live/map/parts').onSnapshot(q=>{mp.parts=new Map(q.docs.map(d=>[d.id,d.data()]));mpTryMap()},mpFail);
   db.doc('live/fog').onSnapshot(sn=>{mp.ready.fog=true;mp.fog=sn.exists?fogCleanDoc(sn.data()):null},mpFail);
+  db.doc('live/chars').onSnapshot(sn=>charsArrived(sn.exists?sn.data():null),()=>{});
   db.doc('live/tokens').onSnapshot(sn=>{mp.ready.tok=true;mp.tok=sn.exists?sn.data():null;
     if(mp.tok&&Array.isArray(mp.tok.list))mp.tok.list.forEach(t=>{if(t&&typeof t.id==='string'&&fin(t.r))mp.tokR[t.id]=Math.max(mp.tokR[t.id]||0,+t.r)});mpTryTokens()},mpFail);
   room.onPeers(mpPeers);
@@ -1990,6 +2030,7 @@ async function mpPush(){if(mp.role!=='dm'||!mp.db)return;
       st.tokens.forEach(t=>{const lp=mp.lastPos.get(t.id);if(!lp||lp[0]!==t.x||lp[1]!==t.y)mp.tokR[t.id]=rev});
       await mp.db.doc('live/tokens').set({rev,list:shown.map(t=>({id:t.id,s:t.s,x:t.x,y:t.y,o:t.o||0,r:mp.tokR[t.id]||0}))});
       mp.tokApplied=rev;mp.pushed.tok=tj;mp.lastPos=new Map(st.tokens.map(t=>[t.id,[t.x,t.y]]))}
+    const cj=JSON.stringify(charsShared());if(cj!==mp.pushed.ch){await mp.db.doc('live/chars').set({c:JSON.parse(cj)});mp.pushed.ch=cj}
     if(mp.err){mp.err='';mpUI()}}
   catch(e){mp.err=e&&e.code==='invalid_argument'?(mp.fb?'Your changes aren’t reaching the players: only the room’s owner or DM can change the shared map.':'Your changes aren’t reaching the players: running a session needs Editor access to this page.'):e&&e.code==='quota_exceeded'?'The shared map is too big to send.':'Your latest change hasn’t reached the players yet. It will go with the next one.';mpUI()}
   finally{mp.busy=false;if(mp.again){mp.again=false;mpPush()}}}
@@ -2014,11 +2055,11 @@ function mpPinged(x,y){if(mp.role!=='off')mp.pres.ping={x:Math.round(x),y:Math.r
 
 // ---- presence: what I'm doing, sent as absolute state ----
 function mpTick(){if(!mp.room)return;let pr;
-  if(mp.role==='off'){if(!mp.sent)return;pr={cur:null,ptr:null,meas:null,drag:null,ping:null,mv:null,pick:null}}
+  if(mp.role==='off'){if(!mp.sent)return;pr={cur:null,ptr:null,meas:null,drag:null,ping:null,mv:null,pick:null,ch:null}}
   else{const tk=drag&&drag.kind==='token'?st.tokens[drag.i]:null,hd=pointer&&pointer.down?pointer.trail[pointer.trail.length-1]:null;
     pr={cur:hover&&hover[0]>=0&&hover[1]>=0&&hover[0]<=W&&hover[1]<=H?[Math.round(hover[0]),Math.round(hover[1])]:null,
       ptr:hd?[Math.round(hd.x),Math.round(hd.y)]:null,meas:measure?{a:measure.a,b:measure.b}:null,
-      drag:tk&&tk.id?{id:tk.id,x:Math.round(tk.x),y:Math.round(tk.y)}:null,ping:mp.pres.ping||null,mv:mp.pres.mv||null,pick:Number.isInteger(mp.pres.pick)?mp.pres.pick:null}}
+      drag:tk&&tk.id?{id:tk.id,x:Math.round(tk.x),y:Math.round(tk.y)}:null,ping:mp.pres.ping||null,mv:mp.pres.mv||null,pick:Number.isInteger(mp.pres.pick)?mp.pres.pick:null,ch:mp.role==='player'&&myChar?{c:myChar,n:myCharN}:null}}
   const j=JSON.stringify(pr);if(j===mp.sent)return;mp.sent=mp.role==='off'?'':j;mp.room.presence(pr).catch(()=>{})}
 const ptOk=q=>Array.isArray(q)&&q.length===2&&fin(q[0])&&fin(q[1]);
 function mpPeers(ch){mp.peers=ch.peers;const now=performance.now(),ghost=new Map();let commit=false;
@@ -2032,11 +2073,12 @@ function mpPeers(ch){mp.peers=ch.peers;const now=performance.now(),ghost=new Map
     const dg=pr.drag;if(dg&&typeof dg.id==='string'&&fin(dg.x)&&fin(dg.y)){const t=st.tokens.find(t=>t.id===dg.id);if(t&&mpMayMove(t,p.by)){const gp=[Math.max(0,Math.min(W,+dg.x)),Math.max(0,Math.min(H,+dg.y))];ghost.set(dg.id,gp);
       // players reveal as they walk: follow the token while it's being dragged, not just where it lands
       if(mp.role==='dm'){if(fogWalk(t,mp.walkLast.get(t.id)||[t.x,t.y],gp))commit=true;mp.walkLast.set(t.id,gp)}}}
+    if(mp.role==='dm'&&charTake(p,pr))commit=true;
     if(mp.role==='dm'){const mv=pr.mv;
       if(mv&&typeof mv.id==='string'&&mp.mvSeen.get(key)!==mv.n){mp.mvSeen.set(key,mv.n);const t=st.tokens.find(t=>t.id===mv.id);
         if(t&&p.by&&p.by!==mp.me&&mpMayMove(t,p.by)&&fin(mv.x)&&fin(mv.y)&&fin(mv.base)&&+mv.base>=(mp.tokR[t.id]||0)){
           const from=mp.walkLast.get(t.id)||[t.x,t.y];t.x=Math.max(8,Math.min(W-8,+mv.x));t.y=Math.max(30,Math.min(H-1,+mv.y));fogWalk(t,from,[t.x,t.y]);mp.walkLast.delete(t.id);commit=true}}}}
-  for(const l of ch.left){mp.trails.delete(l.peer);mp.pingSeen.delete(l.peer);mp.mvSeen.delete(l.peer);mp.pickSeen.delete(l.peer)}
+  for(const l of ch.left){mp.trails.delete(l.peer);mp.pingSeen.delete(l.peer);mp.mvSeen.delete(l.peer);mp.pickSeen.delete(l.peer);mp.chSeen.delete(l.peer)}
   if(mp.role==='dm'&&mpPicks(ch.peers))commit=true;
   for(const id of [...mp.walkLast.keys()])if(!ghost.has(id))mp.walkLast.delete(id);
   mp.ghost=ghost;if(commit)save();mpUI()}
@@ -2109,7 +2151,8 @@ function mpRender(){if($('mpmodal').hidden)return;const box=$('mpbody');box.repl
     mpNewRoom(box);para(invite,'note');return}
   const amDM=mp.role==='dm';
   para(amDM?'You’re the DM. Players see your map live and pick their own token.':`<b></b> is the DM. Your view follows their map.`).querySelector('b')?.append(mpName(s.dm));
-  if(mp.role==='player')mpPicker(box,s);
+  if(mp.role==='player'){mpPicker(box,s);const a=document.createElement('div');a.className='mpacts';box.append(a);
+    button(myChar?'Your character: '+myChar.name:'Add your D&D Beyond character',myChar?'':'primary',()=>{$('mpmodal').hidden=true;openChar('me')},a).id='mpchar'}
   const{ids,here}=mpPeople(),list=document.createElement('div');list.className='mppeople';box.append(list);
   ids.sort((a,b)=>(b===s.dm)-(a===s.dm)||(b===mp.me)-(a===mp.me)).forEach(id=>{
     const row=document.createElement('div');row.className='mpp'+(here.has(id)?'':' away');const pf=mp.profiles[id];
@@ -2144,6 +2187,176 @@ $('mpbtn').onclick=()=>{$('mpmodal').hidden=false;mpKey='';mpSay('');mpUI();mpRe
 $('mpclose').onclick=()=>{$('mpmodal').hidden=true;mp.autoPick=false};
 $('mpmodal').onclick=e=>{if(e.target.id==='mpmodal')e.currentTarget.hidden=true};
 $('mpmodal').addEventListener('keydown',e=>{if(e.key==='Escape')$('mpmodal').hidden=true;e.stopPropagation()});
+// ================= characters from D&D Beyond =================
+// A player pastes their character's link and Dustmap keeps a small summary of the sheet (name, class, HP, AC, scores),
+// tied to a token by its sheet index. Only the summary is stored or shared, never the whole D&D Beyond JSON.
+// D&D Beyond answers browser requests only from its own site (CORS), and only for characters set to Public. So a direct
+// fetch usually fails, and then the player opens the JSON in a new tab (plain navigation is allowed) and pastes it back.
+// DDB_PROXY, when set, is tried first: a URL containing {id} that returns the same JSON from a server.
+const DDB_PROXY='';
+const ABIL=['strength','dexterity','constitution','intelligence','wisdom','charisma'],ABBR=['STR','DEX','CON','INT','WIS','CHA'];
+const ddbId=s=>{s=String(s||'').trim();const m=s.match(/characters?\/(\d{3,12})(?!\d)/i)||s.match(/^(\d{3,12})$/);return m?m[1]:null};
+const ddbJsonUrl=id=>'https://character-service.dndbeyond.com/character/v5/character/'+id;
+const ddbSheetUrl=id=>'https://www.dndbeyond.com/characters/'+id;
+const abMod=v=>Math.floor((v-10)/2),sgn=n=>(n>=0?'+':'−')+Math.abs(n);
+class DdbErr extends Error{constructor(code){super(code);this.code=code}}
+// D&D Beyond's character JSON (the whole response, or just its data) -> summary. Derived numbers follow the sheet's own
+// rules where the JSON allows: equipped and attuned items only, unarmored defense, overrides the player set on the sheet.
+function ddbParse(j){
+  if(j&&typeof j==='object'&&j.success===false)throw new DdbErr('private');
+  const d=j&&j.data&&typeof j.data==='object'&&!Array.isArray(j.data)?j.data:j;
+  if(!d||typeof d!=='object'||!Array.isArray(d.stats)||!Array.isArray(d.classes))throw new DdbErr('notchar');
+  const num=v=>v!==null&&v!==''&&v!==undefined&&Number.isFinite(+v)?+v:null;
+  const inv=Array.isArray(d.inventory)?d.inventory.filter(it=>it&&it.definition):[];
+  const worn=new Set(inv.filter(it=>it.equipped&&(!it.definition.canAttune||it.isAttuned)).map(it=>it.definition.id));
+  const mods=[];for(const[k,l]of Object.entries(d.modifiers||{}))if(Array.isArray(l))for(const m of l){if(!m||typeof m!=='object')continue;if(k==='item'&&!worn.has(m.componentId))continue;mods.push(m)}
+  const sum=sub=>mods.filter(m=>m.type==='bonus'&&m.subType===sub).reduce((q,m)=>q+(num(m.value)||0),0);
+  const stat=(arr,i)=>{const e=Array.isArray(arr)&&arr.find(s=>s&&s.id===i+1);return e?num(e.value):null};
+  const ab=ABIL.map((a,i)=>{const ov=stat(d.overrideStats,i);if(ov>0)return Math.min(30,ov);
+    let v=(stat(d.stats,i)||10)+(stat(d.bonusStats,i)||0)+sum(a+'-score');
+    for(const m of mods)if(m.type==='set'&&m.subType===a+'-score')v=Math.max(v,num(m.value)||0);
+    return Math.max(1,Math.min(30,v))});
+  const cls=d.classes.filter(c=>c&&c.definition);const lvl=Math.max(1,cls.reduce((q,c)=>q+(num(c.level)||0),0));
+  // hit points: base rolls + CON per level + per-level bonuses (Tough, Dwarven Toughness), unless the sheet overrides them
+  const over=num(d.overrideHitPoints),perLvl=sum('hit-points-per-level');
+  const max=Math.max(1,(over>0?over:(num(d.baseHitPoints)||0)+(abMod(ab[2])+perLvl)*lvl)+(num(d.bonusHitPoints)||0));
+  const cur=Math.max(0,max-(num(d.removedHitPoints)||0)),tmp=Math.max(0,num(d.temporaryHitPoints)||0);
+  // armor class: worn armor (light + DEX, medium + DEX up to 2, heavy flat) or 10 + DEX / unarmored defense, a shield, then bonuses
+  const dex=abMod(ab[1]),wear=inv.filter(it=>it.equipped&&num(it.definition.armorClass)!==null);
+  const armor=wear.filter(it=>[1,2,3].includes(it.definition.armorTypeId)).sort((a,b)=>b.definition.armorClass-a.definition.armorClass)[0];
+  const shield=wear.find(it=>it.definition.armorTypeId===4);let ac;
+  if(armor){const a=armor.definition,t=a.armorTypeId;ac=a.armorClass+(t===1?dex:t===2?Math.min(dex,2):0)+sum('armored-armor-class')}
+  else{ac=10+dex;for(const m of mods)if(m.type==='set'&&m.subType==='unarmored-armor-class'){const sid=num(m.statId);ac=Math.max(ac,10+dex+(sid>=1&&sid<=6?abMod(ab[sid-1]):0)+(num(m.value)||0))}
+    ac+=sum('unarmored-armor-class')}
+  if(shield)ac+=num(shield.definition.armorClass)||0;ac+=sum('armor-class');
+  const cvals=(Array.isArray(d.characterValues)?d.characterValues:[]).filter(v=>v&&v.valueId==null),cval=t=>{const v=cvals.find(v=>v.typeId===t);return v?num(v.value):null};
+  if(cval(1)>0)ac=cval(1);else ac+=(cval(2)||0)+(cval(3)||0);   // the sheet's own AC override, magic and misc bonuses
+  const ws=d.race&&d.race.weightSpeeds&&d.race.weightSpeeds.normal;
+  return charClean({id:String(d.id||''),name:d.name,race:d.race&&(d.race.fullName||d.race.baseName)||'',
+    cls:cls.slice().sort((a,b)=>(b.isStartingClass?1:0)-(a.isStartingClass?1:0)).map(c=>c.definition.name+(c.subclassDefinition&&c.subclassDefinition.name?` (${c.subclassDefinition.name})`:'')+' '+c.level).join(' / '),
+    lvl,hp:{max,cur,tmp},ac,ab,spd:(num(ws&&ws.walk)||30)+sum('speed')+sum('speed-walking'),
+    img:(d.decorations&&d.decorations.avatarUrl)||d.avatarUrl||'',t:Date.now()})}
+// every summary passes through here: from a paste, from storage, from another player's page
+function charClean(o){if(!o||typeof o!=='object')return null;
+  const str=(v,n)=>typeof v==='string'?v.replace(/\s+/g,' ').trim().slice(0,n):'',int=(v,a,b,d)=>v!==null&&v!==''&&Number.isFinite(+v)?Math.max(a,Math.min(b,Math.round(+v))):d;
+  const name=str(o.name,40);if(!name)return null;const hp=o.hp&&typeof o.hp==='object'?o.hp:{},max=int(hp.max,1,9999,1);
+  const img=typeof o.img==='string'&&o.img.length<=400&&/^https:\/\/(www|media)\.dndbeyond\.com\/[\w\-./%?=&,]+$/.test(o.img)?o.img:'';
+  return{id:/^\d{1,12}$/.test(String(o.id))?String(o.id):'',name,race:str(o.race,40),cls:str(o.cls,90),lvl:int(o.lvl,1,30,1),
+    hp:{max,cur:int(hp.cur,0,max,max),tmp:int(hp.tmp,0,999,0)},ac:int(o.ac,0,50,10),
+    ab:Array.isArray(o.ab)&&o.ab.length===6?o.ab.map(v=>int(v,1,30,10)):[10,10,10,10,10,10],spd:int(o.spd,0,300,30),img,t:int(o.t,0,1e13,0)}}
+const charMap=o=>{const r={};if(o&&typeof o==='object')for(const[k,v]of Object.entries(o)){const c=/^\d{1,3}$/.test(k)&&+k<SHEETS.length&&charClean(v);if(c)r[k]=c}return r};
+// The DM's (and solo) characters, by sheet index, kept in this browser across maps and sessions.
+// A player's own imported character is kept separately and goes out on presence; the DM's page takes it for their token.
+let chars=(()=>{try{return charMap(JSON.parse(localStorage.getItem('dustmap-chars')))}catch(e){return{}}})();
+const saveChars=()=>{try{localStorage.setItem('dustmap-chars',JSON.stringify(chars))}catch(e){}};
+let myChar=(()=>{try{return charClean(JSON.parse(localStorage.getItem('dustmap-mychar')))}catch(e){return null}})(),myCharN=0;
+const saveMine=()=>{try{if(myChar)localStorage.setItem('dustmap-mychar',JSON.stringify(myChar));else localStorage.removeItem('dustmap-mychar')}catch(e){}};
+const mySheet=()=>{const s=mp.sess;if(!s||!s.live)return null;const k=Object.keys(s.assign).find(k=>s.assign[k]===mp.me);return k===undefined?null:+k};
+function charFor(s){if(mp.role==='player'){if((s==='me'||s===mySheet())&&myChar)return myChar;return mp.chars&&mp.chars[s]||null}return chars[s]||null}
+const charMine=s=>mp.role!=='player'||s==='me'||s===mySheet();   // who may change this token's character
+function charSet(s,c){
+  if(mp.role==='player'){if(s!=='me'&&s!==mySheet())return;myChar=c;myCharN++;mp.chPend=true;saveMine()}
+  else{if(c)chars[s]=c;else delete chars[s];saveChars();mpChanged()}
+  chRender();if(mp.role==='player')syncUI()}
+// DM: what players receive. Only characters on a token someone plays or can see, so a hidden NPC's card stays hidden.
+function charsShared(){const s=mp.sess||{assign:{}},r={};
+  for(const[k,c]of Object.entries(chars))if(s.assign[k]||st.tokens.some(t=>t.s===+k&&tokShown(st.fog,t)))r[k]=c;return r}
+// DM: a player's own import (presence ch) replaces the card on the token they play
+function charTake(p,pr){const s=mp.sess,ch=pr.ch;if(!s||!s.live||!p.by||p.by===mp.me||!ch||typeof ch!=='object')return false;
+  const k=Object.keys(s.assign).find(k=>s.assign[k]===p.by);if(k===undefined)return false;
+  const seen=k+':'+ch.n;if(mp.chSeen.get(p.peer)===seen)return false;mp.chSeen.set(p.peer,seen);
+  const c=charClean(ch.c);if(!c||JSON.stringify(c)===JSON.stringify(chars[k]))return false;chars[k]=c;saveChars();chRender();return true}
+// player: the DM's copy of my card comes back (with the DM's HP changes); take it unless I've changed mine since
+function charsArrived(d){mp.chars=charMap(d&&d.c);const k=mySheet(),c=k!==null&&mp.chars[k];
+  if(c&&myChar&&c.id===myChar.id){if(JSON.stringify(c)===JSON.stringify(myChar))mp.chPend=false;else if(!mp.chPend){myChar=c;saveMine()}}
+  chRender()}
+
+// ---- on the map: an HP bar under each character's token, and their name and numbers on hover ----
+function hpCol(c){const f=c.hp.cur/c.hp.max;return f>.5?'#7fd07a':f>.25?'#e8c25a':'#e0705a'}
+function drawChars(){const fv=fogView();let hv=null;
+  for(const t0 of st.tokens){const c=charFor(t0.s);if(!c||!tokShown(fv,t0))continue;const gh=t0.id&&mp.ghost.get(t0.id),t=gh?{...t0,x:gh[0],y:gh[1]}:t0;
+    const w=Math.max(22,18*Z),x=t.x*Z-w/2,y=(t.y+2)*Z+1,f=Math.min(1,c.hp.cur/c.hp.max);
+    ctx.fillStyle='rgba(18,15,20,.85)';ctx.beginPath();ctx.roundRect(x-1,y-1,w+2,6,3);ctx.fill();
+    ctx.fillStyle=hpCol(c);ctx.fillRect(x,y,w*f,4);if(c.hp.tmp){ctx.fillStyle='#7fb2e8';ctx.fillRect(x+w*f,y,Math.min(w*(1-f),w*c.hp.tmp/c.hp.max),4)}
+    if(hover&&!drag&&Math.abs(hover[0]-t.x)<11&&hover[1]>t.y-28&&hover[1]<t.y+4)hv={t,c}}
+  if(hv){const{t,c}=hv,lb=`${c.name} · ${c.hp.cur}${c.hp.tmp?'+'+c.hp.tmp:''}/${c.hp.max} HP · AC ${c.ac}`;
+    ctx.font='600 12px "Work Sans", system-ui, sans-serif';const tw=ctx.measureText(lb).width,x=t.x*Z-tw/2-6,y=(t.y+2)*Z+9;
+    ctx.fillStyle='rgba(29,27,34,.94)';ctx.beginPath();ctx.roundRect(x,y,tw+12,20,5);ctx.fill();ctx.fillStyle='#efe9e4';ctx.fillText(lb,x+6,y+14)}}
+
+// ---- the Character dialog ----
+let chS=null,chStep='',chMsg='';
+function openChar(s){if(s!=='me'&&!TOKINFO[s])return;chS=s;chStep=charFor(s)?'':'link';chMsg='';$('chmodal').hidden=false;chRender();
+  setTimeout(()=>{const i=$('chlink');if(i)i.focus()},30)}
+function chClose(){$('chmodal').hidden=true;chS=null}
+const el=(tag,cls,text)=>{const e=document.createElement(tag);if(cls)e.className=cls;if(text!=null)e.textContent=text;return e};
+function chRender(){if($('chmodal').hidden||chS===null)return;const s=chS,c=charFor(s),edit=charMine(s),box=$('chbody');
+  const act=document.activeElement;if(act&&box.contains(act)&&act.tagName==='INPUT'&&act.type==='number')return;   // don't redraw under someone typing a number
+  box.replaceChildren();$('chtitle').textContent='Character';$('chsub').textContent=s==='me'?'Your character':tokLabel(s);
+  if(c&&chStep!=='link'&&chStep!=='paste'){
+    const top=el('div','chtop');if(c.img){const im=el('img');im.alt='';im.src=c.img;im.referrerPolicy='no-referrer';im.onerror=()=>im.remove();top.append(im)}
+    const nm=el('div','nm');nm.append(el('b',null,c.name),el('span',null,[c.race,c.cls||('Level '+c.lvl)].filter(Boolean).join(' · ')));top.append(nm);box.append(top);
+    const stats=el('div','chstats');
+    const hp=el('div','chstat hp');hp.append(el('span','lbl','Hit points'));const hr=el('div','hprow');
+    if(edit){const minus=el('button','btn','−'),plus=el('button','btn','+'),inp=el('input');inp.type='number';inp.min=0;inp.max=c.hp.max;inp.value=c.hp.cur;inp.id='chhp';inp.setAttribute('aria-label','Current hit points');
+      const setHp=v=>charSet(s,{...c,hp:{...c.hp,cur:Math.max(0,Math.min(c.hp.max,Math.round(v)))}});
+      minus.setAttribute('aria-label','Lose 1 hit point');plus.setAttribute('aria-label','Gain 1 hit point');minus.onclick=()=>setHp(c.hp.cur-1);plus.onclick=()=>setHp(c.hp.cur+1);
+      inp.onchange=()=>{if(Number.isFinite(+inp.value)){inp.blur();setHp(+inp.value)}};inp.onkeydown=e=>{if(e.key==='Enter')inp.onchange()};
+      hr.append(minus,inp,el('span','of','/ '+c.hp.max),plus)}
+    else hr.append(el('b',null,String(c.hp.cur)),el('span','of','/ '+c.hp.max));
+    hp.append(hr);const bar=el('div','hpbar'),fill=el('i');fill.style.width=Math.round(100*c.hp.cur/c.hp.max)+'%';fill.style.background=hpCol(c);bar.append(fill);hp.append(bar);stats.append(hp);
+    const num=(lbl,val,key,max)=>{const d=el('div','chstat');d.append(el('span','lbl',lbl));
+      if(edit&&key){const inp=el('input');inp.type='number';inp.min=0;inp.max=max;inp.value=val;inp.id='ch'+key;inp.setAttribute('aria-label',lbl);
+        inp.onchange=()=>{if(!Number.isFinite(+inp.value))return;inp.blur();const v=Math.max(0,Math.min(max,Math.round(+inp.value)));charSet(s,key==='tmp'?{...c,hp:{...c.hp,tmp:v}}:{...c,[key]:v})};
+        inp.onkeydown=e=>{if(e.key==='Enter')inp.onchange()};d.append(inp)}
+      else d.append(el('b',null,String(val)));stats.append(d)};
+    num('Temp HP',c.hp.tmp,'tmp',999);num('Armor class',c.ac,'ac',50);num('Speed',c.spd+' ft');num('Level',c.lvl);box.append(stats);
+    const abs=el('div','chabs');c.ab.forEach((v,i)=>{const a=el('div','chab');a.append(el('span','lbl',ABBR[i]),el('b',null,sgn(abMod(v))),el('span','sc',String(v)));abs.append(a)});box.append(abs);
+    const acts=el('div','mpacts');
+    if(c.id){const a=el('a','btn','Open on D&D Beyond');a.href=ddbSheetUrl(c.id);a.target='_blank';a.rel='noopener noreferrer';acts.append(a)}
+    if(edit){const up=el('button','btn','Update from D&D Beyond');up.onclick=()=>{chStep=c.id?'try':'link';chMsg='';chRender();if(c.id)chImport(c.id)};acts.append(up);
+      const rm=el('button','btn ghost','Remove');rm.onclick=()=>{if(rm.dataset.sure){charSet(s,null);chStep='link';chRender()}else{rm.dataset.sure='1';rm.textContent='Remove? Click again'}};acts.append(rm)}
+    box.append(acts);
+    box.append(el('p','note',edit?'HP and AC changes show for everyone at the table. Damage taken in D&D Beyond comes over when you update.':'Only this character’s player and the DM can change it.'));
+    if(chMsg)box.append(el('p','note',chMsg));return}
+  if(!edit){box.append(el('p',null,'No character on this token yet.'));return}
+  // import: 1. the link   2. (when the direct read is blocked) open the data, copy, paste
+  const intro=el('p');intro.textContent='Paste the link to your character on D&D Beyond. Your character needs to be set to Public there (Character Settings → Character Privacy).';box.append(intro);
+  const row=el('div','row');const inp=el('input','chin');inp.id='chlink';inp.placeholder='https://www.dndbeyond.com/characters/12345678';inp.autocomplete='off';inp.spellcheck=false;inp.value=chS===s&&chRender.link||'';
+  inp.oninput=()=>{chRender.link=inp.value};
+  const go=el('button','btn primary','Import');go.id='chgo';
+  const run=()=>{const v=inp.value.trim();if(v.startsWith('{')){chPaste(v);return}const id=ddbId(v);
+    if(!id){chMsg='That doesn’t look like a D&D Beyond character link. It should look like dndbeyond.com/characters/12345678.';chRender();return}
+    chRender.id=id;chImport(id)};
+  go.onclick=run;inp.onkeydown=e=>{if(e.key==='Enter')run()};row.append(inp,go);box.append(row);
+  if(chStep==='try')box.append(el('p','note','Reading the character…'));
+  if(chStep==='paste'&&chRender.id){const id=chRender.id,ol=el('ol','chsteps');
+    const li1=el('li');li1.append('D&D Beyond doesn’t let other sites read characters directly, so grab it by hand. ');const a=el('a',null,'Open your character’s data');a.href=ddbJsonUrl(id);a.target='_blank';a.rel='noopener noreferrer';a.id='chopen';li1.append(a,' in a new tab.');
+    const li2=el('li',null,'Select everything on that page (Ctrl+A, or ⌘A on a Mac) and copy it. In Firefox, click Raw Data first, or use its Copy button.');
+    const li3=el('li',null,'Paste it here:');const ta=el('textarea','chpaste');ta.id='chpaste';ta.spellcheck=false;ta.placeholder='{"id":'+id+',"success":true,"data":{…';ta.setAttribute('aria-label','Character data');
+    ta.addEventListener('paste',()=>setTimeout(()=>chPaste(ta.value),0));ta.oninput=()=>{if(ta.value.trim().endsWith('}'))chPaste(ta.value)};li3.append(ta);ol.append(li1,li2,li3);box.append(ol)}
+  if(chMsg){const m=el('p','note chmsg',chMsg);m.setAttribute('role','status');box.append(m)}
+  if(c){const b=el('button','btn ghost','Back to '+c.name);b.onclick=()=>{chStep='';chMsg='';chRender()};box.append(b)}}
+const ERRS={private:'D&D Beyond says this character isn’t public. In D&D Beyond open the character, go to Character Settings, set Character Privacy to Public, then try again.',
+  notchar:'That isn’t the character data. Open the link in step 1 and copy everything on that page.',
+  json:'That isn’t the whole page. Open the link in step 1, select everything, copy it and paste again.'};
+async function chImport(id){const s=chS;chStep='try';chMsg='';chRender();
+  for(const url of[DDB_PROXY&&DDB_PROXY.replace('{id}',id),ddbJsonUrl(id)].filter(Boolean)){
+    try{const ac=new AbortController(),to=setTimeout(()=>ac.abort(),8000);
+      const r=await fetch(url,{credentials:'omit',signal:ac.signal});clearTimeout(to);
+      if(r.status===403||r.status===401){chStep='paste';chMsg=ERRS.private;chRender();return}
+      if(r.status===404){chStep='link';chMsg='D&D Beyond has no character with that number. Check the link.';chRender();return}
+      if(!r.ok)continue;const c=ddbParse(await r.json());if(chS!==s)return;chDone(c);return}
+    catch(e){if(e instanceof DdbErr){chStep='paste';chMsg=ERRS[e.code];chRender();return}}}   // blocked (CORS) or offline: the paste route
+  if(chS!==s)return;chRender.id=id;chStep='paste';chRender()}
+function chPaste(text){let j;try{j=JSON.parse(String(text).trim())}catch(e){chMsg=ERRS.json;chRender();return}
+  try{chDone(ddbParse(j))}catch(e){chMsg=ERRS[e.code]||ERRS.notchar;chRender()}}
+function chDone(c){if(!c){chMsg=ERRS.notchar;chRender();return}chStep='';chMsg='';chRender.link='';charSet(chS,c)}
+$('chclose').onclick=chClose;
+$('chmodal').onclick=e=>{if(e.target.id==='chmodal')chClose()};
+$('chmodal').addEventListener('keydown',e=>{if(e.key==='Escape')chClose();e.stopPropagation()});
+cv.addEventListener('dblclick',e=>{if(tool!=='select')return;const h=hit(toMap(e));if(h&&h.type==='token'){const s=st.tokens[h.i].s;if(charMine(s)||charFor(s))openChar(s)}});
+// read-only peek for the tests
+window.__openChar=openChar;
 // ================= signs =================
 // A signpost is an object like any other ({k:'sign',x,y,v}) that also carries its message: txt (what the DM typed),
 // lang (a SCRIPTS id) and tr (1 = players may read the plain text under the script). v picks the board: 0 plank, 1 arrow right, 2 arrow left.
