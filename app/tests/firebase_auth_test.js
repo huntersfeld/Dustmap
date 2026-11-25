@@ -57,7 +57,7 @@ try{
   await until(()=>p2.isVisible('.mppick'),'picker for Alex');
   if(!(await p2.locator('.mppick .tokbtn').nth(12).isDisabled()))fail('a taken token should be disabled for others');
   if(await p2.locator('#mpbody button:has-text("Start my own room")').count())fail('players should not see Start my own room during a session');
-  await p2.evaluate(()=>{location.hash='room=alexroom01';location.reload()});
+  await p2.evaluate(()=>{location.hash='room=alex'+Math.random().toString(36).slice(2,10);location.reload()});
   await until(async()=>(await p2.evaluate(()=>location.hash))!==hash,'new room');await until(()=>p2.isVisible('#mpbtn'),'reloaded');
   await p2.click('#mpbtn');await p2.click('#mpbody button:has-text("Start session")');await until(async()=>(await S(p2)).role==='dm','Alex is DM of the new room');
   if((await S(dm)).role!=='dm')fail('Hunter should still be DM of the first room');
