@@ -62,6 +62,27 @@ try{
     if(errs.length)fail('page errors: '+errs.join('; '));
     await ctx.close();console.log('solo ok')}
 
+  // ---------- a keyboard step onto a door goes through it ----------
+  {const ctx=await b.newContext({viewport:{width:1280,height:860}});const p=await ctx.newPage();const errs=[];p.on('pageerror',e=>errs.push(e.message));
+    await ctx.addInitScript('window.__starterExample=true');await p.goto(PAGE);await p.evaluate(()=>localStorage.clear());await p.reload();await p.waitForTimeout(1500);
+    const lib=()=>p.evaluate(()=>JSON.parse(localStorage.getItem('dustmap-library'))),curName=async()=>{const l=await lib();return l.maps.find(m=>m.id===l.cur).name};
+    const home=await curName();
+    await p.keyboard.press('n');await p.waitForTimeout(200);await p.selectOption('#newsize','20x14');await p.fill('#newname','Cellar');await p.press('#newname','Enter');await p.waitForTimeout(900);
+    await p.click('#libbtn');await p.click('.libmap:has-text("'+home+'") button:has-text("Open")');await p.waitForTimeout(700);
+    // stand the first cowboy on a square centre, put a door to the Cellar two squares to its right
+    const t=await p.evaluate(()=>{const d=window.__dustmap(),t=d.st.tokens.find(t=>t.s===0);t.x=Math.floor(t.x/16)*16+8;t.y=Math.floor(t.y/16)*16+8;return{x:t.x,y:t.y}});
+    await p.keyboard.press('o');await p.click('#o-door');await p.mouse.click(...await scr(p,t.x+32,t.y));await p.waitForTimeout(200);
+    await p.selectOption('#ptto',{label:'Cellar'});await p.click('#ptdone');
+    const door=(await S(p)).st.objects.find(o=>o.k==='door');if(!door||door.x!==t.x+32)fail('door not placed beside the token: '+JSON.stringify(door)+' '+JSON.stringify(t));
+    await p.keyboard.press('v');await p.mouse.click(...await scr(p,t.x,t.y-10));await p.waitForTimeout(150);
+    await tap(p,'ArrowRight');await p.waitForTimeout(400);if(await curName()!==home)fail('one step short of the door should stay home');
+    await tap(p,'ArrowRight');await p.waitForTimeout(600);
+    if(await curName()!=='Cellar')fail('stepping onto the door with the keys should open the Cellar, got '+await curName());
+    if((await S(p)).st.tokens.filter(t=>t.s<4).length!==4)fail('the party should arrive in the Cellar');
+    if((await S(p)).ks)fail('the step count should end on a new map');
+    if(errs.length)fail('page errors: '+errs.join('; '));
+    await ctx.close();console.log('door ok')}
+
   // ---------- live session ----------
   const store=new Map(),pres=new Map(),pages=[];
   // shared documents reach players 300 ms late, like a real network: steps keep coming before the DM's last push lands
