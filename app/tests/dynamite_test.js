@@ -7,7 +7,7 @@ const OUT=path.join(__dirname,'output');require('fs').mkdirSync(OUT,{recursive:t
 const errs=[];p.on('pageerror',e=>errs.push('PAGEERR '+e.message));const fail=m=>{errs.push(m);console.log('FAIL',m)};
 // a 30×20 sand map with a two-level cliff plateau on the right
 const map={v:3,cols:30,rows:20,seed:9,rag:4,base:0,ops:[{kind:'poly',layer:'height',h:2,s:1,pts:[[300,60],[460,60],[460,260],[300,260]],sid:3}],
-  objects:[{k:'dynamite',x:120,y:160,v:0},{k:'dynamite',x:380,y:160,v:0,br:1},{k:'dynamite',x:150,y:250,v:0},{k:'dynamite',x:170,y:262,v:0}],tokens:[],skip:[]};
+  objects:[{k:'dynamite',x:120,y:160,v:0},{k:'dynamite',x:380,y:160,v:0,br:1},{k:'dynamite',x:150,y:250,v:0},{k:'dynamite',x:182,y:262,v:0}],tokens:[],skip:[]};
 await p.goto(PAGE);await p.evaluate(m=>{localStorage.clear();localStorage.setItem('dustmap-v2',JSON.stringify(m))},map);await p.reload();await p.waitForTimeout(1500);
 const S=()=>p.evaluate(()=>window.__dustmap());
 const scr=async(x,y)=>{const d=await S(),box=await (await p.$('#map')).boundingBox();return[box.x+(x-d.cam.x)*d.Z,box.y+(y-d.cam.y)*d.Z]};
@@ -42,7 +42,7 @@ if((await S()).st.objects.find(o=>o.x===150).bd!==3)fail('depth button should se
 await p.keyboard.press('Enter');await p.waitForTimeout(2600);s=(await S()).st;
 if(s.objects.some(o=>o.k==='dynamite'&&o.y>200))fail('the chained bundle should have gone off too');
 if(!s.objects.some(o=>o.k==='dynamite'&&o.x===120))fail('the bundle far away should not go off');
-crater=s.ops.filter(o=>o.blast);if(crater.length!==3)fail('expected 3 craters after the chain, got '+crater.length);
+crater=s.ops.filter(o=>o.blast);if(crater.length!==3)fail('expected 3 craters after the chain, got '+crater.length+' '+JSON.stringify(crater.map(o=>o.h))+' dyn:'+JSON.stringify(s.objects.filter(o=>o.k==='dynamite').map(o=>[o.x,o.y])));
 if(!crater.some(o=>o.h===-3))fail('a 3-deep blast on flat ground should reach −3');
 if((await S()).blasts.length<1)fail('blast effects should be playing');
 await p.waitForTimeout(2600);await p.screenshot({path:path.join(OUT,'dynamite_chain.png')});
