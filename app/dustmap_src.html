@@ -128,6 +128,7 @@ input[type=range]{width:100%;accent-color:var(--rust)}
 #map{display:block;width:100%;height:100%;touch-action:none;cursor:crosshair}
 #map.pan{cursor:grab}
 #map.select{cursor:default}
+#map.lift{cursor:ns-resize}
 select{background:var(--raised);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:5px 8px;font:inherit;font-size:13px}
 /* status chip: only while something is in progress (a shape being drawn, a sculpt, what's selected) */
 .hint{position:absolute;z-index:5;left:50%;transform:translateX(-50%);bottom:calc(78px + env(safe-area-inset-bottom,0px));max-width:calc(100% - 150px);display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:center;
@@ -140,6 +141,7 @@ body.notray .hint{bottom:calc(12px + env(safe-area-inset-bottom,0px))}
 .selbar{position:absolute;z-index:6;display:flex;gap:2px;padding:4px;transform:translate(-50%,-100%)}
 .selbar .ib{width:34px;height:34px}
 .selbar .ib svg{width:18px;height:18px}
+.selbar .ib.ibt{width:auto;min-width:34px;padding:0 8px;font:600 13px 'Work Sans',system-ui,sans-serif}
 /* right-click quick menu */
 .qmenu{position:absolute;z-index:9;display:flex;flex-direction:column;gap:1px;padding:5px;min-width:180px}
 .qmenu button{display:flex;align-items:center;gap:10px;padding:7px 10px;border:0;border-radius:7px;background:transparent;cursor:pointer;font-size:13px;text-align:left;white-space:nowrap}
@@ -163,6 +165,12 @@ body.notray .hint{bottom:calc(12px + env(safe-area-inset-bottom,0px))}
 .signedit select{flex:1;min-width:0}
 .signedit .seg button{height:32px;min-width:34px;padding:0 6px}
 .signedit .seg canvas{width:26px;height:auto;image-rendering:pixelated}
+.portedit .seg canvas{width:22px}
+.portedit #ptnote{margin:0}.portedit #ptnote:empty{display:none}
+.portcard{position:absolute;z-index:7;pointer-events:none;transform:translate(-50%,-100%);max-width:min(260px,calc(100% - 16px));background:var(--glass);border:1px solid var(--line);border-radius:8px;padding:6px 9px;font-size:12px;line-height:1.35;color:var(--fg);box-shadow:var(--shadow)}
+.portmsg{left:50%;top:64px;transform:translateX(-50%);z-index:9;display:flex;align-items:center;gap:10px;padding:7px 8px 7px 14px;font-size:13px;max-width:calc(100% - 32px)}
+.travelfade{position:absolute;inset:0;z-index:6;background:#0b090d;opacity:0;pointer-events:none}
+.travelfade.on{opacity:1}.travelfade.out{opacity:0;transition:opacity .45s ease-out}
 #map.onsign{cursor:help}
 /* tooltip: name, key, one-line note */
 .tip{position:fixed;z-index:30;pointer-events:none;background:#0f0d12;border:1px solid var(--line);border-radius:8px;padding:6px 9px;max-width:240px;font-size:12px;line-height:1.4;box-shadow:var(--shadow)}
@@ -361,6 +369,19 @@ a.btn{text-decoration:none;color:var(--fg)}
     <div class="row"><div class="seg" id="sgstyle" role="group" aria-label="Board"></div><button class="btn primary sm" id="sgdone" style="margin-left:auto">Done</button></div>
   </div>
 
+  <div class="portcard" id="portcard" hidden></div>
+  <div class="float signedit portedit" id="portedit" hidden role="dialog" aria-label="Edit door">
+    <div class="row"><div class="seg" id="ptlook" role="group" aria-label="Looks like"></div></div>
+    <div class="row"><label class="note" for="ptto">Leads to</label><select id="ptto"></select></div>
+    <div class="row"><label class="note" for="ptat">Arrive</label><select id="ptat"></select></div>
+    <p class="note" id="ptnote"></p>
+    <label class="check note" for="ptwalk"><input type="checkbox" id="ptwalk"> Opens when a party token steps on it</label>
+    <label class="check note" for="ptlock"><input type="checkbox" id="ptlock"> Locked for players</label>
+    <div class="row"><button class="btn sm" id="ptgo">Go through now</button><button class="btn primary sm" id="ptdone" style="margin-left:auto">Done</button></div>
+  </div>
+  <div class="float portmsg" id="portmsg" role="status" hidden></div>
+  <div class="travelfade" id="travelfade"></div>
+
   <div class="float zoom">
     <button class="ib" id="zin" aria-label="Zoom in" data-tip="Zoom in" data-key="+">+</button>
     <span id="zlabel">100%</span>
@@ -448,16 +469,17 @@ const TERR=[
 // ground a whole map can start from (st.base); roads, towns and rails only make sense painted
 const BASES=[0,1,2,3,4,7];
 // index 8 (old "Cave wall") is retired: migrate() turns it into Stone raised two levels.
-const ELEV=[
- {name:'Hill',h:1,s:0,sub:'Soft slope'},{name:'High hill',h:2,s:0,sub:'Two levels up'},
- {name:'Cliff',h:1,s:1,sub:'Rock face'},{name:'High cliff',h:2,s:1,sub:'Tall rock face'},
- {name:'Lower',h:-1,s:1,sub:'Pit, or deeper water'},{name:'Deepest',h:-2,s:1,sub:'Deep pit or abyss'},
- {name:'Flatten',h:0,s:0,sub:'Back to ground level'}];
-// Sculpt raises or lowers in whole cliff levels, −3…+3 (hills live on the Elevation tab).
-const SLAD=[-3,-2,-1,0,1,2,3].map(h=>({h,s:h?1:0,sh:h>0?'+'+h:h<0?'−'+-h:'Flat'})),SLAD0=3;
+// Hills and cliffs are always sculpted: you pick a style, draw with the brush or a shape, and drag it up or down.
+// Height runs in whole levels from −3 to +3. Anything below ground is a pit with rock walls, whatever the style.
+const HSTYLE=[{name:'Hill',s:0,sub:'Soft slopes'},{name:'Cliff',s:1,sub:'Sheer rock face'}];
+const SLAD=[-3,-2,-1,0,1,2,3].map(h=>({h,sh:h>0?'+'+h:h<0?'−'+-h:'Flat'})),SLAD0=3,HMIN=-3,HMAX=3;
 const sladIdx=h=>Math.max(0,Math.min(SLAD.length-1,h+SLAD0));
-// A raised area is moved up by the height of its cliff face, so the foot of the cliff sits where you painted.
-const sculptLift=(h,base)=>h>0&&h>base?Math.min(9,4*(h-base)):0;
+const hStyleAt=(h,s)=>h<0?1:h>0?s:0;
+// the face drawn below an area d levels above what surrounds it (same lengths the renderer uses)
+const faceLen=(d,s)=>d<=0?0:s?Math.min(9,4*d):Math.min(9,3+2*d);
+// A raised area is moved up by the height of its face, so the foot of the hill or cliff sits where you drew it.
+const sculptLift=(h,base,s)=>h>0&&h>base?faceLen(h-base,s):0;
+const elevName=(h,s)=>h===0?'Flat ground':h<0?(h===-1?'Pit':'Deep pit −'+-h):(s?'Cliff':'Hill')+' +'+h;
 const OBJ=[
  {k:'shack',name:'Shack',sub:'Small · 2×2 squares',g:'Buildings'},{k:'saloon',name:'Saloon',sub:'Medium · 4×4 squares',g:'Buildings'},{k:'hotel',name:'Hotel',sub:'Large · 5×5 squares',g:'Buildings'},
  {k:'well',name:'Well',sub:'Stone well, 1 square',g:'Props'},{k:'wagon',name:'Wagon',sub:'Covered wagon, about 2 squares long',g:'Props'},{k:'trough',name:'Trough',sub:'Water trough',g:'Props'},{k:'barrels',name:'Barrels',sub:'Cover, under a square',g:'Props'},
@@ -477,6 +499,8 @@ const ICON={select:'M6 3l13 8-6 1.5-3 6z',
  measure:'M3 17L17 3l4 4L7 21z M7.5 12.5l2 2 M10.5 9.5l2 2 M13.5 6.5l2 2',
  ping:'M12 4a8 8 0 110 16 8 8 0 010-16z M12 10a2 2 0 110 4 2 2 0 010-4z',
  shape:'M5 8l7-5 7 5-2.5 11h-9z',
+ up:'M12 19V5 M6 11l6-6 6 6',
+ down:'M12 5v14 M6 13l6 6 6-6',
  sculpt:'M12 17V4 M7 9l5-5 5 5 M4 21h16',
  reveal:'M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z M12 9a3 3 0 110 6 3 3 0 010-6z',
  hide:'M3 3l18 18 M10.6 5.1A10 10 0 0112 5c6 0 10 7 10 7a17 17 0 01-3.2 3.9 M6.6 6.6A17 17 0 002 12s4 7 10 7a9.6 9.6 0 005.4-1.6',
@@ -489,11 +513,11 @@ const ICON={select:'M6 3l13 8-6 1.5-3 6z',
  stamp:'M9 3h6v6l3 3v3H6v-3l3-3z M5 21h14',
  sheet:'M6 3h9l4 4v14H6z M14 3v5h5 M9 12h7 M9 16h7'};
 const svgI=(k,w=1.8)=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${ICON[k]}"/></svg>`;
-// the tool rail. Paint and Hills each cover both brush and shape drawing (tool 'brush' / 'draw'); Hills also holds Sculpt.
+// the tool rail. Paint covers brush and shape drawing (tool 'brush' / 'draw'). Hills sculpts with the brush (tool 'sculpt') or a shape (tool 'draw' with a height paint).
 // Objects and Tokens are both the 'object' tool underneath (objKind 'tok:<s>' places tokens). Pan (H) has no button: drag empty ground.
 const TOOLS=[{id:'select',name:'Select',key:'V',sub:'Click anything to move it. Shift-drag to select several.'},
  {id:'paint',name:'Paint ground',key:'B',sub:'Sand, water, roads, towns and more',dm:1},
- {id:'height',name:'Hills and cliffs',key:'E',sub:'Raise or lower the ground',dm:1},
+ {id:'height',name:'Hills and cliffs',key:'E',sub:'Draw an area, then drag it up or down',dm:1},
  {id:'object',name:'Objects',key:'O',sub:'Buildings, props and mine gear',dm:1},
  {id:'token',name:'Tokens',key:'T',sub:'Party, townsfolk and enemies',dm:1},
  {id:'fog',name:'Fog of war',key:'F',sub:'Hide parts of the map from players',dm:1},
@@ -550,7 +574,7 @@ const mp={db:null,room:null,user:null,me:null,owner:false,edit:false,avail:false
   pushed:{map:null,tok:null,fog:null},fog:null,walkLast:new Map(),lastPos:new Map(),tokR:{},busy:false,again:false,timer:0,
   peers:[],profiles:{},trails:new Map(),pingSeen:new Map(),mvSeen:new Map(),ghost:new Map(),
   pres:{},pickSeen:new Map(),chars:null,chSeen:new Map(),chPend:false,sent:'',myPing:0,myMv:0,pend:null,err:'',heldTok:null};
-let tool='select',paint={layer:'ground',t:3},tab='ground',paintMode='brush',groundPaint={layer:'ground',t:3},heightPaint={layer:'height',h:1,s:0},heightSculpt=true,tokGroup='Party',objKind='saloon',bsize=6,objCells=new Set(['1,1']),objMix=false,mixKinds=new Set(),scatDens=70,scatSeed=1,objGap=2,boxSel=null,stampRot=0,objScat=false,scatCount=6,scatArea=4,tokMix=new Set(),tokScatter=false,tokSeed=1;
+let tool='select',paint={layer:'ground',t:3},tab='ground',paintMode='brush',groundPaint={layer:'ground',t:3},heightPaint={layer:'height',h:1,s:0},hillMode='brush',hillStyle=0,tokGroup='Party',objKind='saloon',bsize=6,objCells=new Set(['1,1']),objMix=false,mixKinds=new Set(),scatDens=70,scatSeed=1,objGap=2,boxSel=null,stampRot=0,objScat=false,scatCount=6,scatArea=4,tokMix=new Set(),tokScatter=false,tokSeed=1;
 let stamps=(()=>{try{return JSON.parse(localStorage.getItem('dustmap-stamps'))||[]}catch(e){return[]}})();
 const saveStamps=()=>{try{localStorage.setItem('dustmap-stamps',JSON.stringify(stamps))}catch(e){}};
 const selList=()=>!sel?[]:sel.type==='obj'?[sel.i]:sel.type==='objs'?sel.list:[];
@@ -559,7 +583,7 @@ const tokKind=()=>objKind.startsWith('tok:')?+objKind.slice(4):-1;
 const tokLabel=s=>{const t=TOKINFO[s];if(!t)return'Token';const n=TOKINFO.filter(q=>q.name===t.name).length;return n>1?`${t.name} (${t.v})`:t.name};
 const setObjSel=list=>{sel=!list.length?null:list.length===1?{type:'obj',i:list[0]}:{type:'objs',list}};
 let pointer=null,draft=[],stroke=null,hover=null,sel=null,drag=null,hist=[],frame=0,armedClear=false,measure=null,pings=[];
-let dirty=true,objDirty=true,lastR=null,lastGen=[],sculpt=null;
+let dirty=true,objDirty=true,lastR=null,lastGen=[],sculpt=null,lift=null;
 const $=id=>document.getElementById(id);
 function push(){hist.push(JSON.stringify(st));if(hist.length>80)hist.shift();updUndo()}
 function undo(){if(!hist.length||mp.role==='player')return;signClose();const old=st;st=JSON.parse(hist.pop());redrawChanged(old);
@@ -706,6 +730,8 @@ function sprite(k,v){v=(v||0)%12;const key=k+':'+v;if(SPR.has(key))return SPR.ge
   else if(k==='crystals'){glow(6,7,10,[170,150,255]);const sh=(x0,y0,x1,y1,wd)=>{for(let t=0;t<=1;t+=.05){const x=x0+(x1-x0)*t,y=y0+(y1-y0)*t,ww=wd*(1-t*.7);for(let k=-ww;k<=ww;k+=.5)put(x+k,y,t>.75?C.crystl:k<0?C.cryst:C.crystd)}};
     sh(6,11,6,0,2.2);sh(3,11,1,4,1.6);sh(9,11,11,5,1.6)}
   else if(k==='sign')signSprite(put,R,w,h,v);
+  else if(k==='dynamite')dynSprite(put,R,LN);
+  else if(k==='door'||k==='stairsdown'||k==='stairsup'||k==='entrance'||k==='landing')portalSprite(k,put,R,E,LN,w,h);
   else if(k==='well'){E(8,8,8,8,(x,y)=>hash(x>>1,y>>1,3)>.5?C.stone:C.stoned);E(8,8,5,5,C.dark);E(8,8.5,3.5,3,C.water);put(7,7,C.water2);
     R(1,6,14,2,C.wood);R(1,5,2,4,C.woodd);R(13,5,2,4,C.woodd);put(8,8,[110,80,60])}
   else if(k==='wagon'){for(const x of [4,20]){R(x,0,7,2,C.wheel);R(x,h-2,7,2,C.wheel)}
@@ -816,12 +842,22 @@ function paintMap(img,R,seed,opts={}){
     if(dW[i]>3&&dW[i+3]>3&&!face[i]){const c=hash(u,v,seed+24)<.5?C.ripple:C.water2;for(let j=0;j<3;j++)put(x+j,y,c)}}}
   // ---- mine rails: ties across the path, two steel rails along it ----
   const rail=new Uint8Array(W*H);
+  // every rail is sampled along its centreline first; a sample that lands on track already laid (by an earlier
+  // stretch of this rail or another one) is skipped, so retracing or looping back doesn't stack a second track
+  {const smp=[],grid=new Map(),CS=4,key=(x,y)=>Math.floor(x/CS)+','+Math.floor(y/CS);let gacc=0;
   (R.ops||[]).forEach(op=>{if(op.layer!=='ground'||op.t!==9||!op.pts||op.pts.length<2)return;const pts=op.kind==='poly'?[...op.pts,op.pts[0]]:op.pts;
-    const walk=fn=>{let acc=0;for(let k=1;k<pts.length;k++){const a=pts[k-1],b=pts[k],len=dist(a,b);if(!len)continue;const ux=(b[0]-a[0])/len,uy=(b[1]-a[1])/len;
-      for(let d=0;d<len;d+=.5){fn(a[0]+ux*d,a[1]+uy*d,-uy,ux,acc);acc+=.5}}};
+    let acc=0;for(let k=1;k<pts.length;k++){const a=pts[k-1],b=pts[k],len=dist(a,b);if(!len)continue;const ux=(b[0]-a[0])/len,uy=(b[1]-a[1])/len;
+      for(let d=0;d<len;d+=.5){const x=a[0]+ux*d,y=a[1]+uy*d;let dup=false;
+        for(let j=-1;j<=1&&!dup;j++)for(let i=-1;i<=1&&!dup;i++){const c=grid.get((Math.floor(x/CS)+i)+','+(Math.floor(y/CS)+j));
+          if(c)for(const q of c)if(gacc-q.g>8&&Math.hypot(q.x-x,q.y-y)<3.5){dup=true;break}}
+        const q={x,y,g:gacc};const kk=key(x,y);(grid.get(kk)||grid.set(kk,[]).get(kk)).push(q);
+        if(!dup)smp.push([x,y,-uy,ux,acc]);acc+=.5;gacc+=.5}}
+    gacc+=100});
     const P2=(x,y,c)=>{x=Math.round(x);y=Math.round(y);if(x<0||y<0||x>=W||y>=H)return;put(x,y,c);rail[y*W+x]=1};
-    walk((x,y,nx,ny,acc)=>{if(acc%5<1.5)for(let k=-4.5;k<=4.5;k+=.5)P2(x+nx*k,y+ny*k,acc%5<.5?C.tied:C.tie)});
-    walk((x,y,nx,ny)=>{for(const side of [-3,3]){P2(x+nx*side,y+ny*side+1,C.raild);P2(x+nx*side,y+ny*side,C.rail)}})});
+    for(const[x,y,nx,ny,acc]of smp)if(acc%5<1.5)for(let k=-4.5;k<=4.5;k+=.5)P2(x+nx*k,y+ny*k,acc%5<.5?C.tied:C.tie);
+    // all rail shadows before any steel, so a track drawn upward looks the same as one drawn downward
+    for(const[x,y,nx,ny]of smp)for(const side of [-3,3])P2(x+nx*side,y+ny*side+1,C.raild);
+    for(const[x,y,nx,ny]of smp)for(const side of [-3,3])P2(x+nx*side,y+ny*side,C.rail)}
   if(opts.noScatter)return gen;
   const emit=(pre,o)=>{const key=`${pre}:${Math.round(o.x+OX)}:${Math.round(o.y+OY)}`;gen.push({key,o:{...o,x:o.x+OX,y:o.y+OY}});if(!skip.has(key))drawObject(data,W,H,o)};
   const blocked=i=>mW[i]||dWo[i]<=2||mM[i]||cliff[i]||ol[i]||face[i]||mR[i]||dRo[i]<=1||rockTop(i)||rail[i];
@@ -893,7 +929,7 @@ function renderRegion(){let r=dRect;dRect=null;
   lastR.sid=R.sid;const inner=o=>o.x>=ix0&&o.x<ix1&&o.y>=iy0&&o.y<iy1;
   lastGen=lastGen.filter(g=>!inner(g.o)).concat(gen.filter(g=>inner(g.o)));lastRenderT=performance.now()}
 function renderObjects(){if(ocan.width!==W||ocan.height!==H){ocan.width=W;ocan.height=H}const img=octx.createImageData(W,H);
-  [...st.objects].sort((a,b)=>a.y-b.y).forEach(o=>drawObject(img.data,W,H,o));octx.putImageData(img,0,0);objDirty=false}
+  st.objects.filter(o=>o.k!=='landing').sort((a,b)=>a.y-b.y).forEach(o=>drawObject(img.data,W,H,o));octx.putImageData(img,0,0);objDirty=false}
 
 // ================= sidebar =================
 function withSize(w,h,fn){const ow=W,oh=H;W=w;H=h;try{return fn()}finally{W=ow;H=oh}}
@@ -921,9 +957,12 @@ const tsep=()=>{const s=document.createElement('span');s.className='tsep';return
 const swCache={};
 function buildPaints(){const box=$('paints');box.replaceChildren();
   if(tab==='ground')TERR.forEach((t,i)=>{if(t.hidden)return;swCache['g'+i]=swCache['g'+i]||groundSwatch(i);box.append(itemBtn('p-g'+i,swCache['g'+i],t.name,t.sub,t.key,()=>pickPaint({layer:'ground',t:i})))});
-  else{ELEV.forEach((e,i)=>{swCache['h'+i]=swCache['h'+i]||elevSwatch(e);box.append(itemBtn('p-h'+i,swCache['h'+i],e.name,e.sub,String(i+1),()=>pickPaint({layer:'height',h:e.h,s:e.s})))});
-    const sp=document.createElement('span');sp.innerHTML=svgI('sculpt',2);
-    const b=itemBtn('p-sculpt',sp.firstChild,'Sculpt','Drag over an area, hold still, then drag up or down to raise or lower it','',()=>{heightSculpt=true;setTool('sculpt')});box.append(b)}
+  else{HSTYLE.forEach((e,i)=>{const k='hs'+i;swCache[k]=swCache[k]||elevSwatch({h:1,s:e.s});box.append(itemBtn('p-hs'+i,swCache[k],e.name,e.sub,String(i+1),()=>pickHillStyle(e.s)))});
+    // the selected hill or cliff: one level down / up (also ↓ ↑, or drag it)
+    const lv=document.createElement('div');lv.className='seg walkr';lv.id='hlevel';lv.setAttribute('role','group');lv.setAttribute('aria-label','Height of the selected hill or cliff');
+    const sb=(id,ic,tip,d)=>{const b=document.createElement('button');b.id=id;b.innerHTML=svgI(ic);b.setAttribute('aria-label',tip);b.dataset.tip=tip;b.dataset.key=d>0?'↑':'↓';b.dataset.sub=d>0?'One level up':'One level down';b.onclick=()=>stepLevel(d);return b};
+    const v=document.createElement('span');v.id='hl-v';lv.append(sb('hl-dn','down','Lower',-1),v,sb('hl-up','up','Raise',1));
+    const sp=tsep();sp.id='hl-sep';box.append(sp,lv)}
   syncUI()}
 function placementTokens(cx,cy){const s=tokKind();if(s<0)return[];const cells=cellList(),b=cellBox(cells);
   const snap=v=>altDown?Math.round(v):Math.round(v/8)*8,put=(t,x,y)=>({s:t,x:Math.max(8,Math.min(W-8,x)),y:Math.max(30,Math.min(H-1,y))});
@@ -1046,13 +1085,31 @@ function buildTools(){const box=$('tools');TOOLS.forEach(t=>{if(t.sep){const s=d
 // which rail button is lit for the current tool
 function railOf(){if(tool==='draw'||tool==='brush')return paint.layer==='ground'?'paint':'height';if(tool==='sculpt')return'height';if(tool==='object')return tokKind()>=0?'token':'object';return tool}
 function pickRail(id){if(mp.role==='player'&&(TOOLS.find(t=>t.id===id)||{}).dm)return;
-  if(id==='paint'||id==='height'){const g=id==='paint';paint=g?groundPaint:heightPaint;const nt=g?'ground':'height';setTool(!g&&heightSculpt?'sculpt':paintMode);if(tab!==nt){tab=nt;buildPaints()}}
+  if(id==='paint'||id==='height'){const g=id==='paint';paint=g?groundPaint:heightPaint;const nt=g?'ground':'height';setTool(g?paintMode:hillMode==='brush'?'sculpt':'draw');if(tab!==nt){tab=nt;buildPaints()}}
   else if(id==='object'){if(tokKind()>=0){lastTokKind=objKind;objKind=lastObjKind}setTool('object')}
   else if(id==='token'){if(tokKind()<0){lastObjKind=objKind;objKind=lastTokKind;objMix=false;buildToks()}setTool('object')}
   else setTool(id)}
 // B / D (and the Brush / Shape switch): paint with a brush or click out a shape, keeping the current terrain or hill
-function setPaintMode(m,ground){paintMode=m;if(!ground&&railOf()==='height'){heightSculpt=false;paint=heightPaint;setTool(m);return}paint=groundPaint;setTool(m);if(tab!=='ground'){tab='ground';buildPaints()}}
-function pickPaint(p){paint=p;if(p.layer==='ground')groundPaint=p;else{heightPaint=p;heightSculpt=false}
+function setPaintMode(m,ground){if(!ground&&railOf()==='height'){hillMode=m;paint=heightPaint;setTool(m==='brush'?'sculpt':'draw');return}paintMode=m;paint=groundPaint;setTool(m);if(tab!=='ground'){tab='ground';buildPaints()}}
+// the hill or cliff being worked on: selected with Select, or the one just drawn or dragged with the Hills tool
+function hSel(){if(!sel||sel.type!=='op')return null;const op=st.ops[sel.i];return op&&op.layer==='height'&&(tool==='select'||railOf()==='height')?op:null}
+// Hill or Cliff: the style for new strokes and shapes, and for the selected one if it is raised
+function pickHillStyle(s){hillStyle=s;heightPaint={...heightPaint,s};const op=hSel();
+  if(op&&op.h>0&&op.s!==s){push();op.s=s;markOp(op);save()}
+  if(tool!=='select'&&railOf()!=='height'){paint=heightPaint;setTool(hillMode==='brush'?'sculpt':'draw')}else if(railOf()==='height')paint=heightPaint;
+  syncUI()}
+// move a hill or cliff to level h, from where it was (pts0, h0, s0) when the move began.
+// The outline stays exactly where it was drawn (the face grows below it); lowering below ground makes it a pit.
+function setOpLevel(op,h,pts0,h0,s0){h=Math.max(HMIN,Math.min(HMAX,h));const s=h<0?1:h>0&&h0<0?hillStyle:s0;
+  markOp(op);op.h=h;op.s=s;op.pts=pts0.map(q=>[...q]);markOp(op)}
+function stepLevel(d){const op=hSel();if(!op||mp.role==='player')return false;const h=Math.max(HMIN,Math.min(HMAX,op.h+d));if(h===op.h)return true;
+  push();setOpLevel(op,h,op.pts.map(q=>[...q]),op.h,op.s);save();syncUI();return true}
+// the hill or cliff on top at p (later ops win, as in rasterize)
+function hitHeight(p){for(let i=st.ops.length-1;i>=0;i--){const op=st.ops[i];if(op.layer!=='height')continue;if(op.kind==='poly'?inPoly(p[0],p[1],op.pts):segDist(p[0],p[1],op.pts)<op.r)return i}return-1}
+// most common level under a set of points, as a step on the ladder
+function levelUnder(pts){const cnt={};if(lastR)pts.forEach(q=>{const x=Math.max(0,Math.min(W-1,q[0]|0)),y=Math.max(0,Math.min(H-1,q[1]|0)),v=sladIdx(lastR.Hm[y*W+x]);cnt[v]=(cnt[v]||0)+1});
+  let base=SLAD0,best=-1;for(const k in cnt)if(cnt[k]>best){best=cnt[k];base=+k}return base}
+function pickPaint(p){paint=p;if(p.layer==='ground')groundPaint=p;else heightPaint=p;
   if(tool==='select'&&sel&&sel.type==='op'){const op=st.ops[sel.i];
     if(op.layer===p.layer&&(p.layer==='ground'?op.t!==p.t:(op.h!==p.h||op.s!==p.s))){push();if(p.layer==='ground')op.t=p.t;else{op.h=p.h;op.s=p.s}markOp(op);save()}}
   else if(tool!=='draw'&&tool!=='brush')setTool(paintMode);
@@ -1196,7 +1253,7 @@ function drawFires(g,ts,fv){const list=litFires(fv);if(!list.length)return;const
   list.forEach((o,i)=>{const F=FIRE[o.k],fr=flameFrames(o.k)[still?2:(Math.floor(t/105)+i*3)%8];
     g.drawImage(fr,Math.round(o.x-F.w/2),Math.round(flameTop(o)))})}
 function drawWorld(g,s,ts){ // draw terrain, objects, tokens and grid in map units (transform already set)
-  g.imageSmoothingEnabled=false;g.drawImage(tcan,0,0);g.drawImage(ocan,0,0);const fv=fogView();drawFires(g,ts===undefined?performance.now():ts,fv);
+  g.imageSmoothingEnabled=false;g.drawImage(tcan,0,0);g.drawImage(ocan,0,0);const fv=fogView();drawFires(g,ts===undefined?performance.now():ts,fv);if(g===ctx)drawBlasts(g,fv);
   drawFogSolid(g,fv);
   st.tokens.filter(t=>tokShown(fv,t)).map(t=>{const gh=t.id&&mp.ghost.get(t.id);return gh?{...t,x:gh[0],y:gh[1]}:t}).sort((a,b)=>a.y-b.y).forEach(t=>{if(g===ctx)tokAura(g,t);g.drawImage(shadowImg,Math.round(t.x)-7,Math.round(t.y)-2);
     const f=(frame+(t.o||0))%8,im=sheets[t.s];if(im.complete)g.drawImage(im,f*32,0,32,32,Math.round(t.x)-16,Math.round(t.y)-31,32,32)});
@@ -1234,7 +1291,7 @@ function draw(ts){
   const busy=drag&&(drag.kind==='vertex'||drag.kind==='op');
   if(dirty)renderTerrain();else if(dRect&&lastR&&!(busy&&performance.now()-lastRenderT<40))renderRegion();if(objDirty)renderObjects();
   ctx.setTransform(1,0,0,1,0,0);ctx.fillStyle='#120f14';ctx.fillRect(0,0,cv.width,cv.height);
-  ctx.setTransform(dpr*Z,0,0,dpr*Z,-cam.x*Z*dpr,-cam.y*Z*dpr);drawWorld(ctx,Z,ts);if(mp.role!=='player'&&!fogPreview)drawFogVeil(ctx,st.fog);
+  const[skx,sky]=blastShake();ctx.setTransform(dpr*Z,0,0,dpr*Z,(skx-cam.x*Z)*dpr,(sky-cam.y*Z)*dpr);drawWorld(ctx,Z,ts);if(mp.role!=='player'&&!fogPreview)drawFogVeil(ctx,st.fog);
   ctx.setTransform(dpr,0,0,dpr,-cam.x*Z*dpr,-cam.y*Z*dpr);   // overlays: map coords × Z, in CSS pixels
   ctx.strokeStyle='rgba(242,196,159,.35)';ctx.lineWidth=1;ctx.strokeRect(-.5,-.5,W*Z+1,H*Z+1);
   edgeTabs=[];const MAXC=60,MAXR=40;
@@ -1246,10 +1303,11 @@ function draw(ts){
     if(hv){const t=(d==='r'||d==='l')?'Add 10 columns':'Add 10 rows';ctx.font='600 12px "Work Sans", system-ui, sans-serif';const tw=ctx.measureText(t).width;
       const tx=d==='l'?x:d==='r'?x+32-tw-12:x+16-(tw+12)/2,ty=d==='t'?y-26:y+38;ctx.fillStyle='rgba(29,27,34,.95)';ctx.beginPath();ctx.roundRect(tx,ty,tw+12,22,5);ctx.fill();ctx.fillStyle='#fff';ctx.fillText(t,tx+6,ty+15)}
     edgeTabs.push({d,x,y})});
+  portalDraw();
   // selection
-  if(tool==='select'&&sel){
+  if((tool==='select'||hSel())&&sel){
     if(sel.type==='op'){const op=st.ops[sel.i];if(op){const p=op.pts.map(sc);
-      if(op.kind==='poly'){pathPoly(p);ctx.closePath();ctx.fillStyle='rgba(255,255,255,.08)';ctx.fill();ctx.setLineDash([8,6]);ctx.strokeStyle='rgba(255,255,255,.95)';ctx.lineWidth=2;ctx.stroke();ctx.setLineDash([]);p.forEach(q=>handle(q))}
+      if(op.kind==='poly'){pathPoly(p);ctx.closePath();ctx.fillStyle='rgba(255,255,255,.08)';ctx.fill();ctx.setLineDash([8,6]);ctx.strokeStyle='rgba(255,255,255,.95)';ctx.lineWidth=2;ctx.stroke();ctx.setLineDash([]);if(tool==='select')p.forEach(q=>handle(q))}
       else{pathPoly(p);ctx.lineCap=ctx.lineJoin='round';ctx.lineWidth=op.r*2*Z;ctx.strokeStyle='rgba(255,255,255,.18)';ctx.stroke();ctx.setLineDash([8,6]);ctx.lineWidth=2;ctx.strokeStyle='rgba(255,255,255,.9)';ctx.stroke();ctx.setLineDash([])}}}
     else if(sel.type==='token'){const t=st.tokens[sel.i];if(t){ctx.setLineDash([6,4]);ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.strokeRect((t.x-12)*Z,(t.y-30)*Z,24*Z,32*Z);ctx.setLineDash([])}}
     else{ctx.setLineDash([6,4]);ctx.strokeStyle='#fff';ctx.lineWidth=2;selList().forEach(i=>{const o=st.objects[i];if(!o)return;const[w,h]=SIZE[o.k];ctx.strokeRect((o.x-w/2-2)*Z,(o.y-h/2-2)*Z,(w+4)*Z,(h+4)*Z)});ctx.setLineDash([])}}
@@ -1257,6 +1315,10 @@ function draw(ts){
   if(tool==='select'&&hover&&!drag&&mp.role!=='player'){const hh=hit(hover);if(hh&&(hh.type==='gen'||hh.type==='obj')){const o=hh.type==='gen'?hh.g.o:st.objects[hh.i],[w,h]=SIZE[o.k];ctx.strokeStyle='rgba(255,255,255,.7)';ctx.lineWidth=2;ctx.strokeRect((o.x-w/2-1.5)*Z,(o.y-h/2-1.5)*Z,(w+3)*Z,(h+3)*Z)}}
   if(tool==='select'&&hover&&!drag&&mp.role!=='player'){const h=hit(hover);if(h&&h.type==='op'&&!(sel&&sel.type==='op'&&sel.i===h.i)){const op=st.ops[h.i];const p=op.pts.map(sc);
     pathPoly(p);if(op.kind==='poly'){ctx.closePath();ctx.lineWidth=2}else{ctx.lineCap='round';ctx.lineWidth=op.r*2*Z}ctx.strokeStyle='rgba(255,255,255,.35)';ctx.stroke()}}
+  {const on=tool==='draw'&&paint.layer==='height'&&!draft.length&&mp.role!=='player'&&(lift||hover);let hi=-1;
+   if(on){hi=lift?lift.i:hitHeight(hover);if(hi>=0&&!(sel&&sel.type==='op'&&sel.i===hi)){const op=st.ops[hi],p=op.pts.map(sc);
+     pathPoly(p);if(op.kind==='poly'){ctx.closePath();ctx.lineWidth=2}else{ctx.lineCap='round';ctx.lineWidth=op.r*2*Z}ctx.strokeStyle='rgba(255,255,255,.4)';ctx.stroke()}}
+   cv.classList.toggle('lift',hi>=0)}
   // token drag: show where it will land
   if(drag&&drag.kind==='token'){const t=st.tokens[drag.i];const sx=altDown?t.x:Math.round(t.x/8)*8,sy=altDown?t.y:Math.round(t.y/8)*8;
     const isC=(sx%16===8)&&(sy%16===8);if(isC){ctx.fillStyle='rgba(242,196,159,.18)';ctx.fillRect((sx-8)*Z,(sy-8)*Z,16*Z,16*Z)}
@@ -1264,7 +1326,8 @@ function draw(ts){
   // shape draft
   if(tool==='draw'&&draft.length){const p=draft.map(sc);const cur=hover?sc(hover):p[p.length-1];
     const nearFirst=draft.length>=3&&hover&&dist(hover,draft[0])<7;
-    pathPoly(p);ctx.lineTo(...(nearFirst?p[0]:cur));ctx.closePath();ctx.fillStyle=paintRGBA(paint,.6);ctx.fill();
+    if(isPathPaint(paint)){pathPoly(p);ctx.lineTo(...(nearFirst?p[0]:cur));ctx.lineCap=ctx.lineJoin='round';ctx.lineWidth=(paint.t===9?5:bsize)*2*Z;ctx.strokeStyle=paintRGBA(paint,.6);ctx.stroke()}
+    else{pathPoly(p);ctx.lineTo(...(nearFirst?p[0]:cur));ctx.closePath();ctx.fillStyle=paintRGBA(paint,.6);ctx.fill()}
     pathPoly(p);ctx.strokeStyle='#fff';ctx.lineWidth=3;ctx.stroke();
     ctx.setLineDash([10,8]);ctx.beginPath();ctx.moveTo(...p[p.length-1]);ctx.lineTo(...(nearFirst?p[0]:cur));ctx.stroke();ctx.setLineDash([]);
     p.forEach(q=>handle(q));
@@ -1288,7 +1351,7 @@ function draw(ts){
         const held=performance.now()-sculpt.t;
         if(held>110){const f=Math.min(1,(held-110)/(DWELL-110));ctx.beginPath();ctx.arc(cx,cy,r+8,-Math.PI/2,-Math.PI/2+f*Math.PI*2);ctx.strokeStyle='#f2c49f';ctx.lineWidth=4;ctx.stroke()}
         ctx.beginPath();ctx.arc(cx,cy,r,0,7);ctx.strokeStyle='rgba(255,255,255,.9)';ctx.lineWidth=2;ctx.stroke()}
-      else{const li=sculpt.base+sculpt.delta,L2=SLAD[li],d=sculpt.delta,lift=sculptLift(L2.h,SLAD[sculpt.base].h)*Z,cl=L2.h>0;
+      else{const li=sculpt.base+sculpt.delta,L2=SLAD[li],d=sculpt.delta,lift=sculptLift(L2.h,SLAD[sculpt.base].h,hillStyle)*Z,cl=L2.h>0&&hillStyle===1;
         const col=li>sculpt.base?(cl?'rgba(150,70,46,.62)':'rgba(255,236,190,.6)'):li<sculpt.base?'rgba(24,34,80,.6)':'rgba(255,255,255,.2)';
         if(d>0){pathPoly(p);ctx.lineWidth=r*2;ctx.strokeStyle=cl?'rgba(90,36,24,.6)':'rgba(120,80,60,.35)';ctx.stroke()}
         ctx.save();ctx.translate(0,-lift);pathPoly(p);ctx.lineWidth=r*2;ctx.strokeStyle=col;ctx.stroke();ctx.restore();
@@ -1334,11 +1397,10 @@ function handle(q){ctx.fillStyle='#fff';ctx.strokeStyle='#1d1b22';ctx.lineWidth=
 const DWELL=380;
 function toRaise(){if(!sculpt||sculpt.phase!=='paint')return;
   // base = the most common level (height + hill/cliff) under the painted area, as a step on the sculpt ladder
-  const cnt={};if(lastR)sculpt.pts.forEach(q=>{const j=Math.min(H-1,q[1]|0)*W+Math.min(W-1,q[0]|0),v=sladIdx(lastR.Hm[j]);cnt[v]=(cnt[v]||0)+1});
-  let base=SLAD0,best=-1;for(const k in cnt)if(cnt[k]>best){best=cnt[k];base=+k}
+  const base=levelUnder(sculpt.pts);
   Object.assign(sculpt,{phase:'raise',y0:sculpt.cy,base,delta:0});syncHint()}
 let last=0;const reduce=matchMedia('(prefers-reduced-motion: reduce)');
-function loop(ts){mpTick();if(sculpt&&sculpt.phase==='paint'&&performance.now()-sculpt.t>DWELL)toRaise();if($('anim').checked&&!reduce.matches&&ts-last>150){frame=(frame+1)%8;last=ts}draw(ts);placeSelbar();signTick();requestAnimationFrame(loop)}
+function loop(ts){mpTick();if(sculpt&&sculpt.phase==='paint'&&performance.now()-sculpt.t>DWELL)toRaise();if($('anim').checked&&!reduce.matches&&ts-last>150){frame=(frame+1)%8;last=ts}blastTick();draw(ts);placeSelbar();signTick();portalTick();requestAnimationFrame(loop)}
 
 // ================= interaction =================
 const dist=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1]);
@@ -1366,7 +1428,7 @@ cv.addEventListener('wheel',e=>{e.preventDefault();const r=cv.getBoundingClientR
 const touches=new Map();let pinch=null;
 function pinchState(){const[a,b]=[...touches.values()];return{mx:(a.x+b.x)/2,my:(a.y+b.y)/2,d:Math.hypot(a.x-b.x,a.y-b.y)||1}}
 cv.addEventListener('pointerdown',e=>{if(e.pointerType!=='touch')return;const r=cv.getBoundingClientRect();touches.set(e.pointerId,{x:e.clientX-r.left,y:e.clientY-r.top});
-  if(touches.size===2){if(stroke)stroke=null;if(sculpt)sculpt=null;if(drag){drag=null}if(tool==='draw'&&draft.length&&performance.now()-lastTap<600){draft.pop();syncHint()}
+  if(touches.size===2){if(stroke)stroke=null;if(sculpt)sculpt=null;if(lift){if(lift.moved){const op=st.ops[lift.i];if(op)setOpLevel(op,lift.h0,lift.pts0,lift.h0,lift.s0);hist.pop();updUndo()}lift=null}if(drag){drag=null}if(tool==='draw'&&draft.length&&performance.now()-lastTap<600){draft.pop();syncHint()}
     panning=null;const ps=pinchState();pinch={...ps,z:Z,cx:cam.x,cy:cam.y};e.stopImmediatePropagation()}},true);
 cv.addEventListener('pointermove',e=>{if(!touches.has(e.pointerId))return;const r=cv.getBoundingClientRect();touches.set(e.pointerId,{x:e.clientX-r.left,y:e.clientY-r.top});
   if(pinch&&touches.size===2){const ps=pinchState();const nz=Math.max(.5,Math.min(8,pinch.z*ps.d/pinch.d));const wx=pinch.cx+pinch.mx/pinch.z,wy=pinch.cy+pinch.my/pinch.z;
@@ -1384,9 +1446,12 @@ cv.addEventListener('pointerdown',e=>{const p=toMap(e);cv.setPointerCapture(e.po
      if(t.d==='b')setMapSize(st.cols,Math.min(MAXR,st.rows+10),0,0,true);
      if(t.d==='t'){const n=add(MAXR-st.rows);setMapSize(st.cols,st.rows+n,0,n,true)}
      return}}
+  if(tool==='draw'&&paint.layer==='height'&&!draft.length){
+    // Hills, shape: drag a hill or cliff up or down to change its height; a click starts a new shape
+    const i=hitHeight(p);if(i>=0){const op=st.ops[i];lift={i,p,y0:e.clientY,pts0:op.pts.map(q=>[...q]),h0:op.h,s0:op.s,moved:false};sel={type:'op',i};syncUI();return}}
   if(tool==='draw'){
-    if(draft.length>=3&&dist(p,draft[0])<7){finish();return}
-    const now=performance.now();if(now-lastTap<300&&draft.length>=3&&dist(p,draft[draft.length-1])<3){finish();return}lastTap=now;
+    if(draft.length>=3&&dist(p,draft[0])<7){finish(true);return}
+    const now=performance.now();if(now-lastTap<300&&draft.length>=draftMin()&&dist(p,draft[draft.length-1])<3){finish();return}lastTap=now;
     draft.push(clamp(p).map(v=>Math.round(v*2)/2));syncHint();return}
   if(tool==='brush'){stroke={pts:[clamp(p)],r:bsize};return}
   if(tool==='sculpt'){sculpt={phase:'paint',pts:[clamp(p)],cy:e.clientY,t:performance.now(),y0:0,base:0,delta:0};syncHint();return}
@@ -1411,7 +1476,7 @@ cv.addEventListener('pointerdown',e=>{const p=toMap(e);cv.setPointerCapture(e.po
   if(!h){sel=null;syncUI();panning={x:e.clientX,y:e.clientY,cx:cam.x,cy:cam.y};return}
   push();
   if(h.type==='vertex')drag={kind:'vertex',i:h.i,v:h.v};
-  else if(h.type==='token'){sel={type:'token',i:h.i};drag={kind:'token',i:h.i,off:[st.tokens[h.i].x-p[0],st.tokens[h.i].y-p[1]]};syncUI()}
+  else if(h.type==='token'){sel={type:'token',i:h.i};drag={kind:'token',i:h.i,off:[st.tokens[h.i].x-p[0],st.tokens[h.i].y-p[1]],from:[st.tokens[h.i].x,st.tokens[h.i].y]};syncUI()}
   else if(h.type==='obj'){const cur=selList(),o=st.objects[h.i];let list;
     if(e.shiftKey){list=cur.includes(h.i)?cur.filter(i=>i!==h.i):[...cur,h.i];setObjSel(list);hist.pop();updUndo();syncUI();return}
     if(cur.includes(h.i))list=cur;else if(o.g&&!altDown)list=st.objects.map((q,i)=>q.g===o.g?i:-1).filter(i=>i>=0);else list=[h.i];
@@ -1430,6 +1495,10 @@ cv.addEventListener('pointermove',e=>{if(boxSel){boxSel.b=toMap(e);return}
   if(tool==='measure'&&measure&&(measure.down||measure.follow)){measure.b=measure.snap(p);return}
   if(tool==='fog'&&fogPaint){const q=clamp(p);fogPaint.moved=Math.max(fogPaint.moved,dist(fogPaint.a,q));if(fogPaint.brush){fogStroke(fogPaint.last,q);fogPaint.last=q;mpChanged()}else fogPaint.b=q;return}
   if(tool==='ping'&&pointer&&pointer.down){pointer.trail.push({x:p[0],y:p[1],t:performance.now()});return}
+  if(lift){const op=st.ops[lift.i];if(!op){lift=null;return}const dy=lift.y0-e.clientY;
+    if(!lift.moved&&Math.abs(dy)>5){lift.moved=true;push()}
+    if(lift.moved){const h=Math.max(HMIN,Math.min(HMAX,lift.h0+Math.round(dy/30)));if(h!==op.h){setOpLevel(op,h,lift.pts0,lift.h0,lift.s0);syncHint()}}
+    return}
   if(tool==='sculpt'&&sculpt){sculpt.cy=e.clientY;
     if(sculpt.phase==='paint'){const lp=sculpt.pts[sculpt.pts.length-1];if(dist(lp,p)>=1.5){sculpt.pts.push(clamp(p));sculpt.t=performance.now()}}
     else{const d=Math.round((sculpt.y0-e.clientY)/34);const nd=Math.max(-sculpt.base,Math.min(SLAD.length-1-sculpt.base,d));if(nd!==sculpt.delta){sculpt.delta=nd;syncHint()}}
@@ -1448,28 +1517,43 @@ function up(){
   if(fogPaint){fogDone();return}
   if(tool==='brush'&&stroke){push();if(paint.t===9&&paint.layer==='ground'){const sp=[];stroke.pts.forEach((q,k)=>{if(!sp.length||k===stroke.pts.length-1||dist(sp[sp.length-1],q)>=10)sp.push(q)});stroke.pts=sp}
     st.ops.push({kind:'stroke',...paint,r:paint.t===9&&paint.layer==='ground'?5:stroke.r,pts:stroke.pts.map(q=>[Math.round(q[0]*2)/2,Math.round(q[1]*2)/2]),sid:Math.floor(Math.random()*1000)});markOp(st.ops[st.ops.length-1]);stroke=null;save();return}
-  if(tool==='sculpt'&&sculpt){const sp=sculpt;sculpt=null;if(sp.phase==='raise'&&sp.delta!==0){push();const lv=SLAD[sp.base+sp.delta];
-      const up=sculptLift(lv.h,SLAD[sp.base].h),pts=[];sp.pts.forEach(q=>{if(!pts.length||dist(pts[pts.length-1],q)>=Math.max(1.5,bsize/3))pts.push([Math.round(q[0]*2)/2,Math.round((q[1]-up)*2)/2])});
-      st.ops.push({kind:'stroke',layer:'height',h:lv.h,s:lv.s,r:bsize,pts,sid:Math.floor(Math.random()*1000)});markOp(st.ops[st.ops.length-1]);save()}syncHint();return}
+  if(tool==='sculpt'&&sculpt){const sp=sculpt;sculpt=null;if(sp.phase==='raise'&&sp.delta!==0){push();const lv=SLAD[sp.base+sp.delta],hs=hStyleAt(lv.h,hillStyle);
+      const up=sculptLift(lv.h,SLAD[sp.base].h,hs),pts=[];sp.pts.forEach(q=>{if(!pts.length||dist(pts[pts.length-1],q)>=Math.max(1.5,bsize/3))pts.push([Math.round(q[0]*2)/2,Math.round((q[1]-up)*2)/2])});
+      st.ops.push({kind:'stroke',layer:'height',h:lv.h,s:hs,r:bsize,pts,sid:Math.floor(Math.random()*1000)});markOp(st.ops[st.ops.length-1]);sel={type:'op',i:st.ops.length-1};save()}syncUI();return}
+  if(lift){const L=lift;lift=null;if(L.moved){save();syncUI();return}
+    // a click, not a drag: it was the first corner of a new shape
+    draft.push(clamp(L.p).map(v=>Math.round(v*2)/2));lastTap=performance.now();syncUI();return}
   if(measure)measure.down=false;
   if(pointer&&pointer.down){pointer.down=false;pointer.end=performance.now();const h=pointer.trail[pointer.trail.length-1];pings.push({x:h.x,y:h.y,t0:pointer.end});mpPinged(h.x,h.y)}
   if(!drag)return;
   if(drag.kind==='token'&&!altDown){const t=st.tokens[drag.i],o=[t.x,t.y];t.x=Math.round(t.x/8)*8;t.y=Math.round(t.y/8)*8;fogWalk(t,o,[t.x,t.y])}
-  if(drag.kind==='token')mpMoved(st.tokens[drag.i]);
+  if(drag.kind==='token'){mpMoved(st.tokens[drag.i]);portalStep(st.tokens[drag.i],false,drag.from)}
   if((drag.kind==='op'||drag.kind==='objs')&&!drag.moved&&!drag.adopted){hist.pop();updUndo()}
   drag=null;save()}
 cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);
 cv.addEventListener('pointerleave',()=>{hover=null;hoverScr=null});
-cv.addEventListener('dblclick',e=>{if(tool==='draw'&&draft.length>=3){e.preventDefault();finish()}});
-function finish(){if(draft.length>3&&dist(draft[draft.length-1],draft[draft.length-2])<2)draft.pop();
-  if(draft.length<3)return;push();st.ops.push({kind:'poly',...paint,pts:draft,sid:Math.floor(Math.random()*1000)});markOp(st.ops[st.ops.length-1]);draft=[];save();syncHint()}
-function setTool(t){if(mp.role==='player'&&!PLAYER_TOOLS.includes(t))return;tool=t;qClose();draft=[];stroke=null;sculpt=null;if(t!=='select')sel=null;if(t!=='measure')measure=null;syncUI()}
+cv.addEventListener('dblclick',e=>{if(tool==='draw'&&draft.length>=draftMin()){e.preventDefault();finish()}});
+// roads and mine rails drawn as a shape follow the clicked segments as an open path; they only loop when you click the first point again
+const isPathPaint=p=>p.layer==='ground'&&(p.t===5||p.t===9);
+const draftMin=()=>isPathPaint(paint)?2:3;
+function finish(close){const m=draftMin();if(draft.length>m&&dist(draft[draft.length-1],draft[draft.length-2])<2)draft.pop();
+  if(draft.length<m)return;push();let op;
+  if(isPathPaint(paint)){const pts=draft.slice();if(close===true&&pts.length>=3)pts.push(pts[0].slice());
+    op={kind:'stroke',...paint,r:paint.t===9?5:bsize,pts,sid:Math.floor(Math.random()*1000)}}
+  else{op={kind:'poly',...paint,pts:draft,sid:Math.floor(Math.random()*1000)};
+    if(paint.layer==='height'){
+      // a new hill or cliff starts one level above what's under it and stays selected, ready to drag up or down
+      const xs=draft.map(q=>q[0]),ys=draft.map(q=>q[1]),x0=Math.min(...xs),x1=Math.max(...xs),y0=Math.min(...ys),y1=Math.max(...ys),inside=[];
+      for(let y=y0;y<=y1;y+=4)for(let x=x0;x<=x1;x+=4)if(inPoly(x,y,draft))inside.push([x,y]);
+      const h=Math.min(HMAX,SLAD[levelUnder(inside.length?inside:draft)].h+1);op={...op,h,s:hStyleAt(h,hillStyle)}}}
+  st.ops.push(op);markOp(op);if(paint.layer==='height')sel={type:'op',i:st.ops.length-1};draft=[];save();syncUI()}
+function setTool(t){if(mp.role==='player'&&!PLAYER_TOOLS.includes(t))return;const keep=hSel()&&(t==='sculpt'||(t==='draw'&&paint.layer==='height'));tool=t;qClose();draft=[];stroke=null;sculpt=null;lift=null;if(t!=='select'&&!keep)sel=null;if(t!=='measure')measure=null;syncUI()}
 function delSel(){if(!sel)return;push();if(sel.type==='token'){st.tokens.splice(sel.i,1)}else if(sel.type==='op'){markOp(st.ops[sel.i]);st.ops.splice(sel.i,1)}else{[...selList()].sort((a,b)=>b-a).forEach(i=>st.objects.splice(i,1));objDirty=true}sel=null;save();syncUI()}
 // Duplicate (selection bar or Ctrl+D): a copy one square down and right, selected so it can be dragged straight away
 function dupSel(){if(!sel||mp.role==='player')return;push();const D=GRID;
   if(sel.type==='token'){const t=st.tokens[sel.i];if(!t){hist.pop();return}const c={...t,x:Math.min(W-8,t.x+D),o:Math.floor(Math.random()*8)};delete c.id;st.tokens.push(c);sel={type:'token',i:st.tokens.length-1}}
   else if(sel.type==='op'){const op=st.ops[sel.i];const c={...op,pts:op.pts.map(q=>[q[0]+D,q[1]+D]),sid:Math.floor(Math.random()*1000)};st.ops.push(c);markOp(c);sel={type:'op',i:st.ops.length-1}}
-  else{const l=selList(),gm={},start=st.objects.length;l.forEach(i=>{const o=st.objects[i],c={...o,x:Math.min(W,o.x+D),y:Math.min(H,o.y+D)};if(o.g)c.g=gm[o.g]||(gm[o.g]='g'+Date.now().toString(36)+Math.random().toString(36).slice(2,5));st.objects.push(c)});objDirty=true;setObjSel(l.map((_,k)=>start+k))}
+  else{const l=selList(),gm={},start=st.objects.length;l.forEach(i=>{const o=st.objects[i],c={...o,x:Math.min(W,o.x+D),y:Math.min(H,o.y+D)};if(o.g)c.g=gm[o.g]||(gm[o.g]='g'+Date.now().toString(36)+Math.random().toString(36).slice(2,5));if(c.id)c.id=objId();st.objects.push(c)});objDirty=true;setObjSel(l.map((_,k)=>start+k))}
   save();syncUI()}
 function saveStamp(){const list=selList();if(!list.length)return;const os=list.map(i=>st.objects[i]);const cx=os.reduce((a,o)=>a+o.x,0)/os.length,cy=os.reduce((a,o)=>a+o.y,0)/os.length;
   const counts={};os.forEach(o=>{const nm=OBJ.find(q=>q.k===o.k).name.toLowerCase();counts[nm]=(counts[nm]||0)+1});
@@ -1523,9 +1607,9 @@ $('pm-brush').innerHTML=svgI('paint');$('pm-draw').innerHTML=svgI('shape');
 $('fog-reveal').innerHTML=svgI('reveal');$('fog-hide').innerHTML=svgI('hide');$('fog-brush').innerHTML=svgI('paint');$('fog-box').innerHTML=svgI('box');
 $('fog-none').innerHTML=svgI('showall');$('fog-walk').innerHTML=svgI('walk');$('fog-all').innerHTML=svgI('hideall');
 // size presets: small / medium / large dots; [ and ] still fine-tune in between
-const BSIZES=[[3,'Small brush'],[6,'Medium brush'],[12,'Large brush']],FSIZES=[[1,'1 square'],[2,'3 squares across'],[4,'7 squares across']];
+const BSIZES=[[3,'Small brush'],[6,'Medium brush'],[12,'Large brush'],[22,'Extra large brush']],FSIZES=[[1,'1 square'],[2,'3 squares across'],[4,'7 squares across']];
 function sizeSeg(box,list,set){list.forEach(([v,nm],i)=>{const b=document.createElement('button');b.dataset.v=v;b.setAttribute('aria-label',nm);b.dataset.tip=nm;b.dataset.sub='[ and ] fine-tune the size';
-  const d=document.createElement('span');d.className='dot';d.style.width=d.style.height=[6,10,15][i]+'px';b.append(d);b.onclick=()=>{set(v);syncUI()};box.append(b)})}
+  const d=document.createElement('span');d.className='dot';d.style.width=d.style.height=[6,10,15,20][i]+'px';b.append(d);b.onclick=()=>{set(v);syncUI()};box.append(b)})}
 function sizePressed(box,cur){const bs=[...box.children];let best=null,bd=1e9;bs.forEach(b=>{const d=Math.abs(+b.dataset.v-cur);if(d<bd){bd=d;best=b}});bs.forEach(b=>b.setAttribute('aria-pressed',String(b===best)))}
 sizeSeg($('sizes'),BSIZES,v=>bsize=v);sizeSeg($('fogsizes'),FSIZES,v=>fogR=v);
 // grid / mix popover, opened from the tray
@@ -1546,16 +1630,17 @@ window.addEventListener('keydown',e=>{const tg=e.target;if(tg.tagName==='INPUT'&
   if(e.key===' '&&tg.tagName!=='BUTTON'){e.preventDefault();spaceDown=true;cv.classList.add('pan');return}
   if(!e.ctrlKey&&!e.metaKey&&(e.key==='+'||e.key==='=')){zoomStep(1);return}if(!e.ctrlKey&&!e.metaKey&&(e.key==='-'||e.key==='_')){zoomStep(-1);return}if(e.key==='0'){fit();return}
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();undo();return}
-  if(e.key==='Escape'){if(!$('qmenu').hidden){qClose();return}if(tokVarOpen){tokVarOpen=null;buildToks();syncUI();return}if(!$('gridpop').hidden){gridPop(false);return}if(!$('menu').hidden){menuShow(false);return}if(!$('modal').hidden){$('modal').hidden=true;return}sculpt=null;draft=[];stroke=null;sel=null;measure=null;syncUI();return}
+  if(e.key==='Escape'){if(!$('qmenu').hidden){qClose();return}if(tokVarOpen){tokVarOpen=null;buildToks();syncUI();return}if(!$('gridpop').hidden){gridPop(false);return}if(!$('menu').hidden){menuShow(false);return}if(!$('modal').hidden){$('modal').hidden=true;return}sculpt=null;lift=null;draft=[];stroke=null;sel=null;measure=null;syncUI();return}
   if(e.key==='Shift'&&sculpt&&sculpt.phase==='paint'){toRaise();return}
   if(e.key==='Enter'&&tool==='draw'&&tg.tagName!=='BUTTON'){finish();return}
   if(e.key==='Backspace'||e.key==='Delete'){if(tool==='draw'&&draft.length){draft.pop();syncHint();e.preventDefault()}else if(sel){delSel();e.preventDefault()}return}
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='d'&&sel&&tool==='select'){e.preventDefault();dupSel();return}
   if(e.ctrlKey||e.metaKey||e.altKey)return;
+  if((e.key==='ArrowUp'||e.key==='ArrowDown')&&!lift&&!sculpt&&hSel()&&stepLevel(e.key==='ArrowUp'?1:-1)){e.preventDefault();return}
   if((e.key==='ArrowUp'||e.key==='ArrowDown')&&tool==='object'&&mp.role!=='player'&&tokStep(e.key==='ArrowUp'?-1:1)){e.preventDefault();return}
   if(tool==='fog'&&(e.key==='['||e.key===']')){fogR=Math.max(1,Math.min(6,fogR+(e.key===']'?1:-1)));syncUI();return}
   if(e.key==='['){bsize=Math.max(2,bsize-1);syncUI();return}if(e.key===']'){bsize=Math.min(28,bsize+1);syncUI();return}
-  const k=e.key.toUpperCase();if(k==='B'||k==='D'){if(mp.role!=='player')setPaintMode(k==='B'?'brush':'draw',true);return}if(k==='H'){setTool('pan');return}
+  const k=e.key.toUpperCase();if(k==='B'||k==='D'){if(mp.role!=='player')setPaintMode(k==='B'?'brush':'draw',k==='B'||railOf()!=='height');return}if(k==='H'){setTool('pan');return}
   const t=TOOLS.find(t=>t.key===k);if(t){pickRail(t.id);return}
   if(k==='R'&&tool==='object'&&tokKind()<0){rotatePlacement();return}
   if(k==='G'){$('grid').checked=!$('grid').checked;return}
@@ -1574,12 +1659,14 @@ function syncUI(){
    if(![...sel2.options].some(o=>o.value===v)){const o=document.createElement('option');o.value=v;o.dataset.custom='1';o.textContent=`${st.cols} × ${st.rows} squares`;sel2.append(o)}sel2.value=v}
   const opSel=tool==='select'&&sel&&sel.type==='op';
   TERR.forEach((t,i)=>{const b=$('p-g'+i);if(b)b.setAttribute('aria-pressed',String(paint.layer==='ground'&&paint.t===i))});
-  ELEV.forEach((e,i)=>{const b=$('p-h'+i);if(b)b.setAttribute('aria-pressed',String(tool!=='sculpt'&&paint.layer==='height'&&paint.h===e.h&&paint.s===e.s))});
-  {const b=$('p-sculpt');if(b){b.setAttribute('aria-pressed',String(tool==='sculpt'));b.hidden=opSel}}
+  {const ho=hSel(),sty=ho&&ho.h>0?ho.s:ho&&ho.h<0?-1:hillStyle;HSTYLE.forEach((e,i)=>{const b=$('p-hs'+i);if(b)b.setAttribute('aria-pressed',String(sty===e.s))});
+   const lv=$('hlevel');if(lv){lv.hidden=$('hl-sep').hidden=!ho;if(ho){$('hl-v').textContent=ho.h>0?'+'+ho.h:ho.h<0?'−'+-ho.h:'Flat';$('hl-v').title=elevName(ho.h,ho.s);$('hl-dn').disabled=ho.h<=HMIN;$('hl-up').disabled=ho.h>=HMAX}}}
   {const mix=objMix&&!objKind.startsWith('stamp:');OBJ.forEach(o=>$('o-'+o.k).setAttribute('aria-pressed',String(mix?mixKinds.has(o.k):objKind===o.k)))}
   TOKINFO.forEach((t,s)=>{const b=$('tk-'+s);if(b)b.setAttribute('aria-pressed',String(tokMix.size?tokMix.has(s):objKind==='tok:'+s))});
   $('toks').querySelectorAll('.sw.many').forEach(b=>{const l=b.dataset.toks.split(',').map(Number);b.setAttribute('aria-pressed',String(tokMix.size?l.some(q=>tokMix.has(q)):l.includes(tokKind())))});stamps.forEach((sp,i)=>{const b=$('o-stamp:'+i);if(b)b.setAttribute('aria-pressed',String(objKind==='stamp:'+i))});
-  $('pm-brush').setAttribute('aria-pressed',String(tool==='brush'));$('pm-draw').setAttribute('aria-pressed',String(tool==='draw'));
+  $('pm-brush').setAttribute('aria-pressed',String(tool==='brush'||tool==='sculpt'));$('pm-draw').setAttribute('aria-pressed',String(tool==='draw'));
+  {const hr=r==='height';$('pm-brush').dataset.sub=hr?'Drag over an area, hold still, then drag up or down':'Drag to paint';$('pm-brush').dataset.key=hr?'':'B';
+   $('pm-draw').dataset.sub=hr?'Click the corners, Enter to finish. Drag any hill or cliff up or down.':'Click the corners, Enter to finish'}
   sizePressed($('sizes'),bsize);sizePressed($('fogsizes'),fogR);
   $('ogap').value=objGap;$('gridlbl').textContent=objKind.startsWith('stamp:')?'Stamp'+(stampRot?` · ${stampRot*90}°`:''):cellLabel();paintPick(objCells);
   $('omix').checked=objMix;$('mixopts').hidden=!objMix;$('odens').value=scatDens;$('odenslbl').textContent=`Fill ${scatDens}%`;$('mixlbl').textContent=mixKinds.size?`${mixKinds.size} in the mix`:'Nothing picked yet';
@@ -1593,7 +1680,7 @@ function syncUI(){
    $('gridnote').textContent=ts?'Pick how many squares for how many tokens. They land on random squares around the cursor. Ctrl-click tokens to mix them.':scat?'Each click drops them in new random spots. R or Re-roll shuffles the preview.':'Drag for a block, click squares for a pattern. Right-click the map or R turns it.';
    $('gridbadge').textContent=stp?(stampRot?stampRot*90+'°':''):scat?'×'+scatCount:objMix&&!tk||ts?'mix':objCells.size>1?cellLabel().replace(/ × /,'×').replace(' squares',''):''}
   // the tray shows only what the active tool needs
-  const show={'pane-mode':!pl&&(r==='paint'||r==='height')&&!opSel,paints:!pl&&(r==='paint'||r==='height'||opSel),'pane-size':!pl&&(tool==='brush'||tool==='sculpt'),
+  const show={'pane-mode':!pl&&(r==='paint'||r==='height')&&!opSel,paints:!pl&&(r==='paint'||r==='height'||opSel),'pane-size':!pl&&(tool==='brush'||tool==='sculpt'||(tool==='draw'&&isPathPaint(paint)&&paint.t!==9)),
     objs:!pl&&r==='object',toks:!pl&&r==='token','pane-place':!pl&&(r==='object'||r==='token'),'sec-fog':!pl&&r==='fog','pane-mine':pl};
   Object.entries(show).forEach(([id,on])=>$(id).hidden=!on);
   const any=Object.values(show).some(Boolean);$('tray').hidden=!any;document.body.classList.toggle('notray',!any);
@@ -1612,17 +1699,20 @@ function buildMine(){const box=$('pane-mine'),mine=st.tokens.filter(t=>mpMayMove
   if(!mine.length){const b=document.createElement('button');b.className='btn primary';b.textContent='Pick a token';b.onclick=()=>$('mpbtn').click();box.append(b);return}
   mine.forEach(t=>{const b=itemBtn('me-'+t.s,tokSwatch(t.s),tokLabel(t.s),'Your token. Click to find it on the map.','',()=>{const q=st.tokens.find(q=>q.s===t.s);if(q){cam.x=q.x-viewW/Z/2;cam.y=q.y-viewH/Z/2;clampCam()}});b.classList.add('tok');box.append(b)});
   const c=myChar,cb=document.createElement('button');cb.className='btn';cb.id='mychar';cb.textContent=c?c.name:'Add your character';cb.dataset.tip=c?'Your character':'Add your character';cb.dataset.sub=c?'HP, AC and ability scores':'Import from D&D Beyond';cb.onclick=()=>openChar('me');box.append(cb)}
-function paintName(){return paint.layer==='ground'?TERR[paint.t].name:ELEV.find(e=>e.h===paint.h&&e.s===paint.s).name}
+function paintName(){return paint.layer==='ground'?TERR[paint.t].name:HSTYLE[hillStyle].name}
 function syncHint(){const h=$('hint');h.replaceChildren();
   const add=html=>{const s=document.createElement('span');s.innerHTML=html;h.append(s)};
   const pill=t=>{const s=document.createElement('span');s.className='pill';s.textContent=t;h.append(s)};
   const btn=(t,cls,fn)=>{const b=document.createElement('button');b.className='btn '+cls;b.textContent=t;b.onclick=fn;h.append(b)};
   // one short line: what's active, and the next move. Buttons only where there's an action.
   if(tool==='draw'&&draft.length){pill(paintName());add(`${draft.length} point${draft.length>1?'s':''} · <kbd>Enter</kbd> finishes`);
-      if(draft.length>=3)btn('Finish','primary',finish);btn('Cancel','',()=>{draft=[];syncHint()})}
+      if(draft.length>=draftMin())btn('Finish','primary',()=>finish());btn('Cancel','',()=>{draft=[];syncHint()})}
   else if(tool==='sculpt'&&sculpt){
     if(sculpt.phase==='paint'){pill('Selecting');add('Hold still or <kbd>Shift</kbd> to raise')}
     else{const lv=SLAD[sculpt.base+sculpt.delta];pill(sculpt.delta===0?'No change':lv.h===0?'Flatten':(lv.h>0?'Raise ':'Lower ')+lv.sh);add('Drag up or down, release to place')}}
+  else if(lift&&st.ops[lift.i]){const op=st.ops[lift.i];pill(elevName(op.h,op.s));add(lift.moved?'Drag up or down, release to place':'Drag up or down to raise or lower')}
+  else if(railOf()==='height'&&!(tool==='draw'&&draft.length)&&hSel()){const op=hSel();pill(elevName(op.h,op.s));
+    add(tool==='draw'?'Drag it up or down, or <kbd>↑</kbd> <kbd>↓</kbd>':'<kbd>↑</kbd> <kbd>↓</kbd> raise or lower it');btn('Done','',()=>{sel=null;syncUI()})}
   else if(tool==='object'&&tokKind()<0&&objMix&&!objKind.startsWith('stamp:')&&!mixKinds.size){pill('Mix');add('Pick objects to mix')}
   else if(tool==='object'&&tokKind()>=0&&tokMix.size){pill('Mix');add(`${tokMix.size} tokens · Ctrl-click to add or remove · click the map to scatter them`)}
   else if(tool==='measure'&&measure&&measure.follow){pill('Measure');add('Click where it ends')}
@@ -1635,8 +1725,8 @@ function syncHint(){const h=$('hint');h.replaceChildren();
   else{if(!sel)return;
     if(sel.type==='token'){const t=st.tokens[sel.i];pill(t?tokLabel(t.s)+' selected':'Token selected')}
     else if(sel.type!=='op'){const l=selList();pill(l.length===1?OBJ.find(o=>o.k===st.objects[l[0]].k).name+' selected':`${l.length} objects selected`)}
-    else{pill((st.ops[sel.i].layer==='ground'?TERR[st.ops[sel.i].t].name:ELEV.find(e=>e.h===st.ops[sel.i].h&&e.s===st.ops[sel.i].s).name)+' selected');
-      add('Drag corners to reshape')}}}
+    else{const op=st.ops[sel.i];pill((op.layer==='ground'?TERR[op.t].name:op.blast?'Crater':elevName(op.h,op.s))+' selected');
+      add(op.layer==='height'?'Drag corners to reshape · <kbd>↑</kbd> <kbd>↓</kbd> raise or lower':'Drag corners to reshape')}}}
 // ================= tooltips =================
 // Every control carries data-tip (name), data-key (shortcut) and data-sub (a one-line note). One floating tip shows them on hover.
 const tipEl=$('tip');let tipT=0,tipOn=null,tipWarm=0;
@@ -1667,6 +1757,8 @@ function buildSelbar(){const bar=$('selbar');bar.replaceChildren();const add=(ic
     b.setAttribute('aria-label',name);b.dataset.tip=name;if(key)b.dataset.key=key;if(sub)b.dataset.sub=sub;b.onclick=fn;bar.append(b)};
   if(sel.type==='token'){const t=st.tokens[sel.i];if(t)add('sheet',charFor(t.s)?'Character':'Add a character','',charFor(t.s)?'HP, AC and ability scores':'Import from D&D Beyond',()=>openChar(t.s))}
   add('copy','Duplicate','Ctrl D','A copy, one square over',dupSel);
+  dynSelbar(bar,add);
+  if(sel.type==='obj'&&isPortal(sel.i)){const i=sel.i;add('go','Go through','','Send the party to where it leads',()=>portalGo(i));add('portal','Edit door','Enter','Where it leads and where the party arrives',()=>portalEdit(i))}
   if(sel.type==='obj'&&isSign(sel.i))add('sign','Edit sign','Enter','Write the message and pick its language',()=>signEdit(sel.i));
   if(sel.type==='obj'||sel.type==='objs')add('stamp','Save as stamp','','Reuse this group from the Objects tray',saveStamp);
   add('trash','Delete','Del','',delSel,'danger')}
@@ -1745,7 +1837,7 @@ function libLabel(){const m=libCur();$('libname').textContent=m?m.name:'';docume
 // replace the open map with s (already cleaned); undo history belongs to the old map
 function libOpen(id,s){if(!s){libSay('That map could not be read.');return false}
   const old=libCur();if(old)libPut(old.id,JSON.stringify(st));
-  st=s;lib.cur=id;hist=[];updUndo();sel=null;draft=[];stroke=null;sculpt=null;drag=null;measure=null;pings=[];
+  st=s;lib.cur=id;hist=[];updUndo();sel=null;draft=[];stroke=null;sculpt=null;drag=null;measure=null;pings=[];fuses=[];blasts=[];
   try{localStorage.setItem('dustmap-v2',JSON.stringify(st))}catch(e){}libStore();
   applySize();fit();syncUI();libLabel();mpChanged();return true}
 function libAdd(name,s,open){const id=libId(),m={id,name:libUniq(name),...libMeta(s)};lib.maps.push(m);
@@ -2050,8 +2142,8 @@ async function mpPush(){if(mp.role!=='dm'||!mp.db)return;
 function mpTryMap(){if(mp.role!=='player')return;const m=mp.meta;if(!m||!Number.isInteger(m.n)||m.n<1||m.n>64||m.rev===mp.applied)return;
   let j='';for(let i=0;i<m.n;i++){const p=mp.parts.get('p'+i);if(!p||p.rev!==m.rev||typeof p.s!=='string')return;j+=p.s}
   let s=null;try{s=libClean({...JSON.parse(j),tokens:[]})}catch(e){}if(!s)return;
-  const first=mp.applied===null,old=st;s.tokens=old.tokens;st=s;mp.applied=m.rev;sel=null;draft=[];
-  redrawChanged(old);if(first)fit();syncUI()}
+  const first=mp.applied===null,old=st,moved=!first&&(m.name!==mp.mapName||old.cols!==s.cols||old.rows!==s.rows);mp.mapName=m.name;s.tokens=old.tokens;st=s;mp.applied=m.rev;sel=null;draft=[];
+  if(moved){portalFade();portalSay('')}redrawChanged(old);if(first||moved)fit();syncUI()}
 function mpTryTokens(){if(mp.role!=='player'||!mp.tok)return;const d=mp.tok;
   if(drag&&drag.kind==='token'){mp.heldTok=true;return}   // taken when the drag ends
   if(d.rev===mp.tokApplied&&!mp.heldTok)return;mp.heldTok=false;
@@ -2066,14 +2158,14 @@ function mpPinged(x,y){if(mp.role!=='off')mp.pres.ping={x:Math.round(x),y:Math.r
 
 // ---- presence: what I'm doing, sent as absolute state ----
 function mpTick(){if(!mp.room)return;let pr;
-  if(mp.role==='off'){if(!mp.sent)return;pr={cur:null,ptr:null,meas:null,drag:null,ping:null,mv:null,pick:null,ch:null,tp:null}}
+  if(mp.role==='off'){if(!mp.sent)return;pr={cur:null,ptr:null,meas:null,drag:null,ping:null,mv:null,pick:null,ch:null,go:null,tp:null}}
   else{const tk=drag&&drag.kind==='token'?st.tokens[drag.i]:null,hd=pointer&&pointer.down?pointer.trail[pointer.trail.length-1]:null;
     pr={cur:hover&&hover[0]>=0&&hover[1]>=0&&hover[0]<=W&&hover[1]<=H?[Math.round(hover[0]),Math.round(hover[1])]:null,
       ptr:hd?[Math.round(hd.x),Math.round(hd.y)]:null,meas:measure?{a:measure.a,b:measure.b}:null,
-      drag:tk&&tk.id?{id:tk.id,x:Math.round(tk.x),y:Math.round(tk.y)}:null,ping:mp.pres.ping||null,mv:mp.pres.mv||null,pick:Number.isInteger(mp.pres.pick)?mp.pres.pick:null,ch:mp.role==='player'&&myChar?{c:myChar,n:myCharN}:null,tp:TESTPLAYER?1:null}}
+      drag:tk&&tk.id?{id:tk.id,x:Math.round(tk.x),y:Math.round(tk.y)}:null,ping:mp.pres.ping||null,mv:mp.pres.mv||null,pick:Number.isInteger(mp.pres.pick)?mp.pres.pick:null,ch:mp.role==='player'&&myChar?{c:myChar,n:myCharN}:null,go:mp.role==='player'&&mp.pres.go||null,bm:mp.role==='dm'&&mp.pres.bm||null,tp:TESTPLAYER?1:null}}
   const j=JSON.stringify(pr);if(j===mp.sent)return;mp.sent=mp.role==='off'?'':j;mp.room.presence(pr).catch(()=>{})}
 const ptOk=q=>Array.isArray(q)&&q.length===2&&fin(q[0])&&fin(q[1]);
-function mpPeers(ch){mp.peers=ch.peers;const now=performance.now(),ghost=new Map();let commit=false;
+function mpPeers(ch){mp.peers=ch.peers;const now=performance.now(),ghost=new Map(),stepped=[];let commit=false,goDoor=-1;
   for(const p of ch.peers){if(p.sameTab)continue;const pr=p.presence||{},key=p.peer;
     let tr=mp.trails.get(key);
     if(ptOk(pr.ptr)){if(!tr||!tr.down){tr={pts:[],down:true,end:0};mp.trails.set(key,tr)}const l=tr.pts[tr.pts.length-1];
@@ -2084,15 +2176,19 @@ function mpPeers(ch){mp.peers=ch.peers;const now=performance.now(),ghost=new Map
     const dg=pr.drag;if(dg&&typeof dg.id==='string'&&fin(dg.x)&&fin(dg.y)){const t=st.tokens.find(t=>t.id===dg.id);if(t&&mpMayMove(t,p.by)){const gp=[Math.max(0,Math.min(W,+dg.x)),Math.max(0,Math.min(H,+dg.y))];ghost.set(dg.id,gp);
       // players reveal as they walk: follow the token while it's being dragged, not just where it lands
       if(mp.role==='dm'){if(fogWalk(t,mp.walkLast.get(t.id)||[t.x,t.y],gp))commit=true;mp.walkLast.set(t.id,gp)}}}
+    if(mp.role==='player'&&p.by&&p.by===mp.sess.dm)blastPeer(key,pr.bm);   // fuses and blasts only come from the DM
     if(mp.role==='dm'&&charTake(p,pr))commit=true;
     if(mp.role==='dm'){const mv=pr.mv;
       if(mv&&typeof mv.id==='string'&&mp.mvSeen.get(key)!==mv.n){mp.mvSeen.set(key,mv.n);const t=st.tokens.find(t=>t.id===mv.id);
         if(t&&p.by&&p.by!==mp.me&&mpMayMove(t,p.by)&&fin(mv.x)&&fin(mv.y)&&fin(mv.base)&&+mv.base>=(mp.tokR[t.id]||0)){
-          const from=mp.walkLast.get(t.id)||[t.x,t.y];t.x=Math.max(8,Math.min(W-8,+mv.x));t.y=Math.max(30,Math.min(H-1,+mv.y));fogWalk(t,from,[t.x,t.y]);mp.walkLast.delete(t.id);commit=true}}}}
-  for(const l of ch.left){mp.trails.delete(l.peer);mp.pingSeen.delete(l.peer);mp.mvSeen.delete(l.peer);mp.pickSeen.delete(l.peer);mp.chSeen.delete(l.peer)}
+          const from=mp.walkLast.get(t.id)||[t.x,t.y];t.x=Math.max(8,Math.min(W-8,+mv.x));t.y=Math.max(30,Math.min(H-1,+mv.y));fogWalk(t,from,[t.x,t.y]);mp.walkLast.delete(t.id);commit=true;stepped.push([t,from])}}
+      const gi=portalAsked(p,pr);if(gi>=0)goDoor=gi}}
+  for(const l of ch.left){bmSeen.delete(l.peer);goSeen.delete(l.peer);mp.trails.delete(l.peer);mp.pingSeen.delete(l.peer);mp.mvSeen.delete(l.peer);mp.pickSeen.delete(l.peer);mp.chSeen.delete(l.peer)}
   if(mp.role==='dm'&&mpPicks(ch.peers))commit=true;
   for(const id of [...mp.walkLast.keys()])if(!ghost.has(id))mp.walkLast.delete(id);
-  mp.ghost=ghost;if(commit)save();mpUI()}
+  mp.ghost=ghost;if(commit)save();mpUI();
+  // a player walked onto a door, or clicked one beside their token
+  if(goDoor>=0){const id=st.objects[goDoor].id;setTimeout(()=>{const j=st.objects.findIndex(o=>o.id===id);if(j>=0)portalGo(j)},120)}else stepped.forEach(([t,from])=>portalStep(t,true,from))}
 // DM: players choose their own token (one each). A new choice takes that token if nobody else has it, and puts one on
 // the map if there isn't one; a token added for a player goes away when they choose another. The DM's own assignment
 // sticks until the player chooses again.
@@ -2514,6 +2610,293 @@ function signInit(o){if(o.k==='sign'){o.v=0;o.txt=o.txt||'';o.lang=o.lang||'comm
    fresh.forEach(signInit);objDirty=true;save();if(fresh.length===1)signEdit(signN)});
  cv.addEventListener('dblclick',e=>{if(tool!=='select'||mp.role==='player')return;const i=signAt(toMap(e));if(i>=0){e.preventDefault();setObjSel([i]);signEdit(i);syncUI()}});
  window.addEventListener('keydown',e=>{if(e.key!=='Enter'||e.target!==document.body&&e.target.tagName!=='CANVAS')return;if(tool==='select'&&sel&&sel.type==='obj'&&isSign(sel.i)&&mp.role!=='player'){e.preventDefault();signEdit(sel.i)}})}
+// ================= dynamite =================
+// A dynamite bundle is an object like any other ({k:'dynamite',x,y,v}) that may also carry br (blast radius in squares,
+// BR_OPTS, default 2) and bd (levels it blasts down, BD_OPTS, default 2). The DM (or a solo editor) lights it from the
+// selection bar, with Enter or a double-click; the fuse burns BLAST_FUSE ms and then it explodes:
+//  - the bundle goes, and a crater height op is added: a ragged circle set to the most common level under the blast minus
+//    bd (−3 at the deepest), tagged blast:1. It goes through the normal elevation model, so it renders, undoes, saves and
+//    syncs like any painted pit, and partial redraw only repaints the crater.
+//  - a few rocks (rubble on stone) land around the rim, and any other dynamite inside the blast goes off a moment later.
+//  - one undo takes back the whole blast (crater, rocks and the bundle).
+// The flash, fireball, shockwave, flying dirt, sparks, smoke and a small screen shake are screen only (never in snapshots),
+// drawn between the objects and the fog so fog still hides them. In a session the DM's presence carries the last few fuses
+// and blasts (bm: [{n,f,x,y,r,s}], f 1 = fuse lit, 0 = boom); players' pages play them, and the crater reaches them with the map.
+OBJ.push({k:'dynamite',name:'Dynamite',sub:'Light it to blast a crater into the ground',g:'Mine & cave'});
+SIZE.dynamite=[10,12];
+ICON.boom='M12 2l1.8 5.6L19 5l-2.2 5.2L22 12l-5.2 1.8L19 19l-5.2-2.6L12 22l-1.8-5.6L5 19l2.2-5.2L2 12l5.2-1.8L5 5l5.2 2.6z';
+const BLAST_FUSE=1500,BLAST_LEN=2600,BR_OPTS=[1,2,3,4],BD_OPTS=[1,2,3];
+const isDyn=o=>!!o&&o.k==='dynamite';
+const blastR=o=>BR_OPTS.includes(o.br)?o.br:2,blastD=o=>BD_OPTS.includes(o.bd)?o.bd:2;
+let fuses=[],blasts=[],bmLog=[],bmN=0,shake=null;
+const bmSeen=new Map();
+function dynSprite(put,R,LN){
+  const st1=[196,52,44],st2=[150,34,34],stl=[232,104,84];
+  for(let s=0;s<3;s++){const x=1+s*3;R(x,3,2,9,st1);R(x+1,3,1,9,st2);put(x,3,stl);put(x,4,stl);R(x,3,2,1,[226,206,170])}
+  R(1,8,8,1,[120,86,56]);R(1,9,8,1,[86,60,40]);
+  LN(5,3,6,1,[70,58,52]);LN(6,1,8,0,[70,58,52])}
+const fuseTip=(x,y,t)=>{const a=Math.min(1,Math.max(0,t));return[x+3-a*3,y-6+a*3]};   // the spark runs down the fuse
+const selDyn=()=>selList().map(i=>st.objects[i]).filter(isDyn);
+// emit a fuse or a blast to players (DM only; presence keeps the last few so a quick chain isn't lost)
+function bmEmit(ev){if(mp.role!=='dm')return;ev.n=++bmN;bmLog.push(ev);if(bmLog.length>8)bmLog.shift();mp.pres.bm=bmLog.slice()}
+function dynLight(list){if(mp.role==='player')return;const now=performance.now();let n=0;
+  list.forEach(o=>{if(!isDyn(o)||fuses.some(f=>f.o===o))return;fuses.push({o,t0:now,x:o.x,y:o.y});n++;bmEmit({f:1,x:Math.round(o.x),y:Math.round(o.y)})});
+  if(n){sel=null;syncUI()}}
+// most common height under the blast circle (sampled every 2 px)
+function blastBase(cx,cy,r){if(!lastR)return 0;const cnt={};let best=0,bn=-1;
+  for(let y=Math.max(0,Math.floor(cy-r));y<Math.min(H,cy+r);y+=2)for(let x=Math.max(0,Math.floor(cx-r));x<Math.min(W,cx+r);x+=2){
+    if((x-cx)*(x-cx)+(y-cy)*(y-cy)>r*r)continue;const v=lastR.Hm[y*W+x];cnt[v]=(cnt[v]||0)+1;if(cnt[v]>bn){bn=cnt[v];best=v}}
+  return best}
+function dynExplode(o){const i=st.objects.indexOf(o);if(i<0)return;   // undone or deleted while the fuse burned
+  push();const r=blastR(o)*GRID,cx=o.x,cy=o.y,sid=Math.floor(Math.random()*100000),R=mulberry(sid);
+  st.objects.splice(i,1);if(sel&&sel.type!=='token'&&sel.type!=='op')sel=null;
+  const base=blastBase(cx,cy,r),h=Math.max(-3,base-blastD(o));
+  if(h<base){const pts=[],N=16;for(let k=0;k<N;k++){const a=k/N*Math.PI*2,d=r*(.84+R()*.26);
+      pts.push([Math.max(0,Math.min(W,Math.round(cx+Math.cos(a)*d))),Math.max(0,Math.min(H,Math.round(cy+Math.sin(a)*d*.92)))])}
+    const op={kind:'poly',layer:'height',h,s:h?1:0,pts,sid:sid%1000,blast:1};st.ops.push(op);markOp(op)}
+  // debris that lands around the rim
+  const stone=lastR&&lastR.L[Math.min(H-1,Math.max(0,cy|0))*W+Math.min(W-1,Math.max(0,cx|0))]===7,n=stone?2:3+Math.floor(R()*3);
+  for(let k=0;k<n;k++){const a=R()*Math.PI*2,d=r*(1.08+R()*.45),x=cx+Math.cos(a)*d,y=cy+Math.sin(a)*d;
+    if(x>4&&y>4&&x<W-4&&y<H-4)st.objects.push({k:stone?'rubble':'rock',x:Math.round(x),y:Math.round(y),v:Math.floor(R()*12)})}
+  objDirty=true;
+  // anything else that goes off with it
+  const now=performance.now();let c=0;
+  st.objects.forEach(q=>{if(isDyn(q)&&!fuses.some(f=>f.o===q)&&Math.hypot(q.x-cx,q.y-cy)<=r+4)fuses.push({o:q,t0:now-BLAST_FUSE+220+(c++)*140,x:q.x,y:q.y})});
+  save();syncUI();blastFx(cx,cy,r,sid);bmEmit({f:0,x:Math.round(cx),y:Math.round(cy),r,s:sid})}
+function blastFx(x,y,r,s){const now=performance.now();blasts.push({x,y,r,s,t0:now});
+  fuses=fuses.filter(f=>f.o||Math.hypot(f.x-x,f.y-y)>2);
+  if(!reduce.matches)shake={t0:now,a:2+r/12}}
+// a player's page: play the fuses and blasts the DM's presence lists (only ones that are new since we first saw them)
+function blastPeer(key,bm){if(!Array.isArray(bm))bm=[];const seen=bmSeen.get(key),top=Math.max(0,...bm.map(e=>e&&fin(e.n)?+e.n:0));bmSeen.set(key,Math.max(seen||0,top));
+  if(seen===undefined)return;const now=performance.now();
+  bm.forEach(e=>{if(!e||!fin(e.n)||+e.n<=seen||!fin(e.x)||!fin(e.y))return;const x=+e.x,y=+e.y;
+    if(e.f===1)fuses.push({t0:now,x,y});else blastFx(x,y,Math.max(8,Math.min(96,fin(e.r)?+e.r:32)),fin(e.s)?+e.s:1)})}
+function blastTick(){const now=performance.now();
+  const due=fuses.filter(f=>f.o&&now-f.t0>=BLAST_FUSE);fuses=fuses.filter(f=>f.o?now-f.t0<BLAST_FUSE:now-f.t0<BLAST_FUSE+1500);
+  due.forEach(f=>dynExplode(f.o));blasts=blasts.filter(b=>now-b.t0<BLAST_LEN)}
+// screen shake offset in CSS px
+function blastShake(){if(!shake)return[0,0];const t=(performance.now()-shake.t0)/380;if(t>=1){shake=null;return[0,0]}
+  const a=shake.a*(1-t)*(1-t);return[Math.round(Math.sin(t*61)*a),Math.round(Math.cos(t*47)*a)]}
+const DIRT=[[150,108,78],[120,84,62],[184,140,100],[96,68,54],[206,170,128]];
+function drawBlasts(g,fv){const now=performance.now(),still=!$('anim').checked||reduce.matches;
+  // DM: show the reach of a selected bundle
+  if(mp.role!=='player'&&tool==='select'&&!drag)selDyn().forEach(o=>{const r=blastR(o)*GRID;g.save();g.setLineDash([3,3]);g.lineWidth=1;g.strokeStyle='rgba(255,140,80,.9)';
+    g.beginPath();g.ellipse(o.x,o.y,r,r*.92,0,0,7);g.stroke();g.fillStyle='rgba(255,120,60,.08)';g.fill();g.restore()});
+  fuses.forEach(f=>{if(fogAt(fv,f.x,f.y))return;const t=(now-f.t0)/BLAST_FUSE,[sx,sy]=fuseTip(f.x,f.y,t),fl=(Math.floor(now/45)%3);
+    const gr=g.createRadialGradient(sx,sy,0,sx,sy,7);gr.addColorStop(0,'rgba(255,220,120,.75)');gr.addColorStop(1,'rgba(255,160,60,0)');g.fillStyle=gr;g.fillRect(sx-7,sy-7,14,14);
+    g.fillStyle='#fff6c8';g.fillRect(Math.round(sx),Math.round(sy),1,1);
+    if(!still){const R=mulberry(Math.floor(now/45)*7+(f.x|0));for(let k=0;k<4+fl;k++){g.fillStyle=k%2?'#ffd060':'#ff8a30';g.fillRect(Math.round(sx+(R()-.5)*6),Math.round(sy-R()*5),1,1)}
+      for(let k=0;k<3;k++){const p=((now/700)+k/3)%1;g.fillStyle=`rgba(200,190,180,${.35*(1-p)})`;g.beginPath();g.arc(sx+Math.sin(p*6+k)*2,sy-3-p*10,1+p*2.5,0,7);g.fill()}}});
+  blasts.forEach(b=>{if(fogAt(fv,b.x,b.y))return;const t=(now-b.t0)/1000,{x,y,r}=b;
+    if(still){if(t<.6){const a=1-t/.6,gr=g.createRadialGradient(x,y,0,x,y,r*1.4);gr.addColorStop(0,`rgba(255,240,200,${a})`);gr.addColorStop(1,'rgba(255,140,60,0)');g.fillStyle=gr;g.fillRect(x-r*1.4,y-r*1.4,r*2.8,r*2.8)}return}
+    const R=mulberry(b.s);
+    // scorch under it all while the dust settles
+    {const a=Math.min(1,t*6)*Math.max(0,1-t/2.6)*.5,gr=g.createRadialGradient(x,y,0,x,y,r*1.1);gr.addColorStop(0,`rgba(30,20,20,${a})`);gr.addColorStop(1,'rgba(30,20,20,0)');g.fillStyle=gr;g.fillRect(x-r*1.1,y-r*1.1,r*2.2,r*2.2)}
+    // flying dirt: a fake height z with gravity; pieces land, then fade
+    const G=420;for(let k=0;k<70;k++){const a=R()*Math.PI*2,sp=r*(.7+R()*1.9),vz=60+R()*150,T=2*vz/G,c=DIRT[k%DIRT.length],sz=R()<.3?2:1,tt=Math.min(t,T),
+      px=x+Math.cos(a)*sp*tt,py=y+Math.sin(a)*sp*tt*.9,z=Math.max(0,vz*tt-.5*G*tt*tt),al=t<T?1:Math.max(0,1-(t-T)/.7);if(al<=0)continue;
+      g.fillStyle=`rgba(${c[0]},${c[1]},${c[2]},${al})`;g.fillRect(Math.round(px),Math.round(py-z),sz,sz)}
+    // smoke: puffs that swell, drift up and thin out
+    for(let k=0;k<14;k++){const a=R()*Math.PI*2,d=R()*r*.6,life=1.6+R()*.9,d0=.05+R()*.15,p=(t-d0)/life;if(p<0||p>1)continue;
+      const sx=x+Math.cos(a)*d*(1+p*.6),sy=y+Math.sin(a)*d*.8-p*(14+R()*14),rad=3+p*r*.55,sh=110+R()*40|0;
+      g.fillStyle=`rgba(${sh},${sh-12},${sh-22},${.6*(1-p)*(1-p)})`;g.beginPath();g.arc(sx,sy,rad,0,7);g.fill()}
+    // fireball and flash
+    if(t<.5){const p=t/.5,rad=r*(.35+p*.85),gr=g.createRadialGradient(x,y-p*4,0,x,y-p*4,rad);
+      gr.addColorStop(0,`rgba(255,246,210,${1-p})`);gr.addColorStop(.35,`rgba(255,190,80,${.95*(1-p)})`);gr.addColorStop(.7,`rgba(230,90,40,${.7*(1-p)})`);gr.addColorStop(1,'rgba(160,50,30,0)');
+      g.fillStyle=gr;g.fillRect(x-rad,y-rad-4,rad*2,rad*2+4)}
+    if(t<.14){const a=1-t/.14,rr=r*2.4,gr=g.createRadialGradient(x,y,0,x,y,rr);gr.addColorStop(0,`rgba(255,255,240,${a})`);gr.addColorStop(1,'rgba(255,230,180,0)');g.fillStyle=gr;g.fillRect(x-rr,y-rr,rr*2,rr*2)}
+    // shockwave ring
+    if(t<.55){const p=t/.55;g.strokeStyle=`rgba(255,236,200,${.8*(1-p)})`;g.lineWidth=2.5*(1-p)+.5;g.beginPath();g.ellipse(x,y,r*(.3+p*1.9),r*(.3+p*1.9)*.92,0,0,7);g.stroke()}
+    // sparks
+    for(let k=0;k<28;k++){const a=R()*Math.PI*2,sp=r*(2+R()*3),life=.25+R()*.45;if(t>life)continue;const p=t/life;
+      g.fillStyle=p<.5?'#fff2b0':'#ff9a40';g.fillRect(Math.round(x+Math.cos(a)*sp*t),Math.round(y+Math.sin(a)*sp*t*.9-8*p),1,1)}})}
+cv.addEventListener('dblclick',e=>{if(tool!=='select'||mp.role==='player')return;const h=hit(toMap(e));if(h&&h.type==='obj'&&isDyn(st.objects[h.i])){e.preventDefault();dynLight([st.objects[h.i]])}});
+window.addEventListener('keydown',e=>{if(e.key!=='Enter'||e.target!==document.body&&e.target.tagName!=='CANVAS')return;if(tool==='select'&&mp.role!=='player'&&selDyn().length){e.preventDefault();dynLight(selDyn())}});
+// selection bar: light it, and pick how big and how deep it blasts
+function dynSelbar(bar,add){const l=selDyn();if(!l.length)return;const o=l[0],r=blastR(o),d=blastD(o);
+  add('boom',l.length>1?'Light all '+l.length+' fuses':'Light fuse','Enter',`Blasts a crater ${d} level${d>1?'s':''} down, ${r*2} squares across`,()=>dynLight(selDyn()));
+  const txt=(label,name,sub,fn)=>{const b=document.createElement('button');b.className='ib ibt';b.textContent=label;b.setAttribute('aria-label',name);b.dataset.tip=name;b.dataset.sub=sub;b.onclick=fn;bar.append(b)};
+  const set=(f,opts,cur)=>{push();const nx=opts[(opts.indexOf(cur)+1)%opts.length];selDyn().forEach(q=>q[f]=nx);save();selKey='';syncUI()};
+  txt(r*2+'□','Blast width: '+r*2+' squares','Click for a bigger or smaller blast',()=>set('br',BR_OPTS,r));
+  txt('−'+d,'Blast depth: '+d+' level'+(d>1?'s':''),'Click to blast deeper or shallower',()=>set('bd',BD_OPTS,d))}
+// ================= doors, stairs and entrances =================
+// A portal is an object ({k:'door'|'stairsdown'|'stairsup'|'entrance', x, y}) that also carries where it leads:
+//   id   its own id (so other doors can name it as the place to arrive)
+//   to   a library map id, or 'here' for another spot on the same map; toN = that map's name, used when the id
+//        no longer matches (maps moved between browsers get new ids)
+//   at   the id of a Landing spot or door on the destination to arrive beside; missing = automatic
+//   walk 0 = only opens from the selection bar / editor (default: a party token stepping on it opens it)
+//   lock 1 = players can't open it; the DM can still send the party through
+// A Landing spot ({k:'landing'}) marks where the party arrives. Only the DM sees it.
+// Going through: the DM's page (or the solo editor) moves the party (Party characters and tokens players play) off this map, opens the destination from the library with them standing around the arrival
+// spot, and the usual session push sends the new map and tokens to everyone.
+const PORTALS=[{k:'door',name:'Door',sub:'Leads to another map, or another spot on this one'},{k:'stairsdown',name:'Stairs down',sub:'Leads to another map, or another spot on this one'},
+  {k:'stairsup',name:'Stairs up',sub:'Leads to another map, or another spot on this one'},{k:'entrance',name:'Cave entrance',sub:'Leads to another map, or another spot on this one'}];
+PORTALS.forEach(p=>{OBJ.push({...p,sub:p.sub+'. Double-click it to choose where.',g:'Doors & stairs'});SIZE[p.k]=[16,16]});
+OBJ.push({k:'landing',name:'Landing spot',sub:'Where the party arrives through a door. Only you see it.',g:'Doors & stairs'});SIZE.landing=[16,16];
+ICON.portal='M6 21V4h12v17 M3 21h18 M14 12h.5';
+ICON.go='M5 12h12 M12 6l6 6-6 6';
+const isPortalK=k=>PORTALS.some(p=>p.k===k);
+const isPortal=i=>i!=null&&i>=0&&!!st.objects[i]&&isPortalK(st.objects[i].k);
+const portalName=o=>(PORTALS.find(p=>p.k===o.k)||{name:'Door'}).name;
+const objId=()=>'o'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+// who goes through: every Party character, plus any token someone plays in a live session
+const portalParty=t=>!!t&&((TOKINFO[t.s]||{}).group==='Party'||!!(mp.sess&&mp.sess.live&&mp.sess.assign[t.s]));
+const cellOf=(x,y)=>[Math.floor(x/GRID),Math.floor(y/GRID)];
+// drawn front-on, one square, like the buildings
+function portalSprite(k,put,R,E,LN,w,h){const st1=C.stone,st2=C.stoned,dk=C.dark,wd=C.wood,wdd=C.woodd;
+  if(k==='door'){R(0,0,16,16,st2);for(let y=0;y<16;y+=3)for(let x=(y/3&1)*2;x<16;x+=4)R(x,y,3,2,st1);
+    R(3,3,10,13,C.door);R(3,3,10,1,mix(C.door,LIGHT,.25));for(const x of [5,8,11])R(x,4,1,12,mix(C.door,DARK,.3));
+    R(4,6,8,1,mix(C.door,LIGHT,.18));R(4,12,8,1,mix(C.door,LIGHT,.18));put(10,9,[214,180,96]);R(2,15,12,1,wdd)}
+  else if(k==='stairsdown'){R(0,0,16,16,st2);R(1,0,14,1,st1);
+    for(let j=0;j<6;j++){const y=1+j*2,c=mix(st1,DARK,j*.14);R(2,y,12,2,c);R(2,y,12,1,mix(c,LIGHT,.18))}R(2,13,12,3,dk);R(1,1,1,15,mix(st2,DARK,.2));R(14,1,1,15,mix(st2,DARK,.2))}
+  else if(k==='stairsup'){R(1,0,2,16,wdd);R(13,0,2,16,wdd);
+    for(let j=0;j<7;j++){const y=1+j*2,c=mix(wd,LIGHT,j*.05);R(3,y,10,2,c);R(3,y+1,10,1,mix(c,DARK,.22))}R(3,15,10,1,wdd);R(1,0,2,1,mix(wdd,LIGHT,.2));R(13,0,2,1,mix(wdd,LIGHT,.2))}
+  else if(k==='entrance'){E(8,9,8,7.5,(x,y)=>x+y<12?C.rockl:x+y>20?C.rockd:C.rock);E(8,11,5,5.5,dk);R(3,11,10,5,dk);
+    R(2,5,2,11,wd);R(12,5,2,11,wd);R(2,4,12,2,wdd);R(2,4,12,1,mix(wdd,LIGHT,.25));R(4,14,8,2,[38,30,30])}
+  else{R(4,1,1,13,wdd);R(5,1,7,4,[196,86,62]);R(5,1,7,1,[222,120,90]);E(5,14,4,1.6,[242,196,159])}}   // landing: a little flag
+// ---- where a door leads ----
+function portalDest(o){if(!o||!o.to)return null;if(o.to==='here')return{id:lib.cur,here:true};
+  const m=lib.maps.find(m=>m.id===o.to)||(o.toN?lib.maps.find(m=>m.name===o.toN):null);if(!m)return null;return{id:m.id,m,here:m.id===lib.cur}}
+// where on map s (opened from map fromId, or the same map) a party coming through door o arrives: the spot it names,
+// else a door there that leads back, else that map's first landing spot, else its middle
+function portalAnchor(o,s,here,fromId,fromName){const objs=s.objects||[];
+  if(o.at){const q=objs.find(q=>q.id===o.at&&q!==o);if(q)return{x:q.x,y:q.y,door:isPortalK(q.k)}}
+  const back=objs.find(q=>q!==o&&isPortalK(q.k)&&q.to&&(here?q.to==='here'||q.to===fromId:q.to===fromId||(!!fromName&&q.toN===fromName&&!lib.maps.some(m=>m.id===q.to))));
+  if(back)return{x:back.x,y:back.y,door:true};
+  const ld=objs.find(q=>q.k==='landing');if(ld)return{x:ld.x,y:ld.y};
+  return{x:s.cols*GRID/2,y:s.rows*GRID/2}}
+// n free squares around the anchor, closest first (beside a door rather than on it, on the side facing into the map),
+// avoiding the tokens that stay and every door
+function portalSpots(s,a,n,keep){const cols=s.cols,rows=s.rows,taken=new Set();
+  (s.objects||[]).forEach(q=>{if(isPortalK(q.k))taken.add(cellOf(q.x,q.y).join())});keep.forEach(t=>taken.add(cellOf(t.x,t.y-1).join()));
+  let[c0,r0]=cellOf(a.x,a.y);
+  if(a.door){const dx=cols/2-(c0+.5),dy=rows/2-(r0+.5);if(Math.abs(dx)>Math.abs(dy))c0+=Math.sign(dx)||1;else r0+=Math.sign(dy)||1}
+  const ok=(c,r)=>c>=0&&c<cols&&r>=2&&r<rows&&!taken.has(c+','+r),out=[];
+  for(let d=0;d<Math.max(cols,rows)&&out.length<n;d++){const ring=[];
+    for(let dc=-d;dc<=d;dc++)for(let dr=-d;dr<=d;dr++)if(Math.max(Math.abs(dc),Math.abs(dr))===d&&ok(c0+dc,r0+dr))ring.push([c0+dc,r0+dr,Math.hypot(dc,dr)]);
+    ring.sort((p,q)=>p[2]-q[2]||p[1]-q[1]||p[0]-q[0]);for(const[c,r]of ring){if(out.length>=n)break;out.push([c*GRID+GRID/2,r*GRID+GRID/2]);taken.add(c+','+r)}}
+  while(out.length<n)out.push([Math.round(cols*GRID/2),Math.round(rows*GRID/2)]);return out}
+// ---- going through ----
+let portalLast=null,portalFrom=null;   // the last trip, so the DM can take it back; where the token that walked onto the door came from
+function portalGo(i,quiet){if(mp.role==='player'||!isPortal(i))return false;const o=st.objects[i],d=portalDest(o);
+  if(!d){portalSay(o.to?'The map this door led to is gone. Double-click the door to pick another.':'This door doesn’t lead anywhere yet. Double-click it to choose a map.');return false}
+  // closest spots go to the token that walked in, then tokens people play, so players land right beside the door
+  const rank=t=>portalFrom&&portalFrom.t===t?0:mp.sess&&mp.sess.live&&mp.sess.assign[t.s]?1:2,party=st.tokens.filter(portalParty).sort((a,b)=>rank(a)-rank(b));
+  if(!party.length){portalSay(mp.sess&&mp.sess.live?'Nobody is playing a token yet, so nobody went through.':'Only party tokens go through doors. Put a Party character on the map first.');return false}
+  const from=lib.cur,fromName=(libCur()||{}).name||'',before=party.map(t=>portalFrom&&portalFrom.t===t?{...t,x:portalFrom.x,y:portalFrom.y}:{...t});
+  if(d.here){push();const keep=st.tokens.filter(t=>!party.includes(t)),sp=portalSpots(st,portalAnchor(o,st,true,from,fromName),party.length,keep);
+    party.forEach((t,k)=>{[t.x,t.y]=sp[k];fogWalk(t,[t.x,t.y],[t.x,t.y])});save();portalFade();portalLook(sp);
+    portalLast=null;if(!quiet)portalSay(`The party took the ${portalName(o).toLowerCase()}.`);syncUI();return true}
+  const s=libGet(d.id);if(!s){portalSay('That map could not be read.');return false}
+  // they leave this map...
+  st.tokens=st.tokens.filter(t=>!party.includes(t));save();
+  // ...and arrive on the next one, replacing any copies of the same characters already there
+  const sheets=new Set(party.map(t=>t.s)),keep=s.tokens.filter(t=>!sheets.has(t.s)),sp=portalSpots(s,portalAnchor(o,s,false,from,fromName),party.length,keep);
+  const arrived=party.map((t,k)=>({...t,x:sp[k][0],y:sp[k][1]}));s.tokens=[...keep,...arrived];
+  portalFade();libOpen(d.id,s);st.tokens.filter(t=>arrived.some(a=>a.id?a.id===t.id:a.s===t.s)).forEach(t=>fogWalk(t,[t.x,t.y],[t.x,t.y]));
+  mp.walkLast.clear();save();portalLook(sp);
+  portalLast={from,to:d.id,before,sheets:[...sheets],t:Date.now()};
+  if(!quiet)portalSay(`The party went through the ${portalName(o).toLowerCase()} to “${d.m.name}”.`,true);return true}
+// take the last trip back: the party returns to where they stood before it
+function portalBack(){const L=portalLast;portalLast=null;if(!L||lib.cur!==L.to||mp.role==='player')return;
+  const s=libGet(L.from);if(!s)return portalSay('That map could not be read.');
+  const sheets=new Set(L.sheets);st.tokens=st.tokens.filter(t=>!sheets.has(t.s));save();
+  s.tokens=[...s.tokens.filter(t=>!sheets.has(t.s)),...L.before];portalFade();libOpen(L.from,s);mp.walkLast.clear();save();portalSay('The party is back where it was.')}
+// centre the view on the arrival if it's off screen
+function portalLook(sp){if(!sp.length)return;const x=sp.reduce((a,q)=>a+q[0],0)/sp.length,y=sp.reduce((a,q)=>a+q[1],0)/sp.length;
+  const vx=(x-cam.x)*Z,vy=(y-cam.y)*Z;if(vx<80||vy<80||vx>viewW-80||vy>viewH-80){cam.x=x-viewW/Z/2;cam.y=y-viewH/Z/2;clampCam()}}
+function portalFade(){const f=$('travelfade');if(reduce.matches)return;f.classList.remove('out');f.classList.add('on');void f.offsetWidth;
+  clearTimeout(portalFade.t);portalFade.t=setTimeout(()=>{f.classList.remove('on');f.classList.add('out')},60)}
+function portalSay(t,back){const m=$('portmsg');m.replaceChildren();if(!t){m.hidden=true;return}m.append(document.createTextNode(t));
+  if(back&&portalLast){const b=document.createElement('button');b.className='btn ghost sm';b.textContent='Take it back';b.onclick=()=>{portalSay('');portalBack()};m.append(b)}
+  m.hidden=false;clearTimeout(portalSay.t);portalSay.t=setTimeout(()=>{m.hidden=true;if(portalLast&&Date.now()-portalLast.t>5000)portalLast=null},back?7000:3500)}
+// the door a token is standing on
+const portalUnder=t=>st.objects.findIndex(o=>isPortalK(o.k)&&Math.abs(t.x-o.x)<=SIZE[o.k][0]/2&&Math.abs(t.y-o.y)<=SIZE[o.k][1]/2);
+// a party token just finished a move: if it stopped on a door that opens by walking, go through (DM / solo pages only)
+function portalStep(t,byPlayer,from){if(mp.role==='player'||!portalParty(t))return;const i=portalUnder(t);if(i<0)return;const o=st.objects[i];
+  if(o.walk===0||!o.to)return;if(o.lock){if(!byPlayer)portalSay('That door is locked for players. Select it and use Go through to send the party.');return}
+  const id=o.id;portalFrom=from?{t,x:from[0],y:from[1]}:null;setTimeout(()=>{const j=st.objects.findIndex(q=>q.id===id);if(j>=0&&!drag)portalGo(j);portalFrom=null},120)}
+// players: clicking a door next to your own token asks the DM's page to open it
+const goSeen=new Map();let myGo=0;
+function portalNear(t,o){const[a,b]=cellOf(t.x,t.y-1),[c,d]=cellOf(o.x,o.y);return Math.max(Math.abs(a-c),Math.abs(b-d))<=1}
+function portalAsk(i){const o=st.objects[i];if(!o)return;if(o.lock)return portalSay('It won’t open.');
+  const mine=st.tokens.filter(t=>mp.sess&&mp.sess.assign[t.s]===mp.me);if(!mine.some(t=>portalNear(t,o)))return portalSay(`Walk up to the ${portalName(o).toLowerCase()} first.`);
+  mp.pres.go={id:o.id,n:++myGo};portalSay('Opening…')}
+// DM: a player asked to open a door; their own token has to be beside it
+// (a request already there when the DM's page first sees that player is old, so it's ignored)
+function portalAsked(p,pr){const g=pr.go&&typeof pr.go.id==='string'&&fin(pr.go.n)?pr.go:null,n=g?+g.n:0,seen=goSeen.get(p.peer);goSeen.set(p.peer,n);
+  if(seen===undefined||!n||n===seen)return-1;
+  const i=st.objects.findIndex(o=>o.id===g.id&&isPortalK(o.k));if(i<0||st.objects[i].lock||!st.objects[i].to)return-1;
+  return st.tokens.some(t=>mp.sess&&mp.sess.assign[t.s]===p.by&&portalNear(t,st.objects[i]))?i:-1}
+// ---- the DM's editor: what it looks like, where it leads, where the party arrives ----
+let portEd=null;
+const portalKey=o=>JSON.stringify([o.k,o.to||'',o.toN||'',o.at||'',o.walk,o.lock]);
+function portalEdit(i){if(!isPortal(i)||mp.role==='player')return;signClose();portalClose();const o=st.objects[i];portalInit(o);
+  portEd={i,before:JSON.stringify(st),start:portalKey(o)};portalSync();$('portedit').hidden=false;portalPlace();setTimeout(()=>$('ptto').focus(),0)}
+function portalSync(){if(!portEd)return;const o=st.objects[portEd.i];if(!o)return;const to=$('ptto'),at=$('ptat');
+  [...$('ptlook').children].forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.k===o.k)));
+  to.replaceChildren();const opt=(sel,v,t,on)=>{const q=document.createElement('option');q.value=v;q.textContent=t;if(on)q.selected=true;sel.append(q)};
+  const d=portalDest(o);opt(to,'','Nowhere yet',!d);opt(to,'here','Another spot on this map',!!d&&d.here);
+  lib.maps.filter(m=>m.id!==lib.cur).sort((a,b)=>a.name.localeCompare(b.name)).forEach(m=>opt(to,m.id,m.name,!!d&&!d.here&&d.id===m.id));
+  at.replaceChildren();at.disabled=!d;opt(at,'',d&&d.here?'Automatic: by the other door or stairs':'Automatic: by the way back',!o.at);
+  const s=d?(d.here?st:libGet(d.id)):null;let found=!o.at;
+  if(s){let n=0;(s.objects||[]).forEach(q=>{if(q===o)return;const[c,r]=cellOf(q.x,q.y);
+    if(q.k==='landing'){n++;if(!q.id)return;opt(at,q.id,`Landing spot ${n} (square ${c+1}, ${r+1})`,o.at===q.id);found=found||o.at===q.id}
+    else if(isPortalK(q.k)&&q.id){opt(at,q.id,`Beside the ${portalName(q).toLowerCase()} at square ${c+1}, ${r+1}`,o.at===q.id);found=found||o.at===q.id}})}
+  if(!found)opt(at,o.at,'A spot that’s no longer there',true);
+  $('ptnote').textContent=!d?'Pick the map it opens.':s&&!s.objects.some(q=>q.k==='landing'||(isPortalK(q.k)&&q!==o))?'Tip: put a Landing spot on that map to choose where the party appears.':'';
+  $('ptwalk').checked=o.walk!==0;$('ptlock').checked=!!o.lock;$('ptgo').disabled=!d}
+function portalApply(fn){if(!portEd||!isPortal(portEd.i))return;const o=st.objects[portEd.i];fn(o);if(o.walk!==0)delete o.walk;if(!o.lock)delete o.lock;if(!o.at)delete o.at;objDirty=true;portalSync();save()}
+function portalClose(){if(!portEd)return;const e=portEd;portEd=null;$('portedit').hidden=true;const o=st.objects[e.i];
+  if(o&&portalKey(o)!==e.start){hist.push(e.before);if(hist.length>80)hist.shift();updUndo()}
+  if(document.activeElement&&$('portedit').contains(document.activeElement))document.activeElement.blur()}
+function portalPlace(){const ed=$('portedit');if(!portEd)return;if(!isPortal(portEd.i)){portalClose();return}
+  const o=st.objects[portEd.i],sx=(o.x-cam.x)*Z,sy=(o.y+10-cam.y)*Z+10,ew=ed.offsetWidth,eh=ed.offsetHeight;
+  ed.style.left=Math.max(8,Math.min(viewW-ew-8,sx-ew/2))+'px';ed.style.top=Math.max(64,Math.min(viewH-eh-8,sy))+'px'}
+// new doors and landing spots get an id and sit on a square
+function portalInit(o){if(isPortalK(o.k)||o.k==='landing'){if(!o.id)o.id=objId();o.v=0}return o}
+// ---- the hover card: where it goes (DM), how to use it (players) ----
+let portShown='';
+function portalTick(){const card=$('portcard');portalPlace();
+  let i=-1;if(hover&&!drag&&!panning&&!portEd&&$('libmodal').hidden&&$('mpmodal').hidden&&$('modal').hidden&&signTarget()<0)
+    i=st.objects.findIndex(o=>isPortalK(o.k)&&Math.abs(hover[0]-o.x)<=9&&Math.abs(hover[1]-o.y)<=9);
+  const o=i>=0?st.objects[i]:null,dm=mp.role!=='player'&&!fogPreview,f=fogView();
+  if(!o||(f&&fogAt(f,o.x,o.y))){card.hidden=true;portShown='';return}
+  let t;if(dm){const d=portalDest(o);t=!d?(o.to?`${portalName(o)} to a map that’s gone. Double-click to fix.`:`${portalName(o)} to nowhere yet. Double-click to choose.`)
+      :`${portalName(o)} to ${d.here?'another spot on this map':'“'+d.m.name+'”'}.`+(o.lock?' Locked for players.':o.walk===0?' Opens from Go through.':' A party token stepping on it goes through.')}
+  else t=o.lock?`${portalName(o)}. It’s locked.`:!o.to?portalName(o)+'.':`${portalName(o)}. Step on it, or click it when you’re next to it, to go through.`;
+  if(t!==portShown){portShown=t;card.textContent=t}card.hidden=false;
+  const cw=card.offsetWidth,sx=(o.x-cam.x)*Z,sy=(o.y-8-cam.y)*Z-8;card.style.left=Math.max(cw/2+8,Math.min(viewW-cw/2-8,sx))+'px';card.style.top=Math.max(card.offsetHeight+8,sy)+'px'}
+// landing spots: a dashed ring with an arrow, DM only (they're never drawn into the map image)
+function portalDraw(){if(mp.role==='player'||fogPreview)return;
+  st.objects.forEach(o=>{if(o.k!=='landing')return;const x=o.x*Z,y=o.y*Z,r=7*Z;
+    ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fillStyle='rgba(196,86,62,.28)';ctx.fill();ctx.strokeStyle='rgba(29,27,34,.75)';ctx.lineWidth=4;ctx.stroke();
+    ctx.setLineDash([5,3]);ctx.strokeStyle='#f2c49f';ctx.lineWidth=2;ctx.stroke();ctx.setLineDash([]);
+    const a=Math.min(r*.55,10),arrow=()=>{ctx.beginPath();ctx.moveTo(x,y-a);ctx.lineTo(x,y+a*.6);ctx.moveTo(x-a*.6,y);ctx.lineTo(x,y+a*.6);ctx.lineTo(x+a*.6,y)};
+    ctx.lineCap=ctx.lineJoin='round';arrow();ctx.strokeStyle='#1d1b22';ctx.lineWidth=4.5;ctx.stroke();arrow();ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.stroke()})}
+{PORTALS.forEach(p=>{const b=document.createElement('button');const c=document.createElement('canvas');const sp=sprite(p.k,0);
+   c.width=sp.sw;c.height=sp.sh;const g=c.getContext('2d'),im=g.createImageData(sp.sw,sp.sh);im.data.set(sp.px);g.putImageData(im,0,0);b.append(c);
+   b.dataset.k=p.k;b.setAttribute('aria-label',p.name);b.dataset.tip=p.name;b.onclick=()=>portalApply(o=>{o.k=p.k});$('ptlook').append(b)});
+ $('ptto').onchange=e=>portalApply(o=>{const v=e.target.value;delete o.at;if(!v){delete o.to;delete o.toN}else if(v==='here'){o.to='here';delete o.toN}
+   else{o.to=v;o.toN=(lib.maps.find(m=>m.id===v)||{}).name||''}});
+ $('ptat').onchange=e=>portalApply(o=>{o.at=e.target.value});
+ $('ptwalk').onchange=e=>portalApply(o=>{o.walk=e.target.checked?1:0});$('ptlock').onchange=e=>portalApply(o=>{o.lock=e.target.checked?1:0});
+ $('ptgo').onclick=()=>{const i=portEd&&portEd.i;portalClose();if(i!=null)portalGo(i)};$('ptdone').onclick=portalClose;
+ $('portedit').addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Escape'){e.preventDefault();portalClose()}});
+ $('portedit').addEventListener('pointerdown',e=>e.stopPropagation());
+ cv.addEventListener('pointerdown',e=>{if(portEd)portalClose();
+   // players: a click on a door asks to open it
+   if(mp.role!=='player'||e.button!==0)return;const p=toMap(e),h=hit(p);if(h&&h.type==='token'&&mpMayMove(st.tokens[h.i],mp.me))return;   // your own token: that's a drag
+   const i=st.objects.findIndex(o=>isPortalK(o.k)&&Math.abs(p[0]-o.x)<=9&&Math.abs(p[1]-o.y)<=9);if(i<0)return;const f=fogView();if(f&&fogAt(f,st.objects[i].x,st.objects[i].y))return;portalAsk(i)},true);
+ // a door the Objects tool just placed sits on a square, gets an id and opens its editor; a landing spot just gets an id
+ let portN=0;cv.addEventListener('pointerdown',()=>{portN=st.objects.length},true);
+ cv.addEventListener('pointerdown',()=>{if(tool!=='object'||st.objects.length<=portN)return;const fresh=st.objects.slice(portN).filter(o=>isPortalK(o.k)||o.k==='landing');if(!fresh.length)return;
+   fresh.forEach(o=>{portalInit(o);o.x=Math.floor(o.x/GRID)*GRID+GRID/2;o.y=Math.floor(o.y/GRID)*GRID+GRID/2});objDirty=true;save();
+   if(st.objects.length-portN===1&&isPortalK(st.objects[portN].k))portalEdit(portN)});
+ cv.addEventListener('dblclick',e=>{if(tool!=='select'||mp.role==='player')return;const p=toMap(e),i=st.objects.findIndex(o=>isPortalK(o.k)&&Math.abs(p[0]-o.x)<=9&&Math.abs(p[1]-o.y)<=9);
+   if(i>=0){e.preventDefault();setObjSel([i]);portalEdit(i);syncUI()}});
+ window.addEventListener('keydown',e=>{if(e.key!=='Enter'||e.target!==document.body&&e.target.tagName!=='CANVAS')return;if(tool==='select'&&sel&&sel.type==='obj'&&isPortal(sel.i)&&mp.role!=='player'){e.preventDefault();portalEdit(sel.i)}})}
 // ---- the tour map: a small world where every sign explains the tool that built the ground around it ----
 function tourMap(){const S=(x,y,txt,o={})=>({k:'sign',x,y,v:o.v||0,txt,lang:o.lang||'common',...(o.tr?{tr:1}:{})});
   const ops=[
@@ -2547,7 +2930,7 @@ function tourMap(){const S=(x,y,txt,o={})=>({k:'sign',x,y,v:o.v||0,txt,lang:o.la
     S(104,262,'NEW MAPS (N)\nThe + by the map name, or N, opens New map: give it a name, pick the ground that fills it (sand, scrub, mesa, water, badlands or stone) and its size. Your last choice is remembered.'),
     S(60,150,'TORCHES AND CAMPFIRES\nObjects (O) → Props. They flicker and glow, and fog still hides them. Random spots in the grid popover drops a set number of objects in new random places on every click.',{v:1}),
     S(200,150,'PAINT GROUND (B)\nPick sand, water, roads, towns and more in the tray, then brush it on. Press D to draw a shape instead: click the corners, Enter to finish.'),
-    S(330,150,'HILLS AND CLIFFS (E)\nBrush a hill, a cliff or a pit. Sculpt: drag over an area, hold still until the ring fills, then drag up or down.'),
+    S(330,150,'HILLS AND CLIFFS (E)\nPick Hill or Cliff. Brush: drag over an area, hold still until the ring fills, then drag up or down. Shape: click the corners, then drag the shape up or down.'),
     S(452,196,'TOWNS\nPaint Town and it fills itself with buildings. A road through town becomes its street. In Select, click a building to pick it up and move it.',{v:1}),
     S(210,204,'SELECT (V)\nClick anything to move it. Shift-drag a box to grab several, then Save as stamp to reuse them. Right-click the map for quick actions. Ctrl Z undoes.'),
     S(300,262,'Signs can be written in another script. Tick “Players can read the translation” and they see this text under it.',{lang:'elvish',tr:1}),
@@ -2556,13 +2939,16 @@ function tourMap(){const S=(x,y,txt,o={})=>({k:'sign',x,y,v:o.v||0,txt,lang:o.la
     S(232,280,'FOG OF WAR (F)\nThe cave to the south is hidden from players. Paint Reveal over it, or double-click to paint the opposite way. Turn on Players reveal as they walk and fog clears wherever their tokens go. The eye shows what players see.',{v:2}),
     S(330,380,'Turn back, mortal. What sleeps here does not forgive.',{lang:'infernal'}),
     S(188,282,'MEASURE (M) AND PING (P)\nDrag between squares to see the distance. Click to ping, drag to point. In a session everyone sees them.',{v:2}),
-    S(440,276,'MINES\nStone is cave floor; raise it for rock walls. Mine rail follows your stroke. Objects (O) has carts, lanterns, timbers and crystals.',{v:1}),
+    S(440,276,'MINES\nStone is cave floor; raise it for rock walls. Mine rail follows your stroke. Objects (O) has carts, lanterns, timbers, crystals and dynamite: double-click a bundle to light it and blast a crater.',{v:1}),
     S(600,262,'PLAY TOGETHER\nThe button at the top right starts a live session. Players pick a token and move only their own, which glows gold for them. You see the whole map; they see what you reveal.'),
     {k:'wagon',x:56,y:186,v:2},{k:'barrels',x:26,y:196,v:0},{k:'crates',x:130,y:190,v:0},{k:'campfire',x:166,y:188,v:0},
     {k:'torch',x:462,y:290,v:0},{k:'torch',x:498,y:290,v:0},
     {k:'boulder',x:70,y:340,v:0},{k:'boulder',x:130,y:400,v:3},{k:'rock',x:100,y:372,v:0},
-    {k:'cart',x:550,y:356,v:0},{k:'lantern',x:480,y:300,v:0},{k:'lantern',x:600,y:330,v:0},{k:'timber',x:500,y:420,v:0},{k:'crystals',x:610,y:420,v:0},{k:'rubble',x:620,y:300,v:0},
-    {k:'crystals',x:290,y:420,v:1},{k:'tree',x:210,y:110,v:0},{k:'well',x:520,y:200,v:0}];
+    {k:'cart',x:550,y:356,v:0},{k:'lantern',x:480,y:300,v:0},{k:'lantern',x:600,y:330,v:0},{k:'timber',x:500,y:420,v:0},{k:'crystals',x:610,y:420,v:0},{k:'rubble',x:620,y:300,v:0},{k:'dynamite',x:596,y:300,v:0},
+    {k:'crystals',x:290,y:420,v:1},{k:'tree',x:210,y:110,v:0},{k:'well',x:520,y:200,v:0},
+    // stairs down into the fogged cave and back up again, on the same map
+    {k:'stairsdown',x:280,y:264,v:0,id:'tour-down',to:'here',at:'tour-cave'},{k:'stairsup',x:280,y:328,v:0,id:'tour-up',to:'here'},{k:'landing',x:312,y:344,v:0,id:'tour-cave'},
+    S(264,204,'DOORS AND STAIRS\nObjects (O), then Doors & stairs. Double-click one to pick the map it opens and where the party arrives (a Landing spot, only you see it). A party token stepping on it takes everyone through. Try the stairs just south of here.',{v:2})];
   const tokens=[{s:0,x:56,y:232,o:0},{s:1,x:72,y:232,o:3},{s:2,x:56,y:248,o:5},{s:3,x:72,y:248,o:2},{s:4,x:344,y:392,o:1}];
   // the cave (columns 16–25, rows 18–27) starts hidden
   const cols=40,rows=28;let fog='';for(let r=0;r<rows;r++)for(let c=0;c<cols;c++)fog+=c>=16&&c<=25&&r>=18?'1':'0';
@@ -2570,7 +2956,8 @@ function tourMap(){const S=(x,y,txt,o={})=>({k:'sign',x,y,v:o.v||0,txt,lang:o.la
 function tourOpen(){const s=libClean(tourMap());if(!s)return;const m=libAdd('Dustmap tour',s,true);if(m)libHide()}
 $('libtour').onclick=tourOpen;$('tour').onclick=()=>{menuShow(false);tourOpen()};
 // read-only peek for the tests
-window.__dustmap=()=>({st,fog:fogGet(),litFires:litFires(fogView()).length,role:mp.role,cam:{...cam},Z,pings:pings.map(p=>({x:p.x,y:p.y,rgb:p.rgb||null})),tool,peers:mp.peers.length,busy:mp.busy,err:mp.err,again:mp.again});
+window.__terrain=()=>({cv:tcan,L:lastR.L,W,H});
+window.__dustmap=()=>({st,fog:fogGet(),litFires:litFires(fogView()).length,role:mp.role,cam:{...cam},Z,pings:pings.map(p=>({x:p.x,y:p.y,rgb:p.rgb||null})),blasts:blasts.map(b=>({x:b.x,y:b.y,r:b.r})),fuses:fuses.length,tool,peers:mp.peers.length,busy:mp.busy,err:mp.err,again:mp.again});
 libInit();mpInit();
 buildTools();buildObjs();buildToks();buildPaints();updUndo();sizeCanvas();syncUI();requestAnimationFrame(loop);
 setTimeout(buildPaints,0);

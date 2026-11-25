@@ -18,13 +18,13 @@ let pts=[[300,120],[340,110],[370,130],[365,165],[330,175],[300,160],[298,125]];
 let [a,c]=m(...pts[0]);await p.mouse.move(a,c);await p.mouse.down();for(const q of pts.slice(1)){const [x,y]=m(...q);await p.mouse.move(x,y,{steps:6})}await p.mouse.up();
 await p.waitForTimeout(800);
 // sculpt a cliff
-await p.keyboard.press('e');[a,c]=m(600,250);await p.mouse.move(a,c);await p.mouse.down();await p.waitForTimeout(900);await p.mouse.move(a,c-80,{steps:5});await p.mouse.up();await p.waitForTimeout(800);
+await p.keyboard.press('e');await p.keyboard.press('2');[a,c]=m(600,250);await p.mouse.move(a,c);await p.mouse.down();await p.waitForTimeout(900);await p.mouse.move(a,c-80,{steps:5});await p.mouse.up();await p.waitForTimeout(800);
 // sculpt a hill (one step up)
-[a,c]=m(200,70);await p.mouse.move(a,c);await p.mouse.down();await p.waitForTimeout(900);await p.mouse.move(a,c-36,{steps:4});await p.mouse.up();await p.waitForTimeout(800);
+await p.keyboard.press('1');[a,c]=m(200,70);await p.mouse.move(a,c);await p.mouse.down();await p.waitForTimeout(900);await p.mouse.move(a,c-36,{steps:4});await p.mouse.up();await p.waitForTimeout(800);
 // stone floor with a raised rock wall on part of it
 const shape=async pts=>{for(const q of pts){const [x,y]=m(...q);await p.mouse.click(x,y);await p.waitForTimeout(330)}await p.keyboard.press('Enter');await p.waitForTimeout(600)};
 await p.keyboard.press('d');await p.keyboard.press('8');await shape([[40,140],[180,130],[190,220],[50,230]]);
-await p.keyboard.press('e');await remap();await p.keyboard.press('3');await shape([[60,150],[150,145],[140,185],[70,190]]);
+await p.keyboard.press('e');await remap();await p.keyboard.press('2');await p.keyboard.press('d');await shape([[60,150],[150,145],[140,185],[70,190]]);
 const lt=await p.evaluate(()=>window.__lt);console.log('long tasks during edits (ms):',JSON.stringify(lt));
 const sb=await (await p.$('#map')).boundingBox();const shotRegion=await p.screenshot({path:out('p1_region.png'),clip:{x:sb.x,y:sb.y,width:sb.width,height:sb.height}});
 // force full redraw with identical state
