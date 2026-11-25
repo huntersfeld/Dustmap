@@ -165,6 +165,12 @@ body.notray .hint{bottom:calc(12px + env(safe-area-inset-bottom,0px))}
 .signedit select{flex:1;min-width:0}
 .signedit .seg button{height:32px;min-width:34px;padding:0 6px}
 .signedit .seg canvas{width:26px;height:auto;image-rendering:pixelated}
+.portedit .seg canvas{width:22px}
+.portedit #ptnote{margin:0}.portedit #ptnote:empty{display:none}
+.portcard{position:absolute;z-index:7;pointer-events:none;transform:translate(-50%,-100%);max-width:min(260px,calc(100% - 16px));background:var(--glass);border:1px solid var(--line);border-radius:8px;padding:6px 9px;font-size:12px;line-height:1.35;color:var(--fg);box-shadow:var(--shadow)}
+.portmsg{left:50%;top:64px;transform:translateX(-50%);z-index:9;display:flex;align-items:center;gap:10px;padding:7px 8px 7px 14px;font-size:13px;max-width:calc(100% - 32px)}
+.travelfade{position:absolute;inset:0;z-index:6;background:#0b090d;opacity:0;pointer-events:none}
+.travelfade.on{opacity:1}.travelfade.out{opacity:0;transition:opacity .45s ease-out}
 #map.onsign{cursor:help}
 /* tooltip: name, key, one-line note */
 .tip{position:fixed;z-index:30;pointer-events:none;background:#0f0d12;border:1px solid var(--line);border-radius:8px;padding:6px 9px;max-width:240px;font-size:12px;line-height:1.4;box-shadow:var(--shadow)}
@@ -362,6 +368,19 @@ a.btn{text-decoration:none;color:var(--fg)}
     <label class="check note" id="sgtrrow" for="sgtr"><input type="checkbox" id="sgtr"> Players can read the translation</label>
     <div class="row"><div class="seg" id="sgstyle" role="group" aria-label="Board"></div><button class="btn primary sm" id="sgdone" style="margin-left:auto">Done</button></div>
   </div>
+
+  <div class="portcard" id="portcard" hidden></div>
+  <div class="float signedit portedit" id="portedit" hidden role="dialog" aria-label="Edit door">
+    <div class="row"><div class="seg" id="ptlook" role="group" aria-label="Looks like"></div></div>
+    <div class="row"><label class="note" for="ptto">Leads to</label><select id="ptto"></select></div>
+    <div class="row"><label class="note" for="ptat">Arrive</label><select id="ptat"></select></div>
+    <p class="note" id="ptnote"></p>
+    <label class="check note" for="ptwalk"><input type="checkbox" id="ptwalk"> Opens when a party token steps on it</label>
+    <label class="check note" for="ptlock"><input type="checkbox" id="ptlock"> Locked for players</label>
+    <div class="row"><button class="btn sm" id="ptgo">Go through now</button><button class="btn primary sm" id="ptdone" style="margin-left:auto">Done</button></div>
+  </div>
+  <div class="float portmsg" id="portmsg" role="status" hidden></div>
+  <div class="travelfade" id="travelfade"></div>
 
   <div class="float zoom">
     <button class="ib" id="zin" aria-label="Zoom in" data-tip="Zoom in" data-key="+">+</button>
@@ -705,6 +724,7 @@ function sprite(k,v){v=(v||0)%12;const key=k+':'+v;if(SPR.has(key))return SPR.ge
     sh(6,11,6,0,2.2);sh(3,11,1,4,1.6);sh(9,11,11,5,1.6)}
   else if(k==='sign')signSprite(put,R,w,h,v);
   else if(k==='dynamite')dynSprite(put,R,LN);
+  else if(k==='door'||k==='stairsdown'||k==='stairsup'||k==='entrance'||k==='landing')portalSprite(k,put,R,E,LN,w,h);
   else if(k==='well'){E(8,8,8,8,(x,y)=>hash(x>>1,y>>1,3)>.5?C.stone:C.stoned);E(8,8,5,5,C.dark);E(8,8.5,3.5,3,C.water);put(7,7,C.water2);
     R(1,6,14,2,C.wood);R(1,5,2,4,C.woodd);R(13,5,2,4,C.woodd);put(8,8,[110,80,60])}
   else if(k==='wagon'){for(const x of [4,20]){R(x,0,7,2,C.wheel);R(x,h-2,7,2,C.wheel)}
@@ -902,7 +922,7 @@ function renderRegion(){let r=dRect;dRect=null;
   lastR.sid=R.sid;const inner=o=>o.x>=ix0&&o.x<ix1&&o.y>=iy0&&o.y<iy1;
   lastGen=lastGen.filter(g=>!inner(g.o)).concat(gen.filter(g=>inner(g.o)));lastRenderT=performance.now()}
 function renderObjects(){if(ocan.width!==W||ocan.height!==H){ocan.width=W;ocan.height=H}const img=octx.createImageData(W,H);
-  [...st.objects].sort((a,b)=>a.y-b.y).forEach(o=>drawObject(img.data,W,H,o));octx.putImageData(img,0,0);objDirty=false}
+  st.objects.filter(o=>o.k!=='landing').sort((a,b)=>a.y-b.y).forEach(o=>drawObject(img.data,W,H,o));octx.putImageData(img,0,0);objDirty=false}
 
 // ================= sidebar =================
 function withSize(w,h,fn){const ow=W,oh=H;W=w;H=h;try{return fn()}finally{W=ow;H=oh}}
@@ -1276,6 +1296,7 @@ function draw(ts){
     if(hv){const t=(d==='r'||d==='l')?'Add 10 columns':'Add 10 rows';ctx.font='600 12px "Work Sans", system-ui, sans-serif';const tw=ctx.measureText(t).width;
       const tx=d==='l'?x:d==='r'?x+32-tw-12:x+16-(tw+12)/2,ty=d==='t'?y-26:y+38;ctx.fillStyle='rgba(29,27,34,.95)';ctx.beginPath();ctx.roundRect(tx,ty,tw+12,22,5);ctx.fill();ctx.fillStyle='#fff';ctx.fillText(t,tx+6,ty+15)}
     edgeTabs.push({d,x,y})});
+  portalDraw();
   // selection
   if((tool==='select'||hSel())&&sel){
     if(sel.type==='op'){const op=st.ops[sel.i];if(op){const p=op.pts.map(sc);
@@ -1372,7 +1393,7 @@ function toRaise(){if(!sculpt||sculpt.phase!=='paint')return;
   const base=levelUnder(sculpt.pts);
   Object.assign(sculpt,{phase:'raise',y0:sculpt.cy,base,delta:0});syncHint()}
 let last=0;const reduce=matchMedia('(prefers-reduced-motion: reduce)');
-function loop(ts){mpTick();if(sculpt&&sculpt.phase==='paint'&&performance.now()-sculpt.t>DWELL)toRaise();if($('anim').checked&&!reduce.matches&&ts-last>150){frame=(frame+1)%8;last=ts}blastTick();draw(ts);placeSelbar();signTick();requestAnimationFrame(loop)}
+function loop(ts){mpTick();if(sculpt&&sculpt.phase==='paint'&&performance.now()-sculpt.t>DWELL)toRaise();if($('anim').checked&&!reduce.matches&&ts-last>150){frame=(frame+1)%8;last=ts}blastTick();draw(ts);placeSelbar();signTick();portalTick();requestAnimationFrame(loop)}
 
 // ================= interaction =================
 const dist=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1]);
@@ -1448,7 +1469,7 @@ cv.addEventListener('pointerdown',e=>{const p=toMap(e);cv.setPointerCapture(e.po
   if(!h){sel=null;syncUI();panning={x:e.clientX,y:e.clientY,cx:cam.x,cy:cam.y};return}
   push();
   if(h.type==='vertex')drag={kind:'vertex',i:h.i,v:h.v};
-  else if(h.type==='token'){sel={type:'token',i:h.i};drag={kind:'token',i:h.i,off:[st.tokens[h.i].x-p[0],st.tokens[h.i].y-p[1]]};syncUI()}
+  else if(h.type==='token'){sel={type:'token',i:h.i};drag={kind:'token',i:h.i,off:[st.tokens[h.i].x-p[0],st.tokens[h.i].y-p[1]],from:[st.tokens[h.i].x,st.tokens[h.i].y]};syncUI()}
   else if(h.type==='obj'){const cur=selList(),o=st.objects[h.i];let list;
     if(e.shiftKey){list=cur.includes(h.i)?cur.filter(i=>i!==h.i):[...cur,h.i];setObjSel(list);hist.pop();updUndo();syncUI();return}
     if(cur.includes(h.i))list=cur;else if(o.g&&!altDown)list=st.objects.map((q,i)=>q.g===o.g?i:-1).filter(i=>i>=0);else list=[h.i];
@@ -1499,7 +1520,7 @@ function up(){
   if(pointer&&pointer.down){pointer.down=false;pointer.end=performance.now();const h=pointer.trail[pointer.trail.length-1];pings.push({x:h.x,y:h.y,t0:pointer.end});mpPinged(h.x,h.y)}
   if(!drag)return;
   if(drag.kind==='token'&&!altDown){const t=st.tokens[drag.i],o=[t.x,t.y];t.x=Math.round(t.x/8)*8;t.y=Math.round(t.y/8)*8;fogWalk(t,o,[t.x,t.y])}
-  if(drag.kind==='token')mpMoved(st.tokens[drag.i]);
+  if(drag.kind==='token'){mpMoved(st.tokens[drag.i]);portalStep(st.tokens[drag.i],false,drag.from)}
   if((drag.kind==='op'||drag.kind==='objs')&&!drag.moved&&!drag.adopted){hist.pop();updUndo()}
   drag=null;save()}
 cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);
@@ -1525,7 +1546,7 @@ function delSel(){if(!sel)return;push();if(sel.type==='token'){st.tokens.splice(
 function dupSel(){if(!sel||mp.role==='player')return;push();const D=GRID;
   if(sel.type==='token'){const t=st.tokens[sel.i];if(!t){hist.pop();return}const c={...t,x:Math.min(W-8,t.x+D),o:Math.floor(Math.random()*8)};delete c.id;st.tokens.push(c);sel={type:'token',i:st.tokens.length-1}}
   else if(sel.type==='op'){const op=st.ops[sel.i];const c={...op,pts:op.pts.map(q=>[q[0]+D,q[1]+D]),sid:Math.floor(Math.random()*1000)};st.ops.push(c);markOp(c);sel={type:'op',i:st.ops.length-1}}
-  else{const l=selList(),gm={},start=st.objects.length;l.forEach(i=>{const o=st.objects[i],c={...o,x:Math.min(W,o.x+D),y:Math.min(H,o.y+D)};if(o.g)c.g=gm[o.g]||(gm[o.g]='g'+Date.now().toString(36)+Math.random().toString(36).slice(2,5));st.objects.push(c)});objDirty=true;setObjSel(l.map((_,k)=>start+k))}
+  else{const l=selList(),gm={},start=st.objects.length;l.forEach(i=>{const o=st.objects[i],c={...o,x:Math.min(W,o.x+D),y:Math.min(H,o.y+D)};if(o.g)c.g=gm[o.g]||(gm[o.g]='g'+Date.now().toString(36)+Math.random().toString(36).slice(2,5));if(c.id)c.id=objId();st.objects.push(c)});objDirty=true;setObjSel(l.map((_,k)=>start+k))}
   save();syncUI()}
 function saveStamp(){const list=selList();if(!list.length)return;const os=list.map(i=>st.objects[i]);const cx=os.reduce((a,o)=>a+o.x,0)/os.length,cy=os.reduce((a,o)=>a+o.y,0)/os.length;
   const counts={};os.forEach(o=>{const nm=OBJ.find(q=>q.k===o.k).name.toLowerCase();counts[nm]=(counts[nm]||0)+1});
@@ -1730,6 +1751,7 @@ function buildSelbar(){const bar=$('selbar');bar.replaceChildren();const add=(ic
   if(sel.type==='token'){const t=st.tokens[sel.i];if(t)add('sheet',charFor(t.s)?'Character':'Add a character','',charFor(t.s)?'HP, AC and ability scores':'Import from D&D Beyond',()=>openChar(t.s))}
   add('copy','Duplicate','Ctrl D','A copy, one square over',dupSel);
   dynSelbar(bar,add);
+  if(sel.type==='obj'&&isPortal(sel.i)){const i=sel.i;add('go','Go through','','Send the party to where it leads',()=>portalGo(i));add('portal','Edit door','Enter','Where it leads and where the party arrives',()=>portalEdit(i))}
   if(sel.type==='obj'&&isSign(sel.i))add('sign','Edit sign','Enter','Write the message and pick its language',()=>signEdit(sel.i));
   if(sel.type==='obj'||sel.type==='objs')add('stamp','Save as stamp','','Reuse this group from the Objects tray',saveStamp);
   add('trash','Delete','Del','',delSel,'danger')}
@@ -2113,8 +2135,8 @@ async function mpPush(){if(mp.role!=='dm'||!mp.db)return;
 function mpTryMap(){if(mp.role!=='player')return;const m=mp.meta;if(!m||!Number.isInteger(m.n)||m.n<1||m.n>64||m.rev===mp.applied)return;
   let j='';for(let i=0;i<m.n;i++){const p=mp.parts.get('p'+i);if(!p||p.rev!==m.rev||typeof p.s!=='string')return;j+=p.s}
   let s=null;try{s=libClean({...JSON.parse(j),tokens:[]})}catch(e){}if(!s)return;
-  const first=mp.applied===null,old=st;s.tokens=old.tokens;st=s;mp.applied=m.rev;sel=null;draft=[];
-  redrawChanged(old);if(first)fit();syncUI()}
+  const first=mp.applied===null,old=st,moved=!first&&(m.name!==mp.mapName||old.cols!==s.cols||old.rows!==s.rows);mp.mapName=m.name;s.tokens=old.tokens;st=s;mp.applied=m.rev;sel=null;draft=[];
+  if(moved){portalFade();portalSay('')}redrawChanged(old);if(first||moved)fit();syncUI()}
 function mpTryTokens(){if(mp.role!=='player'||!mp.tok)return;const d=mp.tok;
   if(drag&&drag.kind==='token'){mp.heldTok=true;return}   // taken when the drag ends
   if(d.rev===mp.tokApplied&&!mp.heldTok)return;mp.heldTok=false;
@@ -2129,14 +2151,14 @@ function mpPinged(x,y){if(mp.role!=='off')mp.pres.ping={x:Math.round(x),y:Math.r
 
 // ---- presence: what I'm doing, sent as absolute state ----
 function mpTick(){if(!mp.room)return;let pr;
-  if(mp.role==='off'){if(!mp.sent)return;pr={cur:null,ptr:null,meas:null,drag:null,ping:null,mv:null,pick:null,ch:null}}
+  if(mp.role==='off'){if(!mp.sent)return;pr={cur:null,ptr:null,meas:null,drag:null,ping:null,mv:null,pick:null,ch:null,go:null}}
   else{const tk=drag&&drag.kind==='token'?st.tokens[drag.i]:null,hd=pointer&&pointer.down?pointer.trail[pointer.trail.length-1]:null;
     pr={cur:hover&&hover[0]>=0&&hover[1]>=0&&hover[0]<=W&&hover[1]<=H?[Math.round(hover[0]),Math.round(hover[1])]:null,
       ptr:hd?[Math.round(hd.x),Math.round(hd.y)]:null,meas:measure?{a:measure.a,b:measure.b}:null,
-      drag:tk&&tk.id?{id:tk.id,x:Math.round(tk.x),y:Math.round(tk.y)}:null,ping:mp.pres.ping||null,mv:mp.pres.mv||null,pick:Number.isInteger(mp.pres.pick)?mp.pres.pick:null,ch:mp.role==='player'&&myChar?{c:myChar,n:myCharN}:null,bm:mp.role==='dm'&&mp.pres.bm||null}}
+      drag:tk&&tk.id?{id:tk.id,x:Math.round(tk.x),y:Math.round(tk.y)}:null,ping:mp.pres.ping||null,mv:mp.pres.mv||null,pick:Number.isInteger(mp.pres.pick)?mp.pres.pick:null,ch:mp.role==='player'&&myChar?{c:myChar,n:myCharN}:null,go:mp.role==='player'&&mp.pres.go||null,bm:mp.role==='dm'&&mp.pres.bm||null}}
   const j=JSON.stringify(pr);if(j===mp.sent)return;mp.sent=mp.role==='off'?'':j;mp.room.presence(pr).catch(()=>{})}
 const ptOk=q=>Array.isArray(q)&&q.length===2&&fin(q[0])&&fin(q[1]);
-function mpPeers(ch){mp.peers=ch.peers;const now=performance.now(),ghost=new Map();let commit=false;
+function mpPeers(ch){mp.peers=ch.peers;const now=performance.now(),ghost=new Map(),stepped=[];let commit=false,goDoor=-1;
   for(const p of ch.peers){if(p.sameTab)continue;const pr=p.presence||{},key=p.peer;
     let tr=mp.trails.get(key);
     if(ptOk(pr.ptr)){if(!tr||!tr.down){tr={pts:[],down:true,end:0};mp.trails.set(key,tr)}const l=tr.pts[tr.pts.length-1];
@@ -2152,11 +2174,14 @@ function mpPeers(ch){mp.peers=ch.peers;const now=performance.now(),ghost=new Map
     if(mp.role==='dm'){const mv=pr.mv;
       if(mv&&typeof mv.id==='string'&&mp.mvSeen.get(key)!==mv.n){mp.mvSeen.set(key,mv.n);const t=st.tokens.find(t=>t.id===mv.id);
         if(t&&p.by&&p.by!==mp.me&&mpMayMove(t,p.by)&&fin(mv.x)&&fin(mv.y)&&fin(mv.base)&&+mv.base>=(mp.tokR[t.id]||0)){
-          const from=mp.walkLast.get(t.id)||[t.x,t.y];t.x=Math.max(8,Math.min(W-8,+mv.x));t.y=Math.max(30,Math.min(H-1,+mv.y));fogWalk(t,from,[t.x,t.y]);mp.walkLast.delete(t.id);commit=true}}}}
-  for(const l of ch.left){bmSeen.delete(l.peer);mp.trails.delete(l.peer);mp.pingSeen.delete(l.peer);mp.mvSeen.delete(l.peer);mp.pickSeen.delete(l.peer);mp.chSeen.delete(l.peer)}
+          const from=mp.walkLast.get(t.id)||[t.x,t.y];t.x=Math.max(8,Math.min(W-8,+mv.x));t.y=Math.max(30,Math.min(H-1,+mv.y));fogWalk(t,from,[t.x,t.y]);mp.walkLast.delete(t.id);commit=true;stepped.push([t,from])}}
+      const gi=portalAsked(p,pr);if(gi>=0)goDoor=gi}}
+  for(const l of ch.left){bmSeen.delete(l.peer);goSeen.delete(l.peer);mp.trails.delete(l.peer);mp.pingSeen.delete(l.peer);mp.mvSeen.delete(l.peer);mp.pickSeen.delete(l.peer);mp.chSeen.delete(l.peer)}
   if(mp.role==='dm'&&mpPicks(ch.peers))commit=true;
   for(const id of [...mp.walkLast.keys()])if(!ghost.has(id))mp.walkLast.delete(id);
-  mp.ghost=ghost;if(commit)save();mpUI()}
+  mp.ghost=ghost;if(commit)save();mpUI();
+  // a player walked onto a door, or clicked one beside their token
+  if(goDoor>=0){const id=st.objects[goDoor].id;setTimeout(()=>{const j=st.objects.findIndex(o=>o.id===id);if(j>=0)portalGo(j)},120)}else stepped.forEach(([t,from])=>portalStep(t,true,from))}
 // DM: players choose their own token (one each). A new choice takes that token if nobody else has it, and puts one on
 // the map if there isn't one; a token added for a player goes away when they choose another. The DM's own assignment
 // sticks until the player chooses again.
@@ -2664,6 +2689,184 @@ function dynSelbar(bar,add){const l=selDyn();if(!l.length)return;const o=l[0],r=
   const set=(f,opts,cur)=>{push();const nx=opts[(opts.indexOf(cur)+1)%opts.length];selDyn().forEach(q=>q[f]=nx);save();selKey='';syncUI()};
   txt(r*2+'□','Blast width: '+r*2+' squares','Click for a bigger or smaller blast',()=>set('br',BR_OPTS,r));
   txt('−'+d,'Blast depth: '+d+' level'+(d>1?'s':''),'Click to blast deeper or shallower',()=>set('bd',BD_OPTS,d))}
+// ================= doors, stairs and entrances =================
+// A portal is an object ({k:'door'|'stairsdown'|'stairsup'|'entrance', x, y}) that also carries where it leads:
+//   id   its own id (so other doors can name it as the place to arrive)
+//   to   a library map id, or 'here' for another spot on the same map; toN = that map's name, used when the id
+//        no longer matches (maps moved between browsers get new ids)
+//   at   the id of a Landing spot or door on the destination to arrive beside; missing = automatic
+//   walk 0 = only opens from the selection bar / editor (default: a party token stepping on it opens it)
+//   lock 1 = players can't open it; the DM can still send the party through
+// A Landing spot ({k:'landing'}) marks where the party arrives. Only the DM sees it.
+// Going through: the DM's page (or the solo editor) moves the party (Party characters and tokens players play) off this map, opens the destination from the library with them standing around the arrival
+// spot, and the usual session push sends the new map and tokens to everyone.
+const PORTALS=[{k:'door',name:'Door',sub:'Leads to another map, or another spot on this one'},{k:'stairsdown',name:'Stairs down',sub:'Leads to another map, or another spot on this one'},
+  {k:'stairsup',name:'Stairs up',sub:'Leads to another map, or another spot on this one'},{k:'entrance',name:'Cave entrance',sub:'Leads to another map, or another spot on this one'}];
+PORTALS.forEach(p=>{OBJ.push({...p,sub:p.sub+'. Double-click it to choose where.',g:'Doors & stairs'});SIZE[p.k]=[16,16]});
+OBJ.push({k:'landing',name:'Landing spot',sub:'Where the party arrives through a door. Only you see it.',g:'Doors & stairs'});SIZE.landing=[16,16];
+ICON.portal='M6 21V4h12v17 M3 21h18 M14 12h.5';
+ICON.go='M5 12h12 M12 6l6 6-6 6';
+const isPortalK=k=>PORTALS.some(p=>p.k===k);
+const isPortal=i=>i!=null&&i>=0&&!!st.objects[i]&&isPortalK(st.objects[i].k);
+const portalName=o=>(PORTALS.find(p=>p.k===o.k)||{name:'Door'}).name;
+const objId=()=>'o'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+// who goes through: every Party character, plus any token someone plays in a live session
+const portalParty=t=>!!t&&((TOKINFO[t.s]||{}).group==='Party'||!!(mp.sess&&mp.sess.live&&mp.sess.assign[t.s]));
+const cellOf=(x,y)=>[Math.floor(x/GRID),Math.floor(y/GRID)];
+// drawn front-on, one square, like the buildings
+function portalSprite(k,put,R,E,LN,w,h){const st1=C.stone,st2=C.stoned,dk=C.dark,wd=C.wood,wdd=C.woodd;
+  if(k==='door'){R(0,0,16,16,st2);for(let y=0;y<16;y+=3)for(let x=(y/3&1)*2;x<16;x+=4)R(x,y,3,2,st1);
+    R(3,3,10,13,C.door);R(3,3,10,1,mix(C.door,LIGHT,.25));for(const x of [5,8,11])R(x,4,1,12,mix(C.door,DARK,.3));
+    R(4,6,8,1,mix(C.door,LIGHT,.18));R(4,12,8,1,mix(C.door,LIGHT,.18));put(10,9,[214,180,96]);R(2,15,12,1,wdd)}
+  else if(k==='stairsdown'){R(0,0,16,16,st2);R(1,0,14,1,st1);
+    for(let j=0;j<6;j++){const y=1+j*2,c=mix(st1,DARK,j*.14);R(2,y,12,2,c);R(2,y,12,1,mix(c,LIGHT,.18))}R(2,13,12,3,dk);R(1,1,1,15,mix(st2,DARK,.2));R(14,1,1,15,mix(st2,DARK,.2))}
+  else if(k==='stairsup'){R(1,0,2,16,wdd);R(13,0,2,16,wdd);
+    for(let j=0;j<7;j++){const y=1+j*2,c=mix(wd,LIGHT,j*.05);R(3,y,10,2,c);R(3,y+1,10,1,mix(c,DARK,.22))}R(3,15,10,1,wdd);R(1,0,2,1,mix(wdd,LIGHT,.2));R(13,0,2,1,mix(wdd,LIGHT,.2))}
+  else if(k==='entrance'){E(8,9,8,7.5,(x,y)=>x+y<12?C.rockl:x+y>20?C.rockd:C.rock);E(8,11,5,5.5,dk);R(3,11,10,5,dk);
+    R(2,5,2,11,wd);R(12,5,2,11,wd);R(2,4,12,2,wdd);R(2,4,12,1,mix(wdd,LIGHT,.25));R(4,14,8,2,[38,30,30])}
+  else{R(4,1,1,13,wdd);R(5,1,7,4,[196,86,62]);R(5,1,7,1,[222,120,90]);E(5,14,4,1.6,[242,196,159])}}   // landing: a little flag
+// ---- where a door leads ----
+function portalDest(o){if(!o||!o.to)return null;if(o.to==='here')return{id:lib.cur,here:true};
+  const m=lib.maps.find(m=>m.id===o.to)||(o.toN?lib.maps.find(m=>m.name===o.toN):null);if(!m)return null;return{id:m.id,m,here:m.id===lib.cur}}
+// where on map s (opened from map fromId, or the same map) a party coming through door o arrives: the spot it names,
+// else a door there that leads back, else that map's first landing spot, else its middle
+function portalAnchor(o,s,here,fromId,fromName){const objs=s.objects||[];
+  if(o.at){const q=objs.find(q=>q.id===o.at&&q!==o);if(q)return{x:q.x,y:q.y,door:isPortalK(q.k)}}
+  const back=objs.find(q=>q!==o&&isPortalK(q.k)&&q.to&&(here?q.to==='here'||q.to===fromId:q.to===fromId||(!!fromName&&q.toN===fromName&&!lib.maps.some(m=>m.id===q.to))));
+  if(back)return{x:back.x,y:back.y,door:true};
+  const ld=objs.find(q=>q.k==='landing');if(ld)return{x:ld.x,y:ld.y};
+  return{x:s.cols*GRID/2,y:s.rows*GRID/2}}
+// n free squares around the anchor, closest first (beside a door rather than on it, on the side facing into the map),
+// avoiding the tokens that stay and every door
+function portalSpots(s,a,n,keep){const cols=s.cols,rows=s.rows,taken=new Set();
+  (s.objects||[]).forEach(q=>{if(isPortalK(q.k))taken.add(cellOf(q.x,q.y).join())});keep.forEach(t=>taken.add(cellOf(t.x,t.y-1).join()));
+  let[c0,r0]=cellOf(a.x,a.y);
+  if(a.door){const dx=cols/2-(c0+.5),dy=rows/2-(r0+.5);if(Math.abs(dx)>Math.abs(dy))c0+=Math.sign(dx)||1;else r0+=Math.sign(dy)||1}
+  const ok=(c,r)=>c>=0&&c<cols&&r>=2&&r<rows&&!taken.has(c+','+r),out=[];
+  for(let d=0;d<Math.max(cols,rows)&&out.length<n;d++){const ring=[];
+    for(let dc=-d;dc<=d;dc++)for(let dr=-d;dr<=d;dr++)if(Math.max(Math.abs(dc),Math.abs(dr))===d&&ok(c0+dc,r0+dr))ring.push([c0+dc,r0+dr,Math.hypot(dc,dr)]);
+    ring.sort((p,q)=>p[2]-q[2]||p[1]-q[1]||p[0]-q[0]);for(const[c,r]of ring){if(out.length>=n)break;out.push([c*GRID+GRID/2,r*GRID+GRID/2]);taken.add(c+','+r)}}
+  while(out.length<n)out.push([Math.round(cols*GRID/2),Math.round(rows*GRID/2)]);return out}
+// ---- going through ----
+let portalLast=null,portalFrom=null;   // the last trip, so the DM can take it back; where the token that walked onto the door came from
+function portalGo(i,quiet){if(mp.role==='player'||!isPortal(i))return false;const o=st.objects[i],d=portalDest(o);
+  if(!d){portalSay(o.to?'The map this door led to is gone. Double-click the door to pick another.':'This door doesn’t lead anywhere yet. Double-click it to choose a map.');return false}
+  // closest spots go to the token that walked in, then tokens people play, so players land right beside the door
+  const rank=t=>portalFrom&&portalFrom.t===t?0:mp.sess&&mp.sess.live&&mp.sess.assign[t.s]?1:2,party=st.tokens.filter(portalParty).sort((a,b)=>rank(a)-rank(b));
+  if(!party.length){portalSay(mp.sess&&mp.sess.live?'Nobody is playing a token yet, so nobody went through.':'Only party tokens go through doors. Put a Party character on the map first.');return false}
+  const from=lib.cur,fromName=(libCur()||{}).name||'',before=party.map(t=>portalFrom&&portalFrom.t===t?{...t,x:portalFrom.x,y:portalFrom.y}:{...t});
+  if(d.here){push();const keep=st.tokens.filter(t=>!party.includes(t)),sp=portalSpots(st,portalAnchor(o,st,true,from,fromName),party.length,keep);
+    party.forEach((t,k)=>{[t.x,t.y]=sp[k];fogWalk(t,[t.x,t.y],[t.x,t.y])});save();portalFade();portalLook(sp);
+    portalLast=null;if(!quiet)portalSay(`The party took the ${portalName(o).toLowerCase()}.`);syncUI();return true}
+  const s=libGet(d.id);if(!s){portalSay('That map could not be read.');return false}
+  // they leave this map...
+  st.tokens=st.tokens.filter(t=>!party.includes(t));save();
+  // ...and arrive on the next one, replacing any copies of the same characters already there
+  const sheets=new Set(party.map(t=>t.s)),keep=s.tokens.filter(t=>!sheets.has(t.s)),sp=portalSpots(s,portalAnchor(o,s,false,from,fromName),party.length,keep);
+  const arrived=party.map((t,k)=>({...t,x:sp[k][0],y:sp[k][1]}));s.tokens=[...keep,...arrived];
+  portalFade();libOpen(d.id,s);st.tokens.filter(t=>arrived.some(a=>a.id?a.id===t.id:a.s===t.s)).forEach(t=>fogWalk(t,[t.x,t.y],[t.x,t.y]));
+  mp.walkLast.clear();save();portalLook(sp);
+  portalLast={from,to:d.id,before,sheets:[...sheets],t:Date.now()};
+  if(!quiet)portalSay(`The party went through the ${portalName(o).toLowerCase()} to “${d.m.name}”.`,true);return true}
+// take the last trip back: the party returns to where they stood before it
+function portalBack(){const L=portalLast;portalLast=null;if(!L||lib.cur!==L.to||mp.role==='player')return;
+  const s=libGet(L.from);if(!s)return portalSay('That map could not be read.');
+  const sheets=new Set(L.sheets);st.tokens=st.tokens.filter(t=>!sheets.has(t.s));save();
+  s.tokens=[...s.tokens.filter(t=>!sheets.has(t.s)),...L.before];portalFade();libOpen(L.from,s);mp.walkLast.clear();save();portalSay('The party is back where it was.')}
+// centre the view on the arrival if it's off screen
+function portalLook(sp){if(!sp.length)return;const x=sp.reduce((a,q)=>a+q[0],0)/sp.length,y=sp.reduce((a,q)=>a+q[1],0)/sp.length;
+  const vx=(x-cam.x)*Z,vy=(y-cam.y)*Z;if(vx<80||vy<80||vx>viewW-80||vy>viewH-80){cam.x=x-viewW/Z/2;cam.y=y-viewH/Z/2;clampCam()}}
+function portalFade(){const f=$('travelfade');if(reduce.matches)return;f.classList.remove('out');f.classList.add('on');void f.offsetWidth;
+  clearTimeout(portalFade.t);portalFade.t=setTimeout(()=>{f.classList.remove('on');f.classList.add('out')},60)}
+function portalSay(t,back){const m=$('portmsg');m.replaceChildren();if(!t){m.hidden=true;return}m.append(document.createTextNode(t));
+  if(back&&portalLast){const b=document.createElement('button');b.className='btn ghost sm';b.textContent='Take it back';b.onclick=()=>{portalSay('');portalBack()};m.append(b)}
+  m.hidden=false;clearTimeout(portalSay.t);portalSay.t=setTimeout(()=>{m.hidden=true;if(portalLast&&Date.now()-portalLast.t>5000)portalLast=null},back?7000:3500)}
+// the door a token is standing on
+const portalUnder=t=>st.objects.findIndex(o=>isPortalK(o.k)&&Math.abs(t.x-o.x)<=SIZE[o.k][0]/2&&Math.abs(t.y-o.y)<=SIZE[o.k][1]/2);
+// a party token just finished a move: if it stopped on a door that opens by walking, go through (DM / solo pages only)
+function portalStep(t,byPlayer,from){if(mp.role==='player'||!portalParty(t))return;const i=portalUnder(t);if(i<0)return;const o=st.objects[i];
+  if(o.walk===0||!o.to)return;if(o.lock){if(!byPlayer)portalSay('That door is locked for players. Select it and use Go through to send the party.');return}
+  const id=o.id;portalFrom=from?{t,x:from[0],y:from[1]}:null;setTimeout(()=>{const j=st.objects.findIndex(q=>q.id===id);if(j>=0&&!drag)portalGo(j);portalFrom=null},120)}
+// players: clicking a door next to your own token asks the DM's page to open it
+const goSeen=new Map();let myGo=0;
+function portalNear(t,o){const[a,b]=cellOf(t.x,t.y-1),[c,d]=cellOf(o.x,o.y);return Math.max(Math.abs(a-c),Math.abs(b-d))<=1}
+function portalAsk(i){const o=st.objects[i];if(!o)return;if(o.lock)return portalSay('It won’t open.');
+  const mine=st.tokens.filter(t=>mp.sess&&mp.sess.assign[t.s]===mp.me);if(!mine.some(t=>portalNear(t,o)))return portalSay(`Walk up to the ${portalName(o).toLowerCase()} first.`);
+  mp.pres.go={id:o.id,n:++myGo};portalSay('Opening…')}
+// DM: a player asked to open a door; their own token has to be beside it
+// (a request already there when the DM's page first sees that player is old, so it's ignored)
+function portalAsked(p,pr){const g=pr.go&&typeof pr.go.id==='string'&&fin(pr.go.n)?pr.go:null,n=g?+g.n:0,seen=goSeen.get(p.peer);goSeen.set(p.peer,n);
+  if(seen===undefined||!n||n===seen)return-1;
+  const i=st.objects.findIndex(o=>o.id===g.id&&isPortalK(o.k));if(i<0||st.objects[i].lock||!st.objects[i].to)return-1;
+  return st.tokens.some(t=>mp.sess&&mp.sess.assign[t.s]===p.by&&portalNear(t,st.objects[i]))?i:-1}
+// ---- the DM's editor: what it looks like, where it leads, where the party arrives ----
+let portEd=null;
+const portalKey=o=>JSON.stringify([o.k,o.to||'',o.toN||'',o.at||'',o.walk,o.lock]);
+function portalEdit(i){if(!isPortal(i)||mp.role==='player')return;signClose();portalClose();const o=st.objects[i];portalInit(o);
+  portEd={i,before:JSON.stringify(st),start:portalKey(o)};portalSync();$('portedit').hidden=false;portalPlace();setTimeout(()=>$('ptto').focus(),0)}
+function portalSync(){if(!portEd)return;const o=st.objects[portEd.i];if(!o)return;const to=$('ptto'),at=$('ptat');
+  [...$('ptlook').children].forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.k===o.k)));
+  to.replaceChildren();const opt=(sel,v,t,on)=>{const q=document.createElement('option');q.value=v;q.textContent=t;if(on)q.selected=true;sel.append(q)};
+  const d=portalDest(o);opt(to,'','Nowhere yet',!d);opt(to,'here','Another spot on this map',!!d&&d.here);
+  lib.maps.filter(m=>m.id!==lib.cur).sort((a,b)=>a.name.localeCompare(b.name)).forEach(m=>opt(to,m.id,m.name,!!d&&!d.here&&d.id===m.id));
+  at.replaceChildren();at.disabled=!d;opt(at,'',d&&d.here?'Automatic: by the other door or stairs':'Automatic: by the way back',!o.at);
+  const s=d?(d.here?st:libGet(d.id)):null;let found=!o.at;
+  if(s){let n=0;(s.objects||[]).forEach(q=>{if(q===o)return;const[c,r]=cellOf(q.x,q.y);
+    if(q.k==='landing'){n++;if(!q.id)return;opt(at,q.id,`Landing spot ${n} (square ${c+1}, ${r+1})`,o.at===q.id);found=found||o.at===q.id}
+    else if(isPortalK(q.k)&&q.id){opt(at,q.id,`Beside the ${portalName(q).toLowerCase()} at square ${c+1}, ${r+1}`,o.at===q.id);found=found||o.at===q.id}})}
+  if(!found)opt(at,o.at,'A spot that’s no longer there',true);
+  $('ptnote').textContent=!d?'Pick the map it opens.':s&&!s.objects.some(q=>q.k==='landing'||(isPortalK(q.k)&&q!==o))?'Tip: put a Landing spot on that map to choose where the party appears.':'';
+  $('ptwalk').checked=o.walk!==0;$('ptlock').checked=!!o.lock;$('ptgo').disabled=!d}
+function portalApply(fn){if(!portEd||!isPortal(portEd.i))return;const o=st.objects[portEd.i];fn(o);if(o.walk!==0)delete o.walk;if(!o.lock)delete o.lock;if(!o.at)delete o.at;objDirty=true;portalSync();save()}
+function portalClose(){if(!portEd)return;const e=portEd;portEd=null;$('portedit').hidden=true;const o=st.objects[e.i];
+  if(o&&portalKey(o)!==e.start){hist.push(e.before);if(hist.length>80)hist.shift();updUndo()}
+  if(document.activeElement&&$('portedit').contains(document.activeElement))document.activeElement.blur()}
+function portalPlace(){const ed=$('portedit');if(!portEd)return;if(!isPortal(portEd.i)){portalClose();return}
+  const o=st.objects[portEd.i],sx=(o.x-cam.x)*Z,sy=(o.y+10-cam.y)*Z+10,ew=ed.offsetWidth,eh=ed.offsetHeight;
+  ed.style.left=Math.max(8,Math.min(viewW-ew-8,sx-ew/2))+'px';ed.style.top=Math.max(64,Math.min(viewH-eh-8,sy))+'px'}
+// new doors and landing spots get an id and sit on a square
+function portalInit(o){if(isPortalK(o.k)||o.k==='landing'){if(!o.id)o.id=objId();o.v=0}return o}
+// ---- the hover card: where it goes (DM), how to use it (players) ----
+let portShown='';
+function portalTick(){const card=$('portcard');portalPlace();
+  let i=-1;if(hover&&!drag&&!panning&&!portEd&&$('libmodal').hidden&&$('mpmodal').hidden&&$('modal').hidden&&signTarget()<0)
+    i=st.objects.findIndex(o=>isPortalK(o.k)&&Math.abs(hover[0]-o.x)<=9&&Math.abs(hover[1]-o.y)<=9);
+  const o=i>=0?st.objects[i]:null,dm=mp.role!=='player'&&!fogPreview,f=fogView();
+  if(!o||(f&&fogAt(f,o.x,o.y))){card.hidden=true;portShown='';return}
+  let t;if(dm){const d=portalDest(o);t=!d?(o.to?`${portalName(o)} to a map that’s gone. Double-click to fix.`:`${portalName(o)} to nowhere yet. Double-click to choose.`)
+      :`${portalName(o)} to ${d.here?'another spot on this map':'“'+d.m.name+'”'}.`+(o.lock?' Locked for players.':o.walk===0?' Opens from Go through.':' A party token stepping on it goes through.')}
+  else t=o.lock?`${portalName(o)}. It’s locked.`:!o.to?portalName(o)+'.':`${portalName(o)}. Step on it, or click it when you’re next to it, to go through.`;
+  if(t!==portShown){portShown=t;card.textContent=t}card.hidden=false;
+  const cw=card.offsetWidth,sx=(o.x-cam.x)*Z,sy=(o.y-8-cam.y)*Z-8;card.style.left=Math.max(cw/2+8,Math.min(viewW-cw/2-8,sx))+'px';card.style.top=Math.max(card.offsetHeight+8,sy)+'px'}
+// landing spots: a dashed ring with an arrow, DM only (they're never drawn into the map image)
+function portalDraw(){if(mp.role==='player'||fogPreview)return;
+  st.objects.forEach(o=>{if(o.k!=='landing')return;const x=o.x*Z,y=o.y*Z,r=7*Z;
+    ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fillStyle='rgba(196,86,62,.28)';ctx.fill();ctx.strokeStyle='rgba(29,27,34,.75)';ctx.lineWidth=4;ctx.stroke();
+    ctx.setLineDash([5,3]);ctx.strokeStyle='#f2c49f';ctx.lineWidth=2;ctx.stroke();ctx.setLineDash([]);
+    const a=Math.min(r*.55,10),arrow=()=>{ctx.beginPath();ctx.moveTo(x,y-a);ctx.lineTo(x,y+a*.6);ctx.moveTo(x-a*.6,y);ctx.lineTo(x,y+a*.6);ctx.lineTo(x+a*.6,y)};
+    ctx.lineCap=ctx.lineJoin='round';arrow();ctx.strokeStyle='#1d1b22';ctx.lineWidth=4.5;ctx.stroke();arrow();ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.stroke()})}
+{PORTALS.forEach(p=>{const b=document.createElement('button');const c=document.createElement('canvas');const sp=sprite(p.k,0);
+   c.width=sp.sw;c.height=sp.sh;const g=c.getContext('2d'),im=g.createImageData(sp.sw,sp.sh);im.data.set(sp.px);g.putImageData(im,0,0);b.append(c);
+   b.dataset.k=p.k;b.setAttribute('aria-label',p.name);b.dataset.tip=p.name;b.onclick=()=>portalApply(o=>{o.k=p.k});$('ptlook').append(b)});
+ $('ptto').onchange=e=>portalApply(o=>{const v=e.target.value;delete o.at;if(!v){delete o.to;delete o.toN}else if(v==='here'){o.to='here';delete o.toN}
+   else{o.to=v;o.toN=(lib.maps.find(m=>m.id===v)||{}).name||''}});
+ $('ptat').onchange=e=>portalApply(o=>{o.at=e.target.value});
+ $('ptwalk').onchange=e=>portalApply(o=>{o.walk=e.target.checked?1:0});$('ptlock').onchange=e=>portalApply(o=>{o.lock=e.target.checked?1:0});
+ $('ptgo').onclick=()=>{const i=portEd&&portEd.i;portalClose();if(i!=null)portalGo(i)};$('ptdone').onclick=portalClose;
+ $('portedit').addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Escape'){e.preventDefault();portalClose()}});
+ $('portedit').addEventListener('pointerdown',e=>e.stopPropagation());
+ cv.addEventListener('pointerdown',e=>{if(portEd)portalClose();
+   // players: a click on a door asks to open it
+   if(mp.role!=='player'||e.button!==0)return;const p=toMap(e),h=hit(p);if(h&&h.type==='token'&&mpMayMove(st.tokens[h.i],mp.me))return;   // your own token: that's a drag
+   const i=st.objects.findIndex(o=>isPortalK(o.k)&&Math.abs(p[0]-o.x)<=9&&Math.abs(p[1]-o.y)<=9);if(i<0)return;const f=fogView();if(f&&fogAt(f,st.objects[i].x,st.objects[i].y))return;portalAsk(i)},true);
+ // a door the Objects tool just placed sits on a square, gets an id and opens its editor; a landing spot just gets an id
+ let portN=0;cv.addEventListener('pointerdown',()=>{portN=st.objects.length},true);
+ cv.addEventListener('pointerdown',()=>{if(tool!=='object'||st.objects.length<=portN)return;const fresh=st.objects.slice(portN).filter(o=>isPortalK(o.k)||o.k==='landing');if(!fresh.length)return;
+   fresh.forEach(o=>{portalInit(o);o.x=Math.floor(o.x/GRID)*GRID+GRID/2;o.y=Math.floor(o.y/GRID)*GRID+GRID/2});objDirty=true;save();
+   if(st.objects.length-portN===1&&isPortalK(st.objects[portN].k))portalEdit(portN)});
+ cv.addEventListener('dblclick',e=>{if(tool!=='select'||mp.role==='player')return;const p=toMap(e),i=st.objects.findIndex(o=>isPortalK(o.k)&&Math.abs(p[0]-o.x)<=9&&Math.abs(p[1]-o.y)<=9);
+   if(i>=0){e.preventDefault();setObjSel([i]);portalEdit(i);syncUI()}});
+ window.addEventListener('keydown',e=>{if(e.key!=='Enter'||e.target!==document.body&&e.target.tagName!=='CANVAS')return;if(tool==='select'&&sel&&sel.type==='obj'&&isPortal(sel.i)&&mp.role!=='player'){e.preventDefault();portalEdit(sel.i)}})}
 // ---- the tour map: a small world where every sign explains the tool that built the ground around it ----
 function tourMap(){const S=(x,y,txt,o={})=>({k:'sign',x,y,v:o.v||0,txt,lang:o.lang||'common',...(o.tr?{tr:1}:{})});
   const ops=[
@@ -2712,7 +2915,10 @@ function tourMap(){const S=(x,y,txt,o={})=>({k:'sign',x,y,v:o.v||0,txt,lang:o.la
     {k:'torch',x:462,y:290,v:0},{k:'torch',x:498,y:290,v:0},
     {k:'boulder',x:70,y:340,v:0},{k:'boulder',x:130,y:400,v:3},{k:'rock',x:100,y:372,v:0},
     {k:'cart',x:550,y:356,v:0},{k:'lantern',x:480,y:300,v:0},{k:'lantern',x:600,y:330,v:0},{k:'timber',x:500,y:420,v:0},{k:'crystals',x:610,y:420,v:0},{k:'rubble',x:620,y:300,v:0},{k:'dynamite',x:596,y:300,v:0},
-    {k:'crystals',x:290,y:420,v:1},{k:'tree',x:210,y:110,v:0},{k:'well',x:520,y:200,v:0}];
+    {k:'crystals',x:290,y:420,v:1},{k:'tree',x:210,y:110,v:0},{k:'well',x:520,y:200,v:0},
+    // stairs down into the fogged cave and back up again, on the same map
+    {k:'stairsdown',x:280,y:264,v:0,id:'tour-down',to:'here',at:'tour-cave'},{k:'stairsup',x:280,y:328,v:0,id:'tour-up',to:'here'},{k:'landing',x:312,y:344,v:0,id:'tour-cave'},
+    S(264,204,'DOORS AND STAIRS\nObjects (O), then Doors & stairs. Double-click one to pick the map it opens and where the party arrives (a Landing spot, only you see it). A party token stepping on it takes everyone through. Try the stairs just south of here.',{v:2})];
   const tokens=[{s:0,x:56,y:232,o:0},{s:1,x:72,y:232,o:3},{s:2,x:56,y:248,o:5},{s:3,x:72,y:248,o:2},{s:4,x:344,y:392,o:1}];
   // the cave (columns 16–25, rows 18–27) starts hidden
   const cols=40,rows=28;let fog='';for(let r=0;r<rows;r++)for(let c=0;c<cols;c++)fog+=c>=16&&c<=25&&r>=18?'1':'0';
