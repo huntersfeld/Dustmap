@@ -813,12 +813,22 @@ function paintMap(img,R,seed,opts={}){
     if(dW[i]>3&&dW[i+3]>3&&!face[i]){const c=hash(u,v,seed+24)<.5?C.ripple:C.water2;for(let j=0;j<3;j++)put(x+j,y,c)}}}
   // ---- mine rails: ties across the path, two steel rails along it ----
   const rail=new Uint8Array(W*H);
+  // every rail is sampled along its centreline first; a sample that lands on track already laid (by an earlier
+  // stretch of this rail or another one) is skipped, so retracing or looping back doesn't stack a second track
+  {const smp=[],grid=new Map(),CS=4,key=(x,y)=>Math.floor(x/CS)+','+Math.floor(y/CS);let gacc=0;
   (R.ops||[]).forEach(op=>{if(op.layer!=='ground'||op.t!==9||!op.pts||op.pts.length<2)return;const pts=op.kind==='poly'?[...op.pts,op.pts[0]]:op.pts;
-    const walk=fn=>{let acc=0;for(let k=1;k<pts.length;k++){const a=pts[k-1],b=pts[k],len=dist(a,b);if(!len)continue;const ux=(b[0]-a[0])/len,uy=(b[1]-a[1])/len;
-      for(let d=0;d<len;d+=.5){fn(a[0]+ux*d,a[1]+uy*d,-uy,ux,acc);acc+=.5}}};
+    let acc=0;for(let k=1;k<pts.length;k++){const a=pts[k-1],b=pts[k],len=dist(a,b);if(!len)continue;const ux=(b[0]-a[0])/len,uy=(b[1]-a[1])/len;
+      for(let d=0;d<len;d+=.5){const x=a[0]+ux*d,y=a[1]+uy*d;let dup=false;
+        for(let j=-1;j<=1&&!dup;j++)for(let i=-1;i<=1&&!dup;i++){const c=grid.get((Math.floor(x/CS)+i)+','+(Math.floor(y/CS)+j));
+          if(c)for(const q of c)if(gacc-q.g>8&&Math.hypot(q.x-x,q.y-y)<3.5){dup=true;break}}
+        const q={x,y,g:gacc};const kk=key(x,y);(grid.get(kk)||grid.set(kk,[]).get(kk)).push(q);
+        if(!dup)smp.push([x,y,-uy,ux,acc]);acc+=.5;gacc+=.5}}
+    gacc+=100});
     const P2=(x,y,c)=>{x=Math.round(x);y=Math.round(y);if(x<0||y<0||x>=W||y>=H)return;put(x,y,c);rail[y*W+x]=1};
-    walk((x,y,nx,ny,acc)=>{if(acc%5<1.5)for(let k=-4.5;k<=4.5;k+=.5)P2(x+nx*k,y+ny*k,acc%5<.5?C.tied:C.tie)});
-    walk((x,y,nx,ny)=>{for(const side of [-3,3]){P2(x+nx*side,y+ny*side+1,C.raild);P2(x+nx*side,y+ny*side,C.rail)}})});
+    for(const[x,y,nx,ny,acc]of smp)if(acc%5<1.5)for(let k=-4.5;k<=4.5;k+=.5)P2(x+nx*k,y+ny*k,acc%5<.5?C.tied:C.tie);
+    // all rail shadows before any steel, so a track drawn upward looks the same as one drawn downward
+    for(const[x,y,nx,ny]of smp)for(const side of [-3,3])P2(x+nx*side,y+ny*side+1,C.raild);
+    for(const[x,y,nx,ny]of smp)for(const side of [-3,3])P2(x+nx*side,y+ny*side,C.rail)}
   if(opts.noScatter)return gen;
   const emit=(pre,o)=>{const key=`${pre}:${Math.round(o.x+OX)}:${Math.round(o.y+OY)}`;gen.push({key,o:{...o,x:o.x+OX,y:o.y+OY}});if(!skip.has(key))drawObject(data,W,H,o)};
   const blocked=i=>mW[i]||dWo[i]<=2||mM[i]||cliff[i]||ol[i]||face[i]||mR[i]||dRo[i]<=1||rockTop(i)||rail[i];
@@ -1286,7 +1296,8 @@ function draw(ts){
   // shape draft
   if(tool==='draw'&&draft.length){const p=draft.map(sc);const cur=hover?sc(hover):p[p.length-1];
     const nearFirst=draft.length>=3&&hover&&dist(hover,draft[0])<7;
-    pathPoly(p);ctx.lineTo(...(nearFirst?p[0]:cur));ctx.closePath();ctx.fillStyle=paintRGBA(paint,.6);ctx.fill();
+    if(isPathPaint(paint)){pathPoly(p);ctx.lineTo(...(nearFirst?p[0]:cur));ctx.lineCap=ctx.lineJoin='round';ctx.lineWidth=(paint.t===9?5:bsize)*2*Z;ctx.strokeStyle=paintRGBA(paint,.6);ctx.stroke()}
+    else{pathPoly(p);ctx.lineTo(...(nearFirst?p[0]:cur));ctx.closePath();ctx.fillStyle=paintRGBA(paint,.6);ctx.fill()}
     pathPoly(p);ctx.strokeStyle='#fff';ctx.lineWidth=3;ctx.stroke();
     ctx.setLineDash([10,8]);ctx.beginPath();ctx.moveTo(...p[p.length-1]);ctx.lineTo(...(nearFirst?p[0]:cur));ctx.stroke();ctx.setLineDash([]);
     p.forEach(q=>handle(q));
@@ -1409,8 +1420,8 @@ cv.addEventListener('pointerdown',e=>{const p=toMap(e);cv.setPointerCapture(e.po
     // Hills, shape: drag a hill or cliff up or down to change its height; a click starts a new shape
     const i=hitHeight(p);if(i>=0){const op=st.ops[i];lift={i,p,y0:e.clientY,pts0:op.pts.map(q=>[...q]),h0:op.h,s0:op.s,moved:false};sel={type:'op',i};syncUI();return}}
   if(tool==='draw'){
-    if(draft.length>=3&&dist(p,draft[0])<7){finish();return}
-    const now=performance.now();if(now-lastTap<300&&draft.length>=3&&dist(p,draft[draft.length-1])<3){finish();return}lastTap=now;
+    if(draft.length>=3&&dist(p,draft[0])<7){finish(true);return}
+    const now=performance.now();if(now-lastTap<300&&draft.length>=draftMin()&&dist(p,draft[draft.length-1])<3){finish();return}lastTap=now;
     draft.push(clamp(p).map(v=>Math.round(v*2)/2));syncHint();return}
   if(tool==='brush'){stroke={pts:[clamp(p)],r:bsize};return}
   if(tool==='sculpt'){sculpt={phase:'paint',pts:[clamp(p)],cy:e.clientY,t:performance.now(),y0:0,base:0,delta:0};syncHint();return}
@@ -1491,14 +1502,20 @@ function up(){
   drag=null;save()}
 cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);
 cv.addEventListener('pointerleave',()=>{hover=null;hoverScr=null});
-cv.addEventListener('dblclick',e=>{if(tool==='draw'&&draft.length>=3){e.preventDefault();finish()}});
-function finish(){if(draft.length>3&&dist(draft[draft.length-1],draft[draft.length-2])<2)draft.pop();
-  if(draft.length<3)return;push();let op={kind:'poly',...paint,pts:draft,sid:Math.floor(Math.random()*1000)};
-  if(paint.layer==='height'){
-    // a new hill or cliff starts one level above what's under it and stays selected, ready to drag up or down
-    const xs=draft.map(q=>q[0]),ys=draft.map(q=>q[1]),x0=Math.min(...xs),x1=Math.max(...xs),y0=Math.min(...ys),y1=Math.max(...ys),inside=[];
-    for(let y=y0;y<=y1;y+=4)for(let x=x0;x<=x1;x+=4)if(inPoly(x,y,draft))inside.push([x,y]);
-    const h=Math.min(HMAX,SLAD[levelUnder(inside.length?inside:draft)].h+1);op={...op,h,s:hStyleAt(h,hillStyle)}}
+cv.addEventListener('dblclick',e=>{if(tool==='draw'&&draft.length>=draftMin()){e.preventDefault();finish()}});
+// roads and mine rails drawn as a shape follow the clicked segments as an open path; they only loop when you click the first point again
+const isPathPaint=p=>p.layer==='ground'&&(p.t===5||p.t===9);
+const draftMin=()=>isPathPaint(paint)?2:3;
+function finish(close){const m=draftMin();if(draft.length>m&&dist(draft[draft.length-1],draft[draft.length-2])<2)draft.pop();
+  if(draft.length<m)return;push();let op;
+  if(isPathPaint(paint)){const pts=draft.slice();if(close===true&&pts.length>=3)pts.push(pts[0].slice());
+    op={kind:'stroke',...paint,r:paint.t===9?5:bsize,pts,sid:Math.floor(Math.random()*1000)}}
+  else{op={kind:'poly',...paint,pts:draft,sid:Math.floor(Math.random()*1000)};
+    if(paint.layer==='height'){
+      // a new hill or cliff starts one level above what's under it and stays selected, ready to drag up or down
+      const xs=draft.map(q=>q[0]),ys=draft.map(q=>q[1]),x0=Math.min(...xs),x1=Math.max(...xs),y0=Math.min(...ys),y1=Math.max(...ys),inside=[];
+      for(let y=y0;y<=y1;y+=4)for(let x=x0;x<=x1;x+=4)if(inPoly(x,y,draft))inside.push([x,y]);
+      const h=Math.min(HMAX,SLAD[levelUnder(inside.length?inside:draft)].h+1);op={...op,h,s:hStyleAt(h,hillStyle)}}}
   st.ops.push(op);markOp(op);if(paint.layer==='height')sel={type:'op',i:st.ops.length-1};draft=[];save();syncUI()}
 function setTool(t){if(mp.role==='player'&&!PLAYER_TOOLS.includes(t))return;const keep=hSel()&&(t==='sculpt'||(t==='draw'&&paint.layer==='height'));tool=t;qClose();draft=[];stroke=null;sculpt=null;lift=null;if(t!=='select'&&!keep)sel=null;if(t!=='measure')measure=null;syncUI()}
 function delSel(){if(!sel)return;push();if(sel.type==='token'){st.tokens.splice(sel.i,1)}else if(sel.type==='op'){markOp(st.ops[sel.i]);st.ops.splice(sel.i,1)}else{[...selList()].sort((a,b)=>b-a).forEach(i=>st.objects.splice(i,1));objDirty=true}sel=null;save();syncUI()}
@@ -1633,7 +1650,7 @@ function syncUI(){
    $('gridnote').textContent=ts?'Pick how many squares for how many tokens. They land on random squares around the cursor. Ctrl-click tokens to mix them.':scat?'Each click drops them in new random spots. R or Re-roll shuffles the preview.':'Drag for a block, click squares for a pattern. Right-click the map or R turns it.';
    $('gridbadge').textContent=stp?(stampRot?stampRot*90+'°':''):scat?'×'+scatCount:objMix&&!tk||ts?'mix':objCells.size>1?cellLabel().replace(/ × /,'×').replace(' squares',''):''}
   // the tray shows only what the active tool needs
-  const show={'pane-mode':!pl&&(r==='paint'||r==='height')&&!opSel,paints:!pl&&(r==='paint'||r==='height'||opSel),'pane-size':!pl&&(tool==='brush'||tool==='sculpt'),
+  const show={'pane-mode':!pl&&(r==='paint'||r==='height')&&!opSel,paints:!pl&&(r==='paint'||r==='height'||opSel),'pane-size':!pl&&(tool==='brush'||tool==='sculpt'||(tool==='draw'&&isPathPaint(paint)&&paint.t!==9)),
     objs:!pl&&r==='object',toks:!pl&&r==='token','pane-place':!pl&&(r==='object'||r==='token'),'sec-fog':!pl&&r==='fog','pane-mine':pl};
   Object.entries(show).forEach(([id,on])=>$(id).hidden=!on);
   const any=Object.values(show).some(Boolean);$('tray').hidden=!any;document.body.classList.toggle('notray',!any);
@@ -1659,7 +1676,7 @@ function syncHint(){const h=$('hint');h.replaceChildren();
   const btn=(t,cls,fn)=>{const b=document.createElement('button');b.className='btn '+cls;b.textContent=t;b.onclick=fn;h.append(b)};
   // one short line: what's active, and the next move. Buttons only where there's an action.
   if(tool==='draw'&&draft.length){pill(paintName());add(`${draft.length} point${draft.length>1?'s':''} · <kbd>Enter</kbd> finishes`);
-      if(draft.length>=3)btn('Finish','primary',finish);btn('Cancel','',()=>{draft=[];syncHint()})}
+      if(draft.length>=draftMin())btn('Finish','primary',()=>finish());btn('Cancel','',()=>{draft=[];syncHint()})}
   else if(tool==='sculpt'&&sculpt){
     if(sculpt.phase==='paint'){pill('Selecting');add('Hold still or <kbd>Shift</kbd> to raise')}
     else{const lv=SLAD[sculpt.base+sculpt.delta];pill(sculpt.delta===0?'No change':lv.h===0?'Flatten':(lv.h>0?'Raise ':'Lower ')+lv.sh);add('Drag up or down, release to place')}}
@@ -2590,6 +2607,7 @@ function tourMap(){const S=(x,y,txt,o={})=>({k:'sign',x,y,v:o.v||0,txt,lang:o.la
 function tourOpen(){const s=libClean(tourMap());if(!s)return;const m=libAdd('Dustmap tour',s,true);if(m)libHide()}
 $('libtour').onclick=tourOpen;$('tour').onclick=()=>{menuShow(false);tourOpen()};
 // read-only peek for the tests
+window.__terrain=()=>({cv:tcan,L:lastR.L,W,H});
 window.__dustmap=()=>({st,fog:fogGet(),litFires:litFires(fogView()).length,role:mp.role,cam:{...cam},Z,pings:pings.map(p=>({x:p.x,y:p.y,rgb:p.rgb||null})),tool,peers:mp.peers.length,busy:mp.busy,err:mp.err,again:mp.again});
 libInit();mpInit();
 buildTools();buildObjs();buildToks();buildPaints();updUndo();sizeCanvas();syncUI();requestAnimationFrame(loop);
