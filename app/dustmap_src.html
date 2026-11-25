@@ -2735,8 +2735,9 @@ function bmEmit(ev){if(mp.role!=='dm')return;ev.n=++bmN;bmLog.push(ev);if(bmLog.
 function dynLight(list){if(mp.role==='player')return;const now=performance.now();let n=0;
   list.forEach(o=>{if(!isDyn(o)||fuses.some(f=>f.o===o))return;fuses.push({o,t0:now,x:o.x,y:o.y});n++;bmEmit({f:1,x:Math.round(o.x),y:Math.round(o.y)})});
   if(n){sel=null;syncUI()}}
-// most common height under the blast circle (sampled every 2 px)
-function blastBase(cx,cy,r){if(!lastR)return 0;const cnt={};let best=0,bn=-1;
+// most common height under the blast circle (sampled every 2 px). Bring the terrain up to date first, so a chained blast
+// sees the crater the one before it just made, whether or not a frame has redrawn the ground since.
+function blastBase(cx,cy,r){if(dirty)renderTerrain();else if(dRect&&lastR)renderRegion();if(!lastR)return 0;const cnt={};let best=0,bn=-1;
   for(let y=Math.max(0,Math.floor(cy-r));y<Math.min(H,cy+r);y+=2)for(let x=Math.max(0,Math.floor(cx-r));x<Math.min(W,cx+r);x+=2){
     if((x-cx)*(x-cx)+(y-cy)*(y-cy)>r*r)continue;const v=lastR.Hm[y*W+x];cnt[v]=(cnt[v]||0)+1;if(cnt[v]>bn){bn=cnt[v];best=v}}
   return best}
