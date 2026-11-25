@@ -26,7 +26,7 @@ try{
     const p=await ctx.newPage();p.errs=[];p.on('pageerror',e=>p.errs.push(e.message));p.uid=uid;
     await p.goto(page+hash);await p.waitForTimeout(1500);pages.push(p);return p}
   const pick=async(p,i)=>{await p.waitForTimeout(500);if(await p.locator('#mpmodal').isHidden())await p.click('#mpbtn');
-    await p.locator('.mppick .tokbtn').nth(i).click()};   // players choose their own token; no DM step
+    await p.locator('.mppick .tokbtn').nth(i).click();await p.click('#mpplay')};   // players choose their own token; no DM step
   const S=p=>p.evaluate(()=>window.__dustmap());
   const scr=async(p,x,y)=>{const d=await S(p),box=await (await p.$('#map')).boundingBox();return[box.x+(x-d.cam.x)*d.Z,box.y+(y-d.cam.y)*d.Z]};
   const dragMap=async(p,from,to)=>{const a=await scr(p,...from),c=await scr(p,...to);await p.mouse.move(...a);await p.mouse.down();
@@ -92,7 +92,10 @@ try{
   if(await tryWrite(p3,`rooms/${room}/mapIndex/u_dm_m1`,{by:'u_p3',name:'x',updated:1})!=='denied')fail('rules let a player write someone else\'s group map');
 
   // group maps: end the session, Sam builds a map on his own and shares it; Hunter opens it, Sam edits, Hunter gets the latest
-  await dm.click('#mpbtn');await dm.click('#mpbody button:has-text("End session")');await dm.click('#mpclose');
+  // ending the session is the DM's job: the owner takes DM back first (players, owner included, have no End session)
+  await dm.click('#mpbtn');if(await dm.locator('#mpbody button:has-text("End session")').count())fail('the owner, as a player, should not see End session');
+  await dm.click('#mptakeover');await until(async()=>(await S(dm)).role==='dm','owner took DM back');
+  await dm.click('#mpbody button:has-text("End session")');await dm.click('#mpclose');
   await until(async()=>(await S(p3)).role==='off'&&(await S(dm)).role==='off','session ended');
   await p3.click('#libbtn');await p3.click('#libnew');await p3.fill('#newname','Sam canyon');await p3.click('#newgo');
   await p3.keyboard.press('d');{const box=await (await p3.$('#map')).boundingBox();const c=[box.x+box.width/2,box.y+box.height/2];

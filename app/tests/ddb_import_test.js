@@ -69,7 +69,7 @@ try{
   const dm=await open('u_dm',{owner:true}),p1=await open('u_p1');
   await dm.click('#mpbtn');await dm.click('#mpbody button:has-text("Start session")');await dm.click('#mpclose');
   await until(()=>p1.evaluate(()=>window.__dustmap().role==='player'),'player role');
-  await until(()=>p1.isVisible('.mppick .tokbtn'),'picker');await p1.locator('.mppick .tokbtn').nth(2).click();
+  await until(()=>p1.isVisible('.mppick .tokbtn'),'picker');await p1.locator('.mppick .tokbtn').nth(2).click();await p1.click('#mpplay');
   await until(()=>{const s=store.get('live/session');return s&&s.assign&&s.assign['2']==='u_p1'},'pick lands');
   await until(()=>p1.isVisible('#mychar'),'player tray offers their character');
   await p1.click('#mychar');await p1.fill('#chlink',LINK);await p1.click('#chgo');

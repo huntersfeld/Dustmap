@@ -99,7 +99,7 @@ try{
   await dm.click('#mpbtn');await dm.click('#mpbody button:has-text("Start session")');
   await until(async()=>(await S(p1)).role==='player','player role');
   await p1.waitForTimeout(500);if(await p1.locator('#mpmodal').isHidden())await p1.click('#mpbtn');
-  await p1.locator('.mppick .tokbtn').nth(3).click();   // Alex plays the Wizard
+  await p1.locator('.mppick .tokbtn').nth(3).click();await p1.click('#mpplay');   // Alex plays the Wizard
   await until(async()=>{const s=store.get('live/session');return s&&s.assign&&s.assign['3']==='u_p1'},'assignment');
   await until(async()=>p1.evaluate(()=>document.getElementById('mpmodal').hidden),'picker closes');
   await dm.click('#mpclose').catch(()=>{});
