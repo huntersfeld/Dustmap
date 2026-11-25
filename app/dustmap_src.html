@@ -573,7 +573,7 @@ const fresh=!load()&&!window.__starterExample;let st=load()||example();W=st.cols
 // multiplayer state (see the Play together section near the end)
 const mp={db:null,room:null,user:null,me:null,owner:false,edit:false,avail:false,sess:null,role:'off',
   meta:null,parts:new Map(),applied:null,tok:null,tokApplied:null,ready:{map:false,tok:false,sess:false,fog:false},
-  pushed:{map:null,tok:null,fog:null},fog:null,walkLast:new Map(),lastPos:new Map(),tokR:{},busy:false,again:false,timer:0,
+  pushed:{map:null,tok:null,fog:null},fog:null,walkLast:new Map(),lastPos:new Map(),tokR:{},plMv:new Map(),ksSeen:new Map(),busy:false,again:false,timer:0,
   peers:[],profiles:{},trails:new Map(),pingSeen:new Map(),mvSeen:new Map(),ghost:new Map(),
   pres:{},pickSeen:new Map(),chars:null,chSeen:new Map(),chPend:false,sent:'',myPing:0,myMv:0,pend:null,err:'',heldTok:null};
 let tool='select',paint={layer:'ground',t:3},tab='ground',paintMode='brush',groundPaint={layer:'ground',t:3},heightPaint={layer:'height',h:1,s:0},hillMode='brush',hillStyle=0,tokGroup='Party',objKind='saloon',bsize=6,objCells=new Set(['1,1']),objMix=false,mixKinds=new Set(),scatDens=70,scatSeed=1,objGap=2,boxSel=null,stampRot=0,objScat=false,scatCount=6,scatArea=4,tokMix=new Set(),tokScatter=false,tokSeed=1,tokGap=1;
@@ -1378,6 +1378,7 @@ function draw(ts){
       ctx.fillStyle=hideNow?'rgba(20,14,30,.35)':'rgba(255,240,210,.18)';ctx.fill();ctx.strokeStyle=hideNow?'rgba(200,180,230,.9)':'rgba(255,240,210,.95)';ctx.lineWidth=1.5;ctx.stroke()}
     else if(hover){const c=Math.floor(hover[0]/GRID),r=Math.floor(hover[1]/GRID);ctx.strokeStyle='rgba(255,255,255,.8)';ctx.lineWidth=1.5;ctx.strokeRect(c*GRID*Z,r*GRID*Z,GRID*Z,GRID*Z)}}
   if(measure)drawMeasure(measure.a,measure.b,'#f2c49f');
+  if(kLive())drawSteps(kstep.path,kstep.n,'242,196,159',null,1);
   // pointer with a fading tail
   if(pointer){const now2=performance.now();
     if(!pointer.down&&now2-pointer.end>TAIL)pointer=null;else drawTrail(pointer.trail,pointer.down,'242,196,159',now2)}
@@ -1633,19 +1634,20 @@ $('mclose').onclick=()=>$('modal').hidden=true;
 $('modal').onclick=e=>{if(e.target.id==='modal')e.currentTarget.hidden=true};
 let shiftDown=false;
 window.addEventListener('blur',()=>{shiftDown=false});
-window.addEventListener('keyup',e=>{if(e.key==='Shift')shiftDown=false;if(e.key==='Alt')altDown=false;if(e.key===' '){spaceDown=false;cv.classList.toggle('pan',tool==='pan')}});
+window.addEventListener('keyup',e=>{kUp(e);if(e.key==='Shift')shiftDown=false;if(e.key==='Alt')altDown=false;if(e.key===' '){spaceDown=false;cv.classList.toggle('pan',tool==='pan')}});
 window.addEventListener('keydown',e=>{const tg=e.target;if(tg.tagName==='INPUT'&&tg.type!=='checkbox'&&tg.type!=='range')return;if(tg.tagName==='SELECT')return;
   if(e.key==='Alt')altDown=true;if(e.key==='Shift')shiftDown=true;
   if(e.key===' '&&tg.tagName!=='BUTTON'){e.preventDefault();spaceDown=true;cv.classList.add('pan');return}
   if(!e.ctrlKey&&!e.metaKey&&(e.key==='+'||e.key==='=')){zoomStep(1);return}if(!e.ctrlKey&&!e.metaKey&&(e.key==='-'||e.key==='_')){zoomStep(-1);return}if(e.key==='0'){fit();return}
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();undo();return}
-  if(e.key==='Escape'){if(!$('qmenu').hidden){qClose();return}if(tokVarOpen){tokVarOpen=null;buildToks();syncUI();return}if(!$('gridpop').hidden){gridPop(false);return}if(!$('menu').hidden){menuShow(false);return}if(!$('modal').hidden){$('modal').hidden=true;return}sculpt=null;lift=null;draft=[];stroke=null;sel=null;measure=null;syncUI();return}
+  if(e.key==='Escape'){if(!$('qmenu').hidden){qClose();return}if(tokVarOpen){tokVarOpen=null;buildToks();syncUI();return}if(!$('gridpop').hidden){gridPop(false);return}if(!$('menu').hidden){menuShow(false);return}if(!$('modal').hidden){$('modal').hidden=true;return}sculpt=null;lift=null;draft=[];stroke=null;sel=null;measure=null;kstep=null;syncUI();return}
   if(e.key==='Shift'&&sculpt&&sculpt.phase==='paint'){toRaise();return}
   if(e.key==='Enter'&&tool==='draw'&&tg.tagName!=='BUTTON'){finish();return}
   if(e.key==='Backspace'||e.key==='Delete'){if(tool==='draw'&&draft.length){draft.pop();syncHint();e.preventDefault()}else if(sel){delSel();e.preventDefault()}return}
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='d'&&sel&&tool==='select'){e.preventDefault();dupSel();return}
   if(e.ctrlKey||e.metaKey||e.altKey)return;
   if((e.key==='ArrowUp'||e.key==='ArrowDown')&&!lift&&!sculpt&&hSel()&&stepLevel(e.key==='ArrowUp'?1:-1)){e.preventDefault();return}
+  if(kKey(e))return;
   if((e.key==='ArrowUp'||e.key==='ArrowDown')&&tool==='object'&&mp.role!=='player'&&tokStep(e.key==='ArrowUp'?-1:1)){e.preventDefault();return}
   if(tool==='fog'&&(e.key==='['||e.key===']')){fogR=Math.max(1,Math.min(6,fogR+(e.key===']'?1:-1)));syncUI();return}
   if(e.key==='['){bsize=Math.max(2,bsize-1);syncUI();return}if(e.key===']'){bsize=Math.min(28,bsize+1);syncUI();return}
@@ -1655,6 +1657,52 @@ window.addEventListener('keydown',e=>{const tg=e.target;if(tg.tagName==='INPUT'&
   if(k==='G'){$('grid').checked=!$('grid').checked;return}
   if(k==='N'&&mp.role!=='player'){e.preventDefault();newShow();return}
   const n=parseInt(e.key,10);if(n>=1){const b=[...$('tray').querySelectorAll(`.sw[data-n="${n}"]`)].find(b=>b.offsetParent);if(b)b.click()}});
+
+// ================= keyboard steps =================
+// A selected token (DM: in Select; a player: their own token, nothing to select) moves one square per press of the arrow
+// keys or WASD, so a player can count out their move. Two keys together step diagonally (one square, 5 ft, as in 5e).
+// Holding a key keeps walking, a step every KREP ms. The steps since the move began are counted next to the token, and go
+// on presence (ks) so everyone sees the count and the path. Arrive like a dropped token: snapped, fog walk, doors.
+// A count starts over when another token is picked, the token is dragged or moved by someone else, or on Esc.
+const KDIR={ArrowUp:[0,-1],ArrowDown:[0,1],ArrowLeft:[-1,0],ArrowRight:[1,0],w:[0,-1],s:[0,1],a:[-1,0],d:[1,0]},KREP=150,KCOMBO=45,KPATH=60,KFADE=20000;
+let kstep=null,kwait=0,klast=0;const kheld=new Set(),kpend=new Set();
+const kName=e=>e.key.length===1?e.key.toLowerCase():e.key,kKeyOf=(t,i)=>t&&(t.id||'#'+i);
+function kTok(){if(mp.role==='player'){const s=mp.sess;return s&&s.live?st.tokens.findIndex(t=>s.assign[t.s]===mp.me):-1}
+  return tool==='select'&&sel&&sel.type==='token'&&st.tokens[sel.i]?sel.i:-1}
+function kKey(e){const k=kName(e);if(!KDIR[k]||e.shiftKey&&k.length===1||kTok()<0)return false;e.preventDefault();
+  kheld.add(k);kpend.add(k);if(e.repeat){if(performance.now()-klast>=KREP)kGo();return true}
+  clearTimeout(kwait);kwait=setTimeout(kGo,KCOMBO);return true}     // wait a moment for a second key (a diagonal)
+function kUp(e){kheld.delete(kName(e))}
+window.addEventListener('blur',()=>kheld.clear());
+function kGo(){const ks=new Set([...kheld,...kpend]);kpend.clear();let dx=0,dy=0;ks.forEach(k=>{dx+=KDIR[k][0];dy+=KDIR[k][1]});
+  if(dx||dy){klast=performance.now();kStep(Math.sign(dx),Math.sign(dy))}}
+function kStep(dx,dy){const i=kTok(),t=st.tokens[i];if(!t)return false;
+  const sx=Math.round(t.x/8)*8,sy=Math.round(t.y/8)*8;let nx=sx+dx*GRID,ny=sy+dy*GRID;
+  if(nx<8||nx>W-8)nx=sx;if(ny<30||ny>H-1)ny=sy;if(nx===t.x&&ny===t.y)return false;   // the map's edge blocks that way
+  const key=kKeyOf(t,i),from=[t.x,t.y];kLive();
+  if(!kstep||kstep.id!==key)kstep={id:key,n:0,path:[[sx,sy]],h:-1};
+  if(mp.role!=='player'&&kstep.h!==hist.length){push();kstep.h=hist.length}   // one undo takes back the whole walk
+  t.x=nx;t.y=ny;kstep.n++;kstep.path.push([nx,ny]);if(kstep.path.length>KPATH)kstep.path.shift();kstep.t=performance.now();
+  if(mp.role==='player')mpMoved(t);
+  else{fogWalk(t,from,[nx,ny]);portalStep(t,false,from);save()}
+  syncHint();return true}
+// the count belongs to one token at one spot: drop it once that's no longer true
+function kLive(){if(!kstep)return null;const i=kTok(),t=st.tokens[i],e=kstep.path[kstep.path.length-1];
+  if(!t||kKeyOf(t,i)!==kstep.id||t.x!==e[0]||t.y!==e[1])kstep=null;return kstep}
+const kTxt=n=>`${n} square${n===1?'':'s'} · ${n*5} ft`;
+// path: [[x,y]...] map px standing points; n: steps taken; rgb "r,g,b"; a: opacity
+function drawSteps(path,n,rgb,who,a){if(!path.length)return;ctx.save();ctx.globalAlpha=a;ctx.lineCap='round';ctx.lineJoin='round';
+  const P=path.map(q=>[q[0]*Z,(q[1]-4)*Z]);
+  if(P.length>1){ctx.beginPath();P.forEach((q,k)=>k?ctx.lineTo(...q):ctx.moveTo(...q));ctx.strokeStyle='rgba(30,24,30,.55)';ctx.lineWidth=6;ctx.stroke();
+    ctx.strokeStyle=`rgba(${rgb},.9)`;ctx.lineWidth=2.5;ctx.setLineDash([7,6]);ctx.stroke();ctx.setLineDash([])}
+  P.slice(0,-1).forEach((q,k)=>{ctx.beginPath();ctx.arc(q[0],q[1],k?3.5:5,0,7);ctx.fillStyle=`rgb(${rgb})`;ctx.fill();ctx.strokeStyle='#1d1b22';ctx.lineWidth=1.5;ctx.stroke()});
+  const e=path[path.length-1],txt=(who?who+': ':'')+kTxt(n);ctx.font='600 14px "Work Sans", system-ui, sans-serif';const tw=ctx.measureText(txt).width;
+  const lx=(e[0]+9)*Z+6,ly=(e[1]-14)*Z-12;   // beside the token: the selection bar sits above it, the HP bar below
+  ctx.fillStyle='rgba(29,27,34,.92)';ctx.beginPath();ctx.roundRect(lx,ly,tw+16,24,6);ctx.fill();ctx.strokeStyle=`rgba(${rgb},.9)`;ctx.lineWidth=1.5;ctx.stroke();
+  ctx.fillStyle='#fff';ctx.fillText(txt,lx+8,ly+17);ctx.restore()}
+// what goes on presence: only a token the players can see (the DM walking a hidden enemy stays hidden)
+function kPres(){const k=kLive();if(!k)return null;const t=st.tokens[kTok()];if(!t||!t.id||mp.role!=='player'&&!tokShown(st.fog,t))return null;
+  return{id:t.id,n:k.n,p:k.path.map(q=>[Math.round(q[0]),Math.round(q[1])])}}
 
 // ================= UI sync =================
 function syncUI(){
@@ -1729,10 +1777,10 @@ function syncHint(){const h=$('hint');h.replaceChildren();
     if(fogPaint)pill(fogPaint.v==='1'?'Hiding':'Revealing');else pill('Fog');add(`Click or drag ${once} · double-click and drag ${twice}`)}
   else if(tool!=='select'){}
   else if(mp.role==='player'){const mine=st.tokens.filter(t=>mpMayMove(t,mp.me)).map(t=>tokName(t.s));
-    if(mine.length){pill('Playing '+mine.join(' & '));add('Drag to move')}
+    if(mine.length){pill('Playing '+mine.join(' & '));add('Drag, or step with <kbd>←</kbd><kbd>↑</kbd><kbd>→</kbd><kbd>↓</kbd> / <kbd>WASD</kbd>')}
     else{pill('Watching');add('Pick a token to join')}}
   else{if(!sel)return;
-    if(sel.type==='token'){const t=st.tokens[sel.i];pill(t?tokLabel(t.s)+' selected':'Token selected')}
+    if(sel.type==='token'){const t=st.tokens[sel.i];pill(t?tokLabel(t.s)+' selected':'Token selected');add('Arrow keys or <kbd>WASD</kbd> step one square')}
     else if(sel.type!=='op'){const l=selList();pill(l.length===1?OBJ.find(o=>o.k===st.objects[l[0]].k).name+' selected':`${l.length} objects selected`)}
     else{const op=st.ops[sel.i];pill((op.layer==='ground'?TERR[op.t].name:op.blast?'Crater':elevName(op.h,op.s))+' selected');
       add(op.layer==='height'?'Drag corners to reshape · <kbd>↑</kbd> <kbd>↓</kbd> raise or lower':'Drag corners to reshape')}}}
@@ -2139,9 +2187,12 @@ async function mpPush(){if(mp.role!=='dm'||!mp.db)return;
       await mp.db.doc('live/map').set({rev,n,name:(libCur()||{}).name||''});mp.applied=rev;mp.pushed.map=mj}
     const tj=JSON.stringify(shown.map(t=>[t.id,t.s,t.x,t.y,t.o||0]));
     if(tj!==mp.pushed.tok){const rev=Math.max(mp.tok&&fin(mp.tok.rev)?+mp.tok.rev:0,mp.tokApplied||0)+1;
-      st.tokens.forEach(t=>{const lp=mp.lastPos.get(t.id);if(!lp||lp[0]!==t.x||lp[1]!==t.y)mp.tokR[t.id]=rev});
+      // a move the token's player made isn't a change they missed: their next step (sent before this arrives) still counts
+      st.tokens.forEach(t=>{const lp=mp.lastPos.get(t.id),pm=mp.plMv.get(t.id);if((!lp||lp[0]!==t.x||lp[1]!==t.y)&&!(pm&&pm[0]===t.x&&pm[1]===t.y))mp.tokR[t.id]=rev});mp.plMv.clear();
+      // positions as sent, taken before the write: a move made while it's in flight must still count as a change next time
+      const sent=new Map(st.tokens.map(t=>[t.id,[t.x,t.y]]));
       await mp.db.doc('live/tokens').set({rev,list:shown.map(t=>({id:t.id,s:t.s,x:t.x,y:t.y,o:t.o||0,r:mp.tokR[t.id]||0}))});
-      mp.tokApplied=rev;mp.pushed.tok=tj;mp.lastPos=new Map(st.tokens.map(t=>[t.id,[t.x,t.y]]))}
+      mp.tokApplied=rev;mp.pushed.tok=tj;mp.lastPos=sent}
     const cj=JSON.stringify(charsShared());if(cj!==mp.pushed.ch){await mp.db.doc('live/chars').set({c:JSON.parse(cj)});mp.pushed.ch=cj}
     if(mp.err){mp.err='';mpUI()}}
   catch(e){mp.err=e&&e.code==='invalid_argument'?(mp.fb?'Your changes aren’t reaching the players: only the room’s owner or DM can change the shared map.':'Your changes aren’t reaching the players: running a session needs Editor access to this page.'):e&&e.code==='quota_exceeded'?'The shared map is too big to send.':'Your latest change hasn’t reached the players yet. It will go with the next one.';mpUI()}
@@ -2167,11 +2218,11 @@ function mpPinged(x,y){if(mp.role!=='off')mp.pres.ping={x:Math.round(x),y:Math.r
 
 // ---- presence: what I'm doing, sent as absolute state ----
 function mpTick(){if(!mp.room)return;let pr;
-  if(mp.role==='off'){if(!mp.sent)return;pr={cur:null,ptr:null,meas:null,drag:null,ping:null,mv:null,pick:null,ch:null,go:null,tp:null}}
+  if(mp.role==='off'){if(!mp.sent)return;pr={cur:null,ptr:null,meas:null,drag:null,ping:null,mv:null,pick:null,ch:null,go:null,tp:null,ks:null}}
   else{const tk=drag&&drag.kind==='token'?st.tokens[drag.i]:null,hd=pointer&&pointer.down?pointer.trail[pointer.trail.length-1]:null;
     pr={cur:hover&&hover[0]>=0&&hover[1]>=0&&hover[0]<=W&&hover[1]<=H?[Math.round(hover[0]),Math.round(hover[1])]:null,
       ptr:hd?[Math.round(hd.x),Math.round(hd.y)]:null,meas:measure?{a:measure.a,b:measure.b}:null,
-      drag:tk&&tk.id?{id:tk.id,x:Math.round(tk.x),y:Math.round(tk.y)}:null,ping:mp.pres.ping||null,mv:mp.pres.mv||null,pick:Number.isInteger(mp.pres.pick)?mp.pres.pick:null,ch:mp.role==='player'&&myChar?{c:myChar,n:myCharN}:null,go:mp.role==='player'&&mp.pres.go||null,bm:mp.role==='dm'&&mp.pres.bm||null,tp:TESTPLAYER?1:null}}
+      drag:tk&&tk.id?{id:tk.id,x:Math.round(tk.x),y:Math.round(tk.y)}:null,ping:mp.pres.ping||null,mv:mp.pres.mv||null,pick:Number.isInteger(mp.pres.pick)?mp.pres.pick:null,ch:mp.role==='player'&&myChar?{c:myChar,n:myCharN}:null,go:mp.role==='player'&&mp.pres.go||null,bm:mp.role==='dm'&&mp.pres.bm||null,tp:TESTPLAYER?1:null,ks:kPres()}}
   const j=JSON.stringify(pr);if(j===mp.sent)return;mp.sent=mp.role==='off'?'':j;mp.room.presence(pr).catch(()=>{})}
 const ptOk=q=>Array.isArray(q)&&q.length===2&&fin(q[0])&&fin(q[1]);
 function mpPeers(ch){mp.peers=ch.peers;const now=performance.now(),ghost=new Map(),stepped=[];let commit=false,goDoor=-1;
@@ -2190,9 +2241,9 @@ function mpPeers(ch){mp.peers=ch.peers;const now=performance.now(),ghost=new Map
     if(mp.role==='dm'){const mv=pr.mv;
       if(mv&&typeof mv.id==='string'&&mp.mvSeen.get(key)!==mv.n){mp.mvSeen.set(key,mv.n);const t=st.tokens.find(t=>t.id===mv.id);
         if(t&&p.by&&p.by!==mp.me&&mpMayMove(t,p.by)&&fin(mv.x)&&fin(mv.y)&&fin(mv.base)&&+mv.base>=(mp.tokR[t.id]||0)){
-          const from=mp.walkLast.get(t.id)||[t.x,t.y];t.x=Math.max(8,Math.min(W-8,+mv.x));t.y=Math.max(30,Math.min(H-1,+mv.y));fogWalk(t,from,[t.x,t.y]);mp.walkLast.delete(t.id);commit=true;stepped.push([t,from])}}
+          const from=mp.walkLast.get(t.id)||[t.x,t.y];t.x=Math.max(8,Math.min(W-8,+mv.x));t.y=Math.max(30,Math.min(H-1,+mv.y));fogWalk(t,from,[t.x,t.y]);mp.walkLast.delete(t.id);mp.plMv.set(t.id,[t.x,t.y]);commit=true;stepped.push([t,from])}}
       const gi=portalAsked(p,pr);if(gi>=0)goDoor=gi}}
-  for(const l of ch.left){bmSeen.delete(l.peer);goSeen.delete(l.peer);mp.trails.delete(l.peer);mp.pingSeen.delete(l.peer);mp.mvSeen.delete(l.peer);mp.pickSeen.delete(l.peer);mp.chSeen.delete(l.peer)}
+  for(const l of ch.left){bmSeen.delete(l.peer);goSeen.delete(l.peer);mp.trails.delete(l.peer);mp.pingSeen.delete(l.peer);mp.mvSeen.delete(l.peer);mp.ksSeen.delete(l.peer);mp.pickSeen.delete(l.peer);mp.chSeen.delete(l.peer)}
   if(mp.role==='dm'&&mpPicks(ch.peers))commit=true;
   for(const id of [...mp.walkLast.keys()])if(!ghost.has(id))mp.walkLast.delete(id);
   mp.ghost=ghost;if(commit)save();mpUI();
@@ -2221,6 +2272,10 @@ function mpDraw(){if(mp.role==='off'||!mp.peers.length)return;const now=performa
   ctx.font='600 12px "Work Sans", system-ui, sans-serif';
   for(const p of mp.peers){if(p.sameTab)continue;const pr=p.presence||{},rgb=mpRgb(p.by||p.peer),col=`rgb(${rgb})`,who=mpName(p.by);
     if(pr.meas&&ptOk(pr.meas.a)&&ptOk(pr.meas.b))drawMeasure(pr.meas.a.map(Number),pr.meas.b.map(Number),col,who);
+    // their keyboard steps: path and count, fading out once they've stood still a while
+    const ks=pr.ks;if(ks&&typeof ks.id==='string'&&fin(ks.n)&&Array.isArray(ks.p)&&ks.p.length&&ks.p.length<=KPATH&&ks.p.every(ptOk)&&st.tokens.some(t=>t.id===ks.id)){
+      const sig=ks.id+':'+ks.n;let s=mp.ksSeen.get(p.peer);if(!s||s.sig!==sig){s={sig,t:now};mp.ksSeen.set(p.peer,s)}
+      const al=Math.min(1,1-(now-s.t-KFADE)/2000);if(al>0)drawSteps(ks.p.map(q=>q.map(Number)),Math.max(0,Math.round(+ks.n)),rgb,who,al)}
     const tr=mp.trails.get(p.peer);if(tr){if(!tr.down&&now-tr.end>TAIL)mp.trails.delete(p.peer);else drawTrail(tr.pts,tr.down,rgb,now)}
     if(ptOk(pr.cur)&&!(tr&&tr.down)){const x=+pr.cur[0]*Z,y=+pr.cur[1]*Z;
       ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+12,y+5);ctx.lineTo(x+5,y+12);ctx.closePath();ctx.fillStyle=col;ctx.fill();ctx.strokeStyle='#1d1b22';ctx.lineWidth=1.5;ctx.stroke();
@@ -2941,7 +2996,7 @@ function tourMap(){const S=(x,y,txt,o={})=>({k:'sign',x,y,v:o.v||0,txt,lang:o.la
     S(200,150,'PAINT GROUND (B)\nPick sand, water, roads, towns and more in the tray, then brush it on. Press D to draw a shape instead: click the corners, Enter to finish.'),
     S(330,150,'HILLS AND CLIFFS (E)\nPick Hill or Cliff. Brush: drag over an area, hold still until the ring fills, then drag up or down. Shape: click the corners, then drag the shape up or down.'),
     S(452,196,'TOWNS\nPaint Town and it fills itself with buildings. A road through town becomes its street. In Select, click a building to pick it up and move it.',{v:1}),
-    S(210,204,'SELECT (V)\nClick anything to move it. Shift-drag a box to grab several, then Save as stamp to reuse them. Right-click the map for quick actions. Ctrl Z undoes.'),
+    S(210,204,'SELECT (V)\nClick anything to move it. Shift-drag a box to grab several, then Save as stamp to reuse them. Arrow keys or WASD walk a selected token one square at a time. Right-click the map for quick actions. Ctrl Z undoes.'),
     S(300,262,'Signs can be written in another script. Tick “Players can read the translation” and they see this text under it.',{lang:'elvish',tr:1}),
     S(344,204,'Only the DM can read this one. Players see runes until you let them read it.',{lang:'dwarvish'}),
     S(388,262,'SIGNS\nObjects (O), then Signpost. Double-click a sign to write on it, pick its script and its board. Players read signs by hovering, or tapping on a phone.'),
@@ -2966,7 +3021,7 @@ function tourOpen(){const s=libClean(tourMap());if(!s)return;const m=libAdd('Dus
 $('libtour').onclick=tourOpen;$('tour').onclick=()=>{menuShow(false);tourOpen()};
 // read-only peek for the tests
 window.__terrain=()=>({cv:tcan,L:lastR.L,W,H});
-window.__dustmap=()=>({st,fog:fogGet(),litFires:litFires(fogView()).length,role:mp.role,cam:{...cam},Z,pings:pings.map(p=>({x:p.x,y:p.y,rgb:p.rgb||null})),blasts:blasts.map(b=>({x:b.x,y:b.y,r:b.r})),fuses:fuses.length,tool,peers:mp.peers.length,busy:mp.busy,err:mp.err,again:mp.again});
+window.__dustmap=()=>({st,fog:fogGet(),litFires:litFires(fogView()).length,role:mp.role,cam:{...cam},Z,pings:pings.map(p=>({x:p.x,y:p.y,rgb:p.rgb||null})),blasts:blasts.map(b=>({x:b.x,y:b.y,r:b.r})),fuses:fuses.length,tool,peers:mp.peers.length,busy:mp.busy,err:mp.err,again:mp.again,ks:kLive()?{n:kstep.n,path:kstep.path}:null,hist:hist.length,sel});
 libInit();mpInit();
 buildTools();buildObjs();buildToks();buildPaints();updUndo();sizeCanvas();syncUI();requestAnimationFrame(loop);
 setTimeout(buildPaints,0);
