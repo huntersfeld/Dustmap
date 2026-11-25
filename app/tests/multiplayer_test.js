@@ -23,7 +23,7 @@ try{
     await ctx.addInitScript(`window.__starterExample=true;window.__names=${JSON.stringify(NAMES)};(${install.toString()})(${JSON.stringify({id,name:NAMES[id],owner,admin})})`);
     await p.goto(PAGE);await p.waitForTimeout(1200);pages.push(p);p.id=id;return p}
   const pick=async(p,i)=>{await p.waitForTimeout(500);if(await p.locator('#mpmodal').isHidden())await p.click('#mpbtn');
-    await p.locator('.mppick .tokbtn').nth(i).click()};   // players choose their own token; no DM step
+    await p.locator('.mppick .tokbtn').nth(i).click();await p.click('#mpplay')};   // players choose their own token; no DM step
   const S=p=>p.evaluate(()=>window.__dustmap());
   const scr=async(p,x,y)=>{const d=await S(p),box=await (await p.$('#map')).boundingBox();return[box.x+(x-d.cam.x)*d.Z,box.y+(y-d.cam.y)*d.Z]};
   const dragMap=async(p,from,to)=>{const a=await scr(p,...from),c=await scr(p,...to);await p.mouse.move(...a);await p.mouse.down();
@@ -127,7 +127,7 @@ try{
     for(const[dx,dy]of[[0,0],[50,0],[50,40]])await p2.mouse.click(c[0]+dx,c[1]+dy);await p2.keyboard.press('Enter')}
   await until(async()=>(await S(dm)).st.ops.length===n2+1&&(await S(p1)).st.ops.length===n2+1,'everyone sees the new DM edit');
   // and takes it back
-  await dm.locator('.mpp',{hasText:'Hunter'}).getByRole('button',{name:'Take over as DM'}).click();
+  await dm.click('#mptakeover');
   await until(async()=>(await S(dm)).role==='dm'&&(await S(p2)).role==='player','owner took DM back');
   await until(async()=>(await S(p1)).st.ops.length===n2+1,'players still see the shared map');
   await dm.click('#mpclose').catch(()=>{});

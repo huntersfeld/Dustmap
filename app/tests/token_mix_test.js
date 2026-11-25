@@ -45,11 +45,34 @@ ok(new Set(g.map(q=>q.x)).size===2&&new Set(g.map(q=>q.y)).size===3,'block is a 
 await p.click('#gridbtn');await p.check('#omix');
 await place(520,120);t=await tokens();g=t.slice(-6);ok(t.length===n0+24&&g.every(q=>q.s===3),'six scattered');
 ok(!(new Set(g.map(q=>q.x)).size===2&&new Set(g.map(q=>q.y)).size===3),'scattered, not a grid');
+// spacing: the gap slider sets how many empty squares sit between tokens, evenly, every time
+const gap=async v=>{await p.click('#gridbtn');await p.$eval('#tgap',(e,v)=>{e.value=v;e.dispatchEvent(new Event('input'))},v);await p.keyboard.press('Escape')};
+await p.click('#gridbtn');await p.uncheck('#omix');await p.keyboard.press('Escape');
+await gap(2);ok((await p.textContent('#tgaplbl'))==='2 squares between','gap label '+await p.textContent('#tgaplbl'));
+await place(300,300);t=await tokens();g=t.slice(-6);
+{const xs=[...new Set(g.map(q=>q.x))].sort((a,b)=>a-b),ys=[...new Set(g.map(q=>q.y))].sort((a,b)=>a-b);
+ ok(xs.length===2&&ys.length===3&&xs[1]-xs[0]===48&&ys[1]-ys[0]===48&&ys[2]-ys[1]===48,'2x3 block three squares apart '+xs+' / '+ys)}
+const rel=a=>JSON.stringify(a.map(q=>[q.x-a[0].x,q.y-a[0].y])),g1=rel(g);await place(400,300);t=await tokens();
+ok(rel(t.slice(-6))===g1,'same layout every click');
+await gap(0);await place(160,60);t=await tokens();g=t.slice(-6);
+{const xs=[...new Set(g.map(q=>q.x))].sort((a,b)=>a-b);ok(xs[1]-xs[0]===16,'side by side at 0: '+xs)}
+// scattered with a gap: random spots, but never closer than the gap allows and always on the spaced lattice
+await gap(2);await p.click('#gridbtn');await p.check('#omix');await p.keyboard.press('Escape');
+for(let k=0;k<3;k++){await place(600,300);t=await tokens();g=t.slice(-6);
+  for(let i=0;i<6;i++)for(let j=i+1;j<6;j++){const dx=Math.abs(g[i].x-g[j].x),dy=Math.abs(g[i].y-g[j].y);
+    ok(dx%48===0&&dy%48===0&&Math.max(dx,dy)>=48,'scattered tokens keep the gap '+JSON.stringify(g))}}
+// a mix with Scatter randomly off: one of each, in a row, evenly spaced
+await p.keyboard.press('Escape');await p.click('#'+party[0]);await p.click('#'+party[1],{modifiers:['Control']});await p.click('#'+party[2],{modifiers:['Control']});
+await p.click('#gridbtn');ok(await p.isChecked('#omix'),'a new mix starts scattered');
+await p.click('#gridreset');await p.uncheck('#omix');ok(/3 in the mix/.test(await p.textContent('#mixlbl')),'mix kept with scatter off');await p.keyboard.press('Escape');
+await place(160,140);t=await tokens();g=t.slice(-3);
+ok(g.map(q=>q.s).join()==='0,1,2'&&g[1].x-g[0].x===48&&g[2].x-g[1].x===48&&new Set(g.map(q=>q.y)).size===1,'mix in an even row '+JSON.stringify(g));
+await p.screenshot({path:path.join(OUT,'tok_gap.png')});
 // objects: Ctrl-click turns on the random mix
 await p.keyboard.press('Escape');await p.keyboard.press('o');const ob=await p.$$eval('#objs .sw',els=>els.map(e=>e.id));
 await p.click('#'+CSS_escape(ob[2]));await p.click('#'+CSS_escape(ob[3]),{modifiers:['Control']});
 ok(await p.evaluate(()=>document.getElementById('omix').checked),'object mix switched on');
 const op=await p.$$eval('#objs .sw',els=>els.filter(e=>e.getAttribute('aria-pressed')==='true').map(e=>e.id));ok(op.length===2&&op.includes(ob[2])&&op.includes(ob[3]),'two objects in the mix '+op);
 console.log(JSON.stringify(errs));await b.close();
-console.log(errs.length?'FAIL: page errors':'PASS: token mix scatters, grid count, re-roll, single-token scatter, object Ctrl-click mix')})();
+console.log(errs.length?'FAIL: page errors':'PASS: token mix scatters, grid count, re-roll, single-token scatter, token gap, even mix, object Ctrl-click mix')})();
 function CSS_escape(s){return s.replace(/([:.])/g,'\\$1')}
