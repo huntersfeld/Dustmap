@@ -28,16 +28,27 @@ try{
   await until(async()=>(await S(tp)).role==='player','test player is a player (its own identity)');
   await until(async()=>(await dm.locator('.mpp',{hasText:'Test player'}).count())>0,'DM sees Test player as someone else');
   if((await S(dm)).role!=='dm')fail('DM tab lost DM');
+  // the test player is marked by its tab, not its address: reopening Dustmap from history is always the DM
+  if(/as=player/.test(tp.url()))fail('test player address should not carry as=player: '+tp.url());
+  if((await dm.locator('.mpp',{hasText:'Test player'}).getByRole('button',{name:'Make DM'}).count())>0)fail('a test player should not be offered the DM role');
+  { const again=await open(tp.url());await until(async()=>(await S(again)).role==='dm','the test player\'s address opened fresh is the DM');await again.close() }
+  // players don't get session controls: no End session, no Start my own room while a session is on
+  await until(()=>tp.isVisible('.mppick'),'picker visible');
+  if(await tp.locator('#mpbody button:has-text("End session")').count())fail('test player sees End session');
+  if(await tp.locator('#mpbody button:has-text("Start my own room")').count())fail('test player sees Start my own room');
+  if(!(await tp.isDisabled('#mpplay')))fail('Play should wait for a selection');
   // players pick their own token: the picker opens by itself; choosing one assigns it and puts it on the map
   await until(()=>tp.isVisible('.mppick'),'token picker opens for a new player');
   const n0=(await S(dm)).st.tokens.length;
-  await tp.locator('.mppick .tokbtn').nth(10).click();
+  await tp.locator('.mppick .tokbtn').nth(10).click();await tp.click('#mpplay');
   await until(async()=>(await tp.textContent('#hint')).includes('Playing'),'test player has a token');
   const want=await tp.locator('.mppick .tokbtn').nth(10).getAttribute('aria-label').catch(()=>null);
   await until(async()=>(await S(dm)).st.tokens.length===n0+1,'DM page put the chosen token on the map');
   await until(async()=>(await S(tp)).st.tokens.length===n0+1,'player sees it');
   // switching removes the token that was added for them
-  await tp.locator('.mppick .tokbtn').nth(12).click();
+  // closing the dialog with a token selected (no Play press) still sends it
+  await tp.waitForTimeout(800);if(await tp.locator('#mpmodal').isHidden())await tp.click('#mpbtn');
+  await tp.locator('.mppick .tokbtn').nth(12).click();await tp.click('#mpclose');
   await until(async()=>{const d=await S(dm);return d.st.tokens.length===n0+1&&d.st.tokens.some(q=>q.s===12)&&!d.st.tokens.some(q=>q.s===10)},'switching swaps the token');
   // someone else in the room: the taken token is disabled for them, and they can start their own room
   const ctx2=await b.newContext();await ctx2.route(/cdn\.jsdelivr\.net\/npm\/firebase@[^/]+\/(.+)$/,r=>{const f=r.request().url().match(/firebase@[^/]+\/(.+)$/)[1];r.fulfill({path:path.join(SDK,f),contentType:'text/javascript'})});
@@ -45,7 +56,8 @@ try{
   const p2=await ctx2.newPage();p2.on('pageerror',e=>errs.push(e.message));await p2.goto(url+hash);
   await until(()=>p2.isVisible('.mppick'),'picker for Alex');
   if(!(await p2.locator('.mppick .tokbtn').nth(12).isDisabled()))fail('a taken token should be disabled for others');
-  await p2.click('#mpbody button:has-text("Start my own room")');
+  if(await p2.locator('#mpbody button:has-text("Start my own room")').count())fail('players should not see Start my own room during a session');
+  await p2.evaluate(()=>{location.hash='room=alex'+Math.random().toString(36).slice(2,10);location.reload()});
   await until(async()=>(await p2.evaluate(()=>location.hash))!==hash,'new room');await until(()=>p2.isVisible('#mpbtn'),'reloaded');
   await p2.click('#mpbtn');await p2.click('#mpbody button:has-text("Start session")');await until(async()=>(await S(p2)).role==='dm','Alex is DM of the new room');
   if((await S(dm)).role!=='dm')fail('Hunter should still be DM of the first room');

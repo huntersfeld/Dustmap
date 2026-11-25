@@ -52,7 +52,7 @@ try{
   // a token handed to a player always shows, even in fog
   // (players pick their own token)
   await p1.waitForTimeout(500);if(await p1.locator('#mpmodal').isHidden())await p1.click('#mpbtn');
-  await p1.locator('.mppick .tokbtn').nth(3).click();
+  await p1.locator('.mppick .tokbtn').nth(3).click();await p1.click('#mpplay');
   await until(async()=>{const t=(await S(p1)).st.tokens;return t.length===1&&t[0].s===3},'player sees their own token in fog');
   // player sees darkness where it's hidden
   await p1.waitForTimeout(300);if(await lum(p1,180,150)>40)fail('hidden ground should be dark for the player');
