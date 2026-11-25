@@ -128,6 +128,7 @@ input[type=range]{width:100%;accent-color:var(--rust)}
 #map{display:block;width:100%;height:100%;touch-action:none;cursor:crosshair}
 #map.pan{cursor:grab}
 #map.select{cursor:default}
+#map.lift{cursor:ns-resize}
 select{background:var(--raised);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:5px 8px;font:inherit;font-size:13px}
 /* status chip: only while something is in progress (a shape being drawn, a sculpt, what's selected) */
 .hint{position:absolute;z-index:5;left:50%;transform:translateX(-50%);bottom:calc(78px + env(safe-area-inset-bottom,0px));max-width:calc(100% - 150px);display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:center;
@@ -443,16 +444,17 @@ const TERR=[
 // ground a whole map can start from (st.base); roads, towns and rails only make sense painted
 const BASES=[0,1,2,3,4,7];
 // index 8 (old "Cave wall") is retired: migrate() turns it into Stone raised two levels.
-const ELEV=[
- {name:'Hill',h:1,s:0,sub:'Soft slope'},{name:'High hill',h:2,s:0,sub:'Two levels up'},
- {name:'Cliff',h:1,s:1,sub:'Rock face'},{name:'High cliff',h:2,s:1,sub:'Tall rock face'},
- {name:'Lower',h:-1,s:1,sub:'Pit, or deeper water'},{name:'Deepest',h:-2,s:1,sub:'Deep pit or abyss'},
- {name:'Flatten',h:0,s:0,sub:'Back to ground level'}];
-// Sculpt raises or lowers in whole cliff levels, −3…+3 (hills live on the Elevation tab).
-const SLAD=[-3,-2,-1,0,1,2,3].map(h=>({h,s:h?1:0,sh:h>0?'+'+h:h<0?'−'+-h:'Flat'})),SLAD0=3;
+// Hills and cliffs are always sculpted: you pick a style, draw with the brush or a shape, and drag it up or down.
+// Height runs in whole levels from −3 to +3. Anything below ground is a pit with rock walls, whatever the style.
+const HSTYLE=[{name:'Hill',s:0,sub:'Soft slopes'},{name:'Cliff',s:1,sub:'Sheer rock face'}];
+const SLAD=[-3,-2,-1,0,1,2,3].map(h=>({h,sh:h>0?'+'+h:h<0?'−'+-h:'Flat'})),SLAD0=3,HMIN=-3,HMAX=3;
 const sladIdx=h=>Math.max(0,Math.min(SLAD.length-1,h+SLAD0));
-// A raised area is moved up by the height of its cliff face, so the foot of the cliff sits where you painted.
-const sculptLift=(h,base)=>h>0&&h>base?Math.min(9,4*(h-base)):0;
+const hStyleAt=(h,s)=>h<0?1:h>0?s:0;
+// the face drawn below an area d levels above what surrounds it (same lengths the renderer uses)
+const faceLen=(d,s)=>d<=0?0:s?Math.min(9,4*d):Math.min(9,3+2*d);
+// A raised area is moved up by the height of its face, so the foot of the hill or cliff sits where you drew it.
+const sculptLift=(h,base,s)=>h>0&&h>base?faceLen(h-base,s):0;
+const elevName=(h,s)=>h===0?'Flat ground':h<0?(h===-1?'Pit':'Deep pit −'+-h):(s?'Cliff':'Hill')+' +'+h;
 const OBJ=[
  {k:'shack',name:'Shack',sub:'Small · 2×2 squares',g:'Buildings'},{k:'saloon',name:'Saloon',sub:'Medium · 4×4 squares',g:'Buildings'},{k:'hotel',name:'Hotel',sub:'Large · 5×5 squares',g:'Buildings'},
  {k:'well',name:'Well',sub:'Stone well, 1 square',g:'Props'},{k:'wagon',name:'Wagon',sub:'Covered wagon, about 2 squares long',g:'Props'},{k:'trough',name:'Trough',sub:'Water trough',g:'Props'},{k:'barrels',name:'Barrels',sub:'Cover, under a square',g:'Props'},
@@ -472,6 +474,8 @@ const ICON={select:'M6 3l13 8-6 1.5-3 6z',
  measure:'M3 17L17 3l4 4L7 21z M7.5 12.5l2 2 M10.5 9.5l2 2 M13.5 6.5l2 2',
  ping:'M12 4a8 8 0 110 16 8 8 0 010-16z M12 10a2 2 0 110 4 2 2 0 010-4z',
  shape:'M5 8l7-5 7 5-2.5 11h-9z',
+ up:'M12 19V5 M6 11l6-6 6 6',
+ down:'M12 5v14 M6 13l6 6 6-6',
  sculpt:'M12 17V4 M7 9l5-5 5 5 M4 21h16',
  reveal:'M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z M12 9a3 3 0 110 6 3 3 0 010-6z',
  hide:'M3 3l18 18 M10.6 5.1A10 10 0 0112 5c6 0 10 7 10 7a17 17 0 01-3.2 3.9 M6.6 6.6A17 17 0 002 12s4 7 10 7a9.6 9.6 0 005.4-1.6',
@@ -484,11 +488,11 @@ const ICON={select:'M6 3l13 8-6 1.5-3 6z',
  stamp:'M9 3h6v6l3 3v3H6v-3l3-3z M5 21h14',
  sheet:'M6 3h9l4 4v14H6z M14 3v5h5 M9 12h7 M9 16h7'};
 const svgI=(k,w=1.8)=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${ICON[k]}"/></svg>`;
-// the tool rail. Paint and Hills each cover both brush and shape drawing (tool 'brush' / 'draw'); Hills also holds Sculpt.
+// the tool rail. Paint covers brush and shape drawing (tool 'brush' / 'draw'). Hills sculpts with the brush (tool 'sculpt') or a shape (tool 'draw' with a height paint).
 // Objects and Tokens are both the 'object' tool underneath (objKind 'tok:<s>' places tokens). Pan (H) has no button: drag empty ground.
 const TOOLS=[{id:'select',name:'Select',key:'V',sub:'Click anything to move it. Shift-drag to select several.'},
  {id:'paint',name:'Paint ground',key:'B',sub:'Sand, water, roads, towns and more',dm:1},
- {id:'height',name:'Hills and cliffs',key:'E',sub:'Raise or lower the ground',dm:1},
+ {id:'height',name:'Hills and cliffs',key:'E',sub:'Draw an area, then drag it up or down',dm:1},
  {id:'object',name:'Objects',key:'O',sub:'Buildings, props and mine gear',dm:1},
  {id:'token',name:'Tokens',key:'T',sub:'Party, townsfolk and enemies',dm:1},
  {id:'fog',name:'Fog of war',key:'F',sub:'Hide parts of the map from players',dm:1},
@@ -545,7 +549,7 @@ const mp={db:null,room:null,user:null,me:null,owner:false,edit:false,avail:false
   pushed:{map:null,tok:null,fog:null},fog:null,walkLast:new Map(),lastPos:new Map(),tokR:{},busy:false,again:false,timer:0,
   peers:[],profiles:{},trails:new Map(),pingSeen:new Map(),mvSeen:new Map(),ghost:new Map(),
   pres:{},pickSeen:new Map(),chars:null,chSeen:new Map(),chPend:false,sent:'',myPing:0,myMv:0,pend:null,err:'',heldTok:null};
-let tool='select',paint={layer:'ground',t:3},tab='ground',paintMode='brush',groundPaint={layer:'ground',t:3},heightPaint={layer:'height',h:1,s:0},heightSculpt=true,tokGroup='Party',objKind='saloon',bsize=6,objCells=new Set(['1,1']),objMix=false,mixKinds=new Set(),scatDens=70,scatSeed=1,objGap=2,boxSel=null,stampRot=0,objScat=false,scatCount=6,scatArea=4,tokMix=new Set(),tokScatter=false,tokSeed=1,tokGap=1;
+let tool='select',paint={layer:'ground',t:3},tab='ground',paintMode='brush',groundPaint={layer:'ground',t:3},heightPaint={layer:'height',h:1,s:0},hillMode='brush',hillStyle=0,tokGroup='Party',objKind='saloon',bsize=6,objCells=new Set(['1,1']),objMix=false,mixKinds=new Set(),scatDens=70,scatSeed=1,objGap=2,boxSel=null,stampRot=0,objScat=false,scatCount=6,scatArea=4,tokMix=new Set(),tokScatter=false,tokSeed=1,tokGap=1;
 let stamps=(()=>{try{return JSON.parse(localStorage.getItem('dustmap-stamps'))||[]}catch(e){return[]}})();
 const saveStamps=()=>{try{localStorage.setItem('dustmap-stamps',JSON.stringify(stamps))}catch(e){}};
 const selList=()=>!sel?[]:sel.type==='obj'?[sel.i]:sel.type==='objs'?sel.list:[];
@@ -554,7 +558,7 @@ const tokKind=()=>objKind.startsWith('tok:')?+objKind.slice(4):-1;
 const tokLabel=s=>{const t=TOKINFO[s];if(!t)return'Token';const n=TOKINFO.filter(q=>q.name===t.name).length;return n>1?`${t.name} (${t.v})`:t.name};
 const setObjSel=list=>{sel=!list.length?null:list.length===1?{type:'obj',i:list[0]}:{type:'objs',list}};
 let pointer=null,draft=[],stroke=null,hover=null,sel=null,drag=null,hist=[],frame=0,armedClear=false,measure=null,pings=[];
-let dirty=true,objDirty=true,lastR=null,lastGen=[],sculpt=null;
+let dirty=true,objDirty=true,lastR=null,lastGen=[],sculpt=null,lift=null;
 const $=id=>document.getElementById(id);
 function push(){hist.push(JSON.stringify(st));if(hist.length>80)hist.shift();updUndo()}
 function undo(){if(!hist.length||mp.role==='player')return;signClose();const old=st;st=JSON.parse(hist.pop());redrawChanged(old);
@@ -916,9 +920,12 @@ const tsep=()=>{const s=document.createElement('span');s.className='tsep';return
 const swCache={};
 function buildPaints(){const box=$('paints');box.replaceChildren();
   if(tab==='ground')TERR.forEach((t,i)=>{if(t.hidden)return;swCache['g'+i]=swCache['g'+i]||groundSwatch(i);box.append(itemBtn('p-g'+i,swCache['g'+i],t.name,t.sub,t.key,()=>pickPaint({layer:'ground',t:i})))});
-  else{ELEV.forEach((e,i)=>{swCache['h'+i]=swCache['h'+i]||elevSwatch(e);box.append(itemBtn('p-h'+i,swCache['h'+i],e.name,e.sub,String(i+1),()=>pickPaint({layer:'height',h:e.h,s:e.s})))});
-    const sp=document.createElement('span');sp.innerHTML=svgI('sculpt',2);
-    const b=itemBtn('p-sculpt',sp.firstChild,'Sculpt','Drag over an area, hold still, then drag up or down to raise or lower it','',()=>{heightSculpt=true;setTool('sculpt')});box.append(b)}
+  else{HSTYLE.forEach((e,i)=>{const k='hs'+i;swCache[k]=swCache[k]||elevSwatch({h:1,s:e.s});box.append(itemBtn('p-hs'+i,swCache[k],e.name,e.sub,String(i+1),()=>pickHillStyle(e.s)))});
+    // the selected hill or cliff: one level down / up (also ↓ ↑, or drag it)
+    const lv=document.createElement('div');lv.className='seg walkr';lv.id='hlevel';lv.setAttribute('role','group');lv.setAttribute('aria-label','Height of the selected hill or cliff');
+    const sb=(id,ic,tip,d)=>{const b=document.createElement('button');b.id=id;b.innerHTML=svgI(ic);b.setAttribute('aria-label',tip);b.dataset.tip=tip;b.dataset.key=d>0?'↑':'↓';b.dataset.sub=d>0?'One level up':'One level down';b.onclick=()=>stepLevel(d);return b};
+    const v=document.createElement('span');v.id='hl-v';lv.append(sb('hl-dn','down','Lower',-1),v,sb('hl-up','up','Raise',1));
+    const sp=tsep();sp.id='hl-sep';box.append(sp,lv)}
   syncUI()}
 // Tokens sit on squares tokGap squares apart (0 = side by side), the same every time.
 // "Scatter randomly" picks random spots on that spaced lattice around the cursor; with it off, a mix fills the picked squares in order.
@@ -1048,13 +1055,31 @@ function buildTools(){const box=$('tools');TOOLS.forEach(t=>{if(t.sep){const s=d
 // which rail button is lit for the current tool
 function railOf(){if(tool==='draw'||tool==='brush')return paint.layer==='ground'?'paint':'height';if(tool==='sculpt')return'height';if(tool==='object')return tokKind()>=0?'token':'object';return tool}
 function pickRail(id){if(mp.role==='player'&&(TOOLS.find(t=>t.id===id)||{}).dm)return;
-  if(id==='paint'||id==='height'){const g=id==='paint';paint=g?groundPaint:heightPaint;const nt=g?'ground':'height';setTool(!g&&heightSculpt?'sculpt':paintMode);if(tab!==nt){tab=nt;buildPaints()}}
+  if(id==='paint'||id==='height'){const g=id==='paint';paint=g?groundPaint:heightPaint;const nt=g?'ground':'height';setTool(g?paintMode:hillMode==='brush'?'sculpt':'draw');if(tab!==nt){tab=nt;buildPaints()}}
   else if(id==='object'){if(tokKind()>=0){lastTokKind=objKind;objKind=lastObjKind}setTool('object')}
   else if(id==='token'){if(tokKind()<0){lastObjKind=objKind;objKind=lastTokKind;objMix=false;buildToks()}setTool('object')}
   else setTool(id)}
 // B / D (and the Brush / Shape switch): paint with a brush or click out a shape, keeping the current terrain or hill
-function setPaintMode(m,ground){paintMode=m;if(!ground&&railOf()==='height'){heightSculpt=false;paint=heightPaint;setTool(m);return}paint=groundPaint;setTool(m);if(tab!=='ground'){tab='ground';buildPaints()}}
-function pickPaint(p){paint=p;if(p.layer==='ground')groundPaint=p;else{heightPaint=p;heightSculpt=false}
+function setPaintMode(m,ground){if(!ground&&railOf()==='height'){hillMode=m;paint=heightPaint;setTool(m==='brush'?'sculpt':'draw');return}paintMode=m;paint=groundPaint;setTool(m);if(tab!=='ground'){tab='ground';buildPaints()}}
+// the hill or cliff being worked on: selected with Select, or the one just drawn or dragged with the Hills tool
+function hSel(){if(!sel||sel.type!=='op')return null;const op=st.ops[sel.i];return op&&op.layer==='height'&&(tool==='select'||railOf()==='height')?op:null}
+// Hill or Cliff: the style for new strokes and shapes, and for the selected one if it is raised
+function pickHillStyle(s){hillStyle=s;heightPaint={...heightPaint,s};const op=hSel();
+  if(op&&op.h>0&&op.s!==s){push();op.s=s;markOp(op);save()}
+  if(tool!=='select'&&railOf()!=='height'){paint=heightPaint;setTool(hillMode==='brush'?'sculpt':'draw')}else if(railOf()==='height')paint=heightPaint;
+  syncUI()}
+// move a hill or cliff to level h, from where it was (pts0, h0, s0) when the move began.
+// The outline stays exactly where it was drawn (the face grows below it); lowering below ground makes it a pit.
+function setOpLevel(op,h,pts0,h0,s0){h=Math.max(HMIN,Math.min(HMAX,h));const s=h<0?1:h>0&&h0<0?hillStyle:s0;
+  markOp(op);op.h=h;op.s=s;op.pts=pts0.map(q=>[...q]);markOp(op)}
+function stepLevel(d){const op=hSel();if(!op||mp.role==='player')return false;const h=Math.max(HMIN,Math.min(HMAX,op.h+d));if(h===op.h)return true;
+  push();setOpLevel(op,h,op.pts.map(q=>[...q]),op.h,op.s);save();syncUI();return true}
+// the hill or cliff on top at p (later ops win, as in rasterize)
+function hitHeight(p){for(let i=st.ops.length-1;i>=0;i--){const op=st.ops[i];if(op.layer!=='height')continue;if(op.kind==='poly'?inPoly(p[0],p[1],op.pts):segDist(p[0],p[1],op.pts)<op.r)return i}return-1}
+// most common level under a set of points, as a step on the ladder
+function levelUnder(pts){const cnt={};if(lastR)pts.forEach(q=>{const x=Math.max(0,Math.min(W-1,q[0]|0)),y=Math.max(0,Math.min(H-1,q[1]|0)),v=sladIdx(lastR.Hm[y*W+x]);cnt[v]=(cnt[v]||0)+1});
+  let base=SLAD0,best=-1;for(const k in cnt)if(cnt[k]>best){best=cnt[k];base=+k}return base}
+function pickPaint(p){paint=p;if(p.layer==='ground')groundPaint=p;else heightPaint=p;
   if(tool==='select'&&sel&&sel.type==='op'){const op=st.ops[sel.i];
     if(op.layer===p.layer&&(p.layer==='ground'?op.t!==p.t:(op.h!==p.h||op.s!==p.s))){push();if(p.layer==='ground')op.t=p.t;else{op.h=p.h;op.s=p.s}markOp(op);save()}}
   else if(tool!=='draw'&&tool!=='brush')setTool(paintMode);
@@ -1249,9 +1274,9 @@ function draw(ts){
       const tx=d==='l'?x:d==='r'?x+32-tw-12:x+16-(tw+12)/2,ty=d==='t'?y-26:y+38;ctx.fillStyle='rgba(29,27,34,.95)';ctx.beginPath();ctx.roundRect(tx,ty,tw+12,22,5);ctx.fill();ctx.fillStyle='#fff';ctx.fillText(t,tx+6,ty+15)}
     edgeTabs.push({d,x,y})});
   // selection
-  if(tool==='select'&&sel){
+  if((tool==='select'||hSel())&&sel){
     if(sel.type==='op'){const op=st.ops[sel.i];if(op){const p=op.pts.map(sc);
-      if(op.kind==='poly'){pathPoly(p);ctx.closePath();ctx.fillStyle='rgba(255,255,255,.08)';ctx.fill();ctx.setLineDash([8,6]);ctx.strokeStyle='rgba(255,255,255,.95)';ctx.lineWidth=2;ctx.stroke();ctx.setLineDash([]);p.forEach(q=>handle(q))}
+      if(op.kind==='poly'){pathPoly(p);ctx.closePath();ctx.fillStyle='rgba(255,255,255,.08)';ctx.fill();ctx.setLineDash([8,6]);ctx.strokeStyle='rgba(255,255,255,.95)';ctx.lineWidth=2;ctx.stroke();ctx.setLineDash([]);if(tool==='select')p.forEach(q=>handle(q))}
       else{pathPoly(p);ctx.lineCap=ctx.lineJoin='round';ctx.lineWidth=op.r*2*Z;ctx.strokeStyle='rgba(255,255,255,.18)';ctx.stroke();ctx.setLineDash([8,6]);ctx.lineWidth=2;ctx.strokeStyle='rgba(255,255,255,.9)';ctx.stroke();ctx.setLineDash([])}}}
     else if(sel.type==='token'){const t=st.tokens[sel.i];if(t){ctx.setLineDash([6,4]);ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.strokeRect((t.x-12)*Z,(t.y-30)*Z,24*Z,32*Z);ctx.setLineDash([])}}
     else{ctx.setLineDash([6,4]);ctx.strokeStyle='#fff';ctx.lineWidth=2;selList().forEach(i=>{const o=st.objects[i];if(!o)return;const[w,h]=SIZE[o.k];ctx.strokeRect((o.x-w/2-2)*Z,(o.y-h/2-2)*Z,(w+4)*Z,(h+4)*Z)});ctx.setLineDash([])}}
@@ -1259,6 +1284,10 @@ function draw(ts){
   if(tool==='select'&&hover&&!drag&&mp.role!=='player'){const hh=hit(hover);if(hh&&(hh.type==='gen'||hh.type==='obj')){const o=hh.type==='gen'?hh.g.o:st.objects[hh.i],[w,h]=SIZE[o.k];ctx.strokeStyle='rgba(255,255,255,.7)';ctx.lineWidth=2;ctx.strokeRect((o.x-w/2-1.5)*Z,(o.y-h/2-1.5)*Z,(w+3)*Z,(h+3)*Z)}}
   if(tool==='select'&&hover&&!drag&&mp.role!=='player'){const h=hit(hover);if(h&&h.type==='op'&&!(sel&&sel.type==='op'&&sel.i===h.i)){const op=st.ops[h.i];const p=op.pts.map(sc);
     pathPoly(p);if(op.kind==='poly'){ctx.closePath();ctx.lineWidth=2}else{ctx.lineCap='round';ctx.lineWidth=op.r*2*Z}ctx.strokeStyle='rgba(255,255,255,.35)';ctx.stroke()}}
+  {const on=tool==='draw'&&paint.layer==='height'&&!draft.length&&mp.role!=='player'&&(lift||hover);let hi=-1;
+   if(on){hi=lift?lift.i:hitHeight(hover);if(hi>=0&&!(sel&&sel.type==='op'&&sel.i===hi)){const op=st.ops[hi],p=op.pts.map(sc);
+     pathPoly(p);if(op.kind==='poly'){ctx.closePath();ctx.lineWidth=2}else{ctx.lineCap='round';ctx.lineWidth=op.r*2*Z}ctx.strokeStyle='rgba(255,255,255,.4)';ctx.stroke()}}
+   cv.classList.toggle('lift',hi>=0)}
   // token drag: show where it will land
   if(drag&&drag.kind==='token'){const t=st.tokens[drag.i];const sx=altDown?t.x:Math.round(t.x/8)*8,sy=altDown?t.y:Math.round(t.y/8)*8;
     const isC=(sx%16===8)&&(sy%16===8);if(isC){ctx.fillStyle='rgba(242,196,159,.18)';ctx.fillRect((sx-8)*Z,(sy-8)*Z,16*Z,16*Z)}
@@ -1290,7 +1319,7 @@ function draw(ts){
         const held=performance.now()-sculpt.t;
         if(held>110){const f=Math.min(1,(held-110)/(DWELL-110));ctx.beginPath();ctx.arc(cx,cy,r+8,-Math.PI/2,-Math.PI/2+f*Math.PI*2);ctx.strokeStyle='#f2c49f';ctx.lineWidth=4;ctx.stroke()}
         ctx.beginPath();ctx.arc(cx,cy,r,0,7);ctx.strokeStyle='rgba(255,255,255,.9)';ctx.lineWidth=2;ctx.stroke()}
-      else{const li=sculpt.base+sculpt.delta,L2=SLAD[li],d=sculpt.delta,lift=sculptLift(L2.h,SLAD[sculpt.base].h)*Z,cl=L2.h>0;
+      else{const li=sculpt.base+sculpt.delta,L2=SLAD[li],d=sculpt.delta,lift=sculptLift(L2.h,SLAD[sculpt.base].h,hillStyle)*Z,cl=L2.h>0&&hillStyle===1;
         const col=li>sculpt.base?(cl?'rgba(150,70,46,.62)':'rgba(255,236,190,.6)'):li<sculpt.base?'rgba(24,34,80,.6)':'rgba(255,255,255,.2)';
         if(d>0){pathPoly(p);ctx.lineWidth=r*2;ctx.strokeStyle=cl?'rgba(90,36,24,.6)':'rgba(120,80,60,.35)';ctx.stroke()}
         ctx.save();ctx.translate(0,-lift);pathPoly(p);ctx.lineWidth=r*2;ctx.strokeStyle=col;ctx.stroke();ctx.restore();
@@ -1336,8 +1365,7 @@ function handle(q){ctx.fillStyle='#fff';ctx.strokeStyle='#1d1b22';ctx.lineWidth=
 const DWELL=380;
 function toRaise(){if(!sculpt||sculpt.phase!=='paint')return;
   // base = the most common level (height + hill/cliff) under the painted area, as a step on the sculpt ladder
-  const cnt={};if(lastR)sculpt.pts.forEach(q=>{const j=Math.min(H-1,q[1]|0)*W+Math.min(W-1,q[0]|0),v=sladIdx(lastR.Hm[j]);cnt[v]=(cnt[v]||0)+1});
-  let base=SLAD0,best=-1;for(const k in cnt)if(cnt[k]>best){best=cnt[k];base=+k}
+  const base=levelUnder(sculpt.pts);
   Object.assign(sculpt,{phase:'raise',y0:sculpt.cy,base,delta:0});syncHint()}
 let last=0;const reduce=matchMedia('(prefers-reduced-motion: reduce)');
 function loop(ts){mpTick();if(sculpt&&sculpt.phase==='paint'&&performance.now()-sculpt.t>DWELL)toRaise();if($('anim').checked&&!reduce.matches&&ts-last>150){frame=(frame+1)%8;last=ts}draw(ts);placeSelbar();signTick();requestAnimationFrame(loop)}
@@ -1368,7 +1396,7 @@ cv.addEventListener('wheel',e=>{e.preventDefault();const r=cv.getBoundingClientR
 const touches=new Map();let pinch=null;
 function pinchState(){const[a,b]=[...touches.values()];return{mx:(a.x+b.x)/2,my:(a.y+b.y)/2,d:Math.hypot(a.x-b.x,a.y-b.y)||1}}
 cv.addEventListener('pointerdown',e=>{if(e.pointerType!=='touch')return;const r=cv.getBoundingClientRect();touches.set(e.pointerId,{x:e.clientX-r.left,y:e.clientY-r.top});
-  if(touches.size===2){if(stroke)stroke=null;if(sculpt)sculpt=null;if(drag){drag=null}if(tool==='draw'&&draft.length&&performance.now()-lastTap<600){draft.pop();syncHint()}
+  if(touches.size===2){if(stroke)stroke=null;if(sculpt)sculpt=null;if(lift){if(lift.moved){const op=st.ops[lift.i];if(op)setOpLevel(op,lift.h0,lift.pts0,lift.h0,lift.s0);hist.pop();updUndo()}lift=null}if(drag){drag=null}if(tool==='draw'&&draft.length&&performance.now()-lastTap<600){draft.pop();syncHint()}
     panning=null;const ps=pinchState();pinch={...ps,z:Z,cx:cam.x,cy:cam.y};e.stopImmediatePropagation()}},true);
 cv.addEventListener('pointermove',e=>{if(!touches.has(e.pointerId))return;const r=cv.getBoundingClientRect();touches.set(e.pointerId,{x:e.clientX-r.left,y:e.clientY-r.top});
   if(pinch&&touches.size===2){const ps=pinchState();const nz=Math.max(.5,Math.min(8,pinch.z*ps.d/pinch.d));const wx=pinch.cx+pinch.mx/pinch.z,wy=pinch.cy+pinch.my/pinch.z;
@@ -1386,6 +1414,9 @@ cv.addEventListener('pointerdown',e=>{const p=toMap(e);cv.setPointerCapture(e.po
      if(t.d==='b')setMapSize(st.cols,Math.min(MAXR,st.rows+10),0,0,true);
      if(t.d==='t'){const n=add(MAXR-st.rows);setMapSize(st.cols,st.rows+n,0,n,true)}
      return}}
+  if(tool==='draw'&&paint.layer==='height'&&!draft.length){
+    // Hills, shape: drag a hill or cliff up or down to change its height; a click starts a new shape
+    const i=hitHeight(p);if(i>=0){const op=st.ops[i];lift={i,p,y0:e.clientY,pts0:op.pts.map(q=>[...q]),h0:op.h,s0:op.s,moved:false};sel={type:'op',i};syncUI();return}}
   if(tool==='draw'){
     if(draft.length>=3&&dist(p,draft[0])<7){finish();return}
     const now=performance.now();if(now-lastTap<300&&draft.length>=3&&dist(p,draft[draft.length-1])<3){finish();return}lastTap=now;
@@ -1432,6 +1463,10 @@ cv.addEventListener('pointermove',e=>{if(boxSel){boxSel.b=toMap(e);return}
   if(tool==='measure'&&measure&&(measure.down||measure.follow)){measure.b=measure.snap(p);return}
   if(tool==='fog'&&fogPaint){const q=clamp(p);fogPaint.moved=Math.max(fogPaint.moved,dist(fogPaint.a,q));if(fogPaint.brush){fogStroke(fogPaint.last,q);fogPaint.last=q;mpChanged()}else fogPaint.b=q;return}
   if(tool==='ping'&&pointer&&pointer.down){pointer.trail.push({x:p[0],y:p[1],t:performance.now()});return}
+  if(lift){const op=st.ops[lift.i];if(!op){lift=null;return}const dy=lift.y0-e.clientY;
+    if(!lift.moved&&Math.abs(dy)>5){lift.moved=true;push()}
+    if(lift.moved){const h=Math.max(HMIN,Math.min(HMAX,lift.h0+Math.round(dy/30)));if(h!==op.h){setOpLevel(op,h,lift.pts0,lift.h0,lift.s0);syncHint()}}
+    return}
   if(tool==='sculpt'&&sculpt){sculpt.cy=e.clientY;
     if(sculpt.phase==='paint'){const lp=sculpt.pts[sculpt.pts.length-1];if(dist(lp,p)>=1.5){sculpt.pts.push(clamp(p));sculpt.t=performance.now()}}
     else{const d=Math.round((sculpt.y0-e.clientY)/34);const nd=Math.max(-sculpt.base,Math.min(SLAD.length-1-sculpt.base,d));if(nd!==sculpt.delta){sculpt.delta=nd;syncHint()}}
@@ -1450,9 +1485,12 @@ function up(){
   if(fogPaint){fogDone();return}
   if(tool==='brush'&&stroke){push();if(paint.t===9&&paint.layer==='ground'){const sp=[];stroke.pts.forEach((q,k)=>{if(!sp.length||k===stroke.pts.length-1||dist(sp[sp.length-1],q)>=10)sp.push(q)});stroke.pts=sp}
     st.ops.push({kind:'stroke',...paint,r:paint.t===9&&paint.layer==='ground'?5:stroke.r,pts:stroke.pts.map(q=>[Math.round(q[0]*2)/2,Math.round(q[1]*2)/2]),sid:Math.floor(Math.random()*1000)});markOp(st.ops[st.ops.length-1]);stroke=null;save();return}
-  if(tool==='sculpt'&&sculpt){const sp=sculpt;sculpt=null;if(sp.phase==='raise'&&sp.delta!==0){push();const lv=SLAD[sp.base+sp.delta];
-      const up=sculptLift(lv.h,SLAD[sp.base].h),pts=[];sp.pts.forEach(q=>{if(!pts.length||dist(pts[pts.length-1],q)>=Math.max(1.5,bsize/3))pts.push([Math.round(q[0]*2)/2,Math.round((q[1]-up)*2)/2])});
-      st.ops.push({kind:'stroke',layer:'height',h:lv.h,s:lv.s,r:bsize,pts,sid:Math.floor(Math.random()*1000)});markOp(st.ops[st.ops.length-1]);save()}syncHint();return}
+  if(tool==='sculpt'&&sculpt){const sp=sculpt;sculpt=null;if(sp.phase==='raise'&&sp.delta!==0){push();const lv=SLAD[sp.base+sp.delta],hs=hStyleAt(lv.h,hillStyle);
+      const up=sculptLift(lv.h,SLAD[sp.base].h,hs),pts=[];sp.pts.forEach(q=>{if(!pts.length||dist(pts[pts.length-1],q)>=Math.max(1.5,bsize/3))pts.push([Math.round(q[0]*2)/2,Math.round((q[1]-up)*2)/2])});
+      st.ops.push({kind:'stroke',layer:'height',h:lv.h,s:hs,r:bsize,pts,sid:Math.floor(Math.random()*1000)});markOp(st.ops[st.ops.length-1]);sel={type:'op',i:st.ops.length-1};save()}syncUI();return}
+  if(lift){const L=lift;lift=null;if(L.moved){save();syncUI();return}
+    // a click, not a drag: it was the first corner of a new shape
+    draft.push(clamp(L.p).map(v=>Math.round(v*2)/2));lastTap=performance.now();syncUI();return}
   if(measure)measure.down=false;
   if(pointer&&pointer.down){pointer.down=false;pointer.end=performance.now();const h=pointer.trail[pointer.trail.length-1];pings.push({x:h.x,y:h.y,t0:pointer.end});mpPinged(h.x,h.y)}
   if(!drag)return;
@@ -1464,8 +1502,14 @@ cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);
 cv.addEventListener('pointerleave',()=>{hover=null;hoverScr=null});
 cv.addEventListener('dblclick',e=>{if(tool==='draw'&&draft.length>=3){e.preventDefault();finish()}});
 function finish(){if(draft.length>3&&dist(draft[draft.length-1],draft[draft.length-2])<2)draft.pop();
-  if(draft.length<3)return;push();st.ops.push({kind:'poly',...paint,pts:draft,sid:Math.floor(Math.random()*1000)});markOp(st.ops[st.ops.length-1]);draft=[];save();syncHint()}
-function setTool(t){if(mp.role==='player'&&!PLAYER_TOOLS.includes(t))return;tool=t;qClose();draft=[];stroke=null;sculpt=null;if(t!=='select')sel=null;if(t!=='measure')measure=null;syncUI()}
+  if(draft.length<3)return;push();let op={kind:'poly',...paint,pts:draft,sid:Math.floor(Math.random()*1000)};
+  if(paint.layer==='height'){
+    // a new hill or cliff starts one level above what's under it and stays selected, ready to drag up or down
+    const xs=draft.map(q=>q[0]),ys=draft.map(q=>q[1]),x0=Math.min(...xs),x1=Math.max(...xs),y0=Math.min(...ys),y1=Math.max(...ys),inside=[];
+    for(let y=y0;y<=y1;y+=4)for(let x=x0;x<=x1;x+=4)if(inPoly(x,y,draft))inside.push([x,y]);
+    const h=Math.min(HMAX,SLAD[levelUnder(inside.length?inside:draft)].h+1);op={...op,h,s:hStyleAt(h,hillStyle)}}
+  st.ops.push(op);markOp(op);if(paint.layer==='height')sel={type:'op',i:st.ops.length-1};draft=[];save();syncUI()}
+function setTool(t){if(mp.role==='player'&&!PLAYER_TOOLS.includes(t))return;const keep=hSel()&&(t==='sculpt'||(t==='draw'&&paint.layer==='height'));tool=t;qClose();draft=[];stroke=null;sculpt=null;lift=null;if(t!=='select'&&!keep)sel=null;if(t!=='measure')measure=null;syncUI()}
 function delSel(){if(!sel)return;push();if(sel.type==='token'){st.tokens.splice(sel.i,1)}else if(sel.type==='op'){markOp(st.ops[sel.i]);st.ops.splice(sel.i,1)}else{[...selList()].sort((a,b)=>b-a).forEach(i=>st.objects.splice(i,1));objDirty=true}sel=null;save();syncUI()}
 // Duplicate (selection bar or Ctrl+D): a copy one square down and right, selected so it can be dragged straight away
 function dupSel(){if(!sel||mp.role==='player')return;push();const D=GRID;
@@ -1525,9 +1569,9 @@ $('pm-brush').innerHTML=svgI('paint');$('pm-draw').innerHTML=svgI('shape');
 $('fog-reveal').innerHTML=svgI('reveal');$('fog-hide').innerHTML=svgI('hide');$('fog-brush').innerHTML=svgI('paint');$('fog-box').innerHTML=svgI('box');
 $('fog-none').innerHTML=svgI('showall');$('fog-walk').innerHTML=svgI('walk');$('fog-all').innerHTML=svgI('hideall');
 // size presets: small / medium / large dots; [ and ] still fine-tune in between
-const BSIZES=[[3,'Small brush'],[6,'Medium brush'],[12,'Large brush']],FSIZES=[[1,'1 square'],[2,'3 squares across'],[4,'7 squares across']];
+const BSIZES=[[3,'Small brush'],[6,'Medium brush'],[12,'Large brush'],[22,'Extra large brush']],FSIZES=[[1,'1 square'],[2,'3 squares across'],[4,'7 squares across']];
 function sizeSeg(box,list,set){list.forEach(([v,nm],i)=>{const b=document.createElement('button');b.dataset.v=v;b.setAttribute('aria-label',nm);b.dataset.tip=nm;b.dataset.sub='[ and ] fine-tune the size';
-  const d=document.createElement('span');d.className='dot';d.style.width=d.style.height=[6,10,15][i]+'px';b.append(d);b.onclick=()=>{set(v);syncUI()};box.append(b)})}
+  const d=document.createElement('span');d.className='dot';d.style.width=d.style.height=[6,10,15,20][i]+'px';b.append(d);b.onclick=()=>{set(v);syncUI()};box.append(b)})}
 function sizePressed(box,cur){const bs=[...box.children];let best=null,bd=1e9;bs.forEach(b=>{const d=Math.abs(+b.dataset.v-cur);if(d<bd){bd=d;best=b}});bs.forEach(b=>b.setAttribute('aria-pressed',String(b===best)))}
 sizeSeg($('sizes'),BSIZES,v=>bsize=v);sizeSeg($('fogsizes'),FSIZES,v=>fogR=v);
 // grid / mix popover, opened from the tray
@@ -1548,16 +1592,17 @@ window.addEventListener('keydown',e=>{const tg=e.target;if(tg.tagName==='INPUT'&
   if(e.key===' '&&tg.tagName!=='BUTTON'){e.preventDefault();spaceDown=true;cv.classList.add('pan');return}
   if(!e.ctrlKey&&!e.metaKey&&(e.key==='+'||e.key==='=')){zoomStep(1);return}if(!e.ctrlKey&&!e.metaKey&&(e.key==='-'||e.key==='_')){zoomStep(-1);return}if(e.key==='0'){fit();return}
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();undo();return}
-  if(e.key==='Escape'){if(!$('qmenu').hidden){qClose();return}if(tokVarOpen){tokVarOpen=null;buildToks();syncUI();return}if(!$('gridpop').hidden){gridPop(false);return}if(!$('menu').hidden){menuShow(false);return}if(!$('modal').hidden){$('modal').hidden=true;return}sculpt=null;draft=[];stroke=null;sel=null;measure=null;syncUI();return}
+  if(e.key==='Escape'){if(!$('qmenu').hidden){qClose();return}if(tokVarOpen){tokVarOpen=null;buildToks();syncUI();return}if(!$('gridpop').hidden){gridPop(false);return}if(!$('menu').hidden){menuShow(false);return}if(!$('modal').hidden){$('modal').hidden=true;return}sculpt=null;lift=null;draft=[];stroke=null;sel=null;measure=null;syncUI();return}
   if(e.key==='Shift'&&sculpt&&sculpt.phase==='paint'){toRaise();return}
   if(e.key==='Enter'&&tool==='draw'&&tg.tagName!=='BUTTON'){finish();return}
   if(e.key==='Backspace'||e.key==='Delete'){if(tool==='draw'&&draft.length){draft.pop();syncHint();e.preventDefault()}else if(sel){delSel();e.preventDefault()}return}
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='d'&&sel&&tool==='select'){e.preventDefault();dupSel();return}
   if(e.ctrlKey||e.metaKey||e.altKey)return;
+  if((e.key==='ArrowUp'||e.key==='ArrowDown')&&!lift&&!sculpt&&hSel()&&stepLevel(e.key==='ArrowUp'?1:-1)){e.preventDefault();return}
   if((e.key==='ArrowUp'||e.key==='ArrowDown')&&tool==='object'&&mp.role!=='player'&&tokStep(e.key==='ArrowUp'?-1:1)){e.preventDefault();return}
   if(tool==='fog'&&(e.key==='['||e.key===']')){fogR=Math.max(1,Math.min(6,fogR+(e.key===']'?1:-1)));syncUI();return}
   if(e.key==='['){bsize=Math.max(2,bsize-1);syncUI();return}if(e.key===']'){bsize=Math.min(28,bsize+1);syncUI();return}
-  const k=e.key.toUpperCase();if(k==='B'||k==='D'){if(mp.role!=='player')setPaintMode(k==='B'?'brush':'draw',true);return}if(k==='H'){setTool('pan');return}
+  const k=e.key.toUpperCase();if(k==='B'||k==='D'){if(mp.role!=='player')setPaintMode(k==='B'?'brush':'draw',k==='B'||railOf()!=='height');return}if(k==='H'){setTool('pan');return}
   const t=TOOLS.find(t=>t.key===k);if(t){pickRail(t.id);return}
   if(k==='R'&&tool==='object'&&tokKind()<0){rotatePlacement();return}
   if(k==='G'){$('grid').checked=!$('grid').checked;return}
@@ -1576,12 +1621,14 @@ function syncUI(){
    if(![...sel2.options].some(o=>o.value===v)){const o=document.createElement('option');o.value=v;o.dataset.custom='1';o.textContent=`${st.cols} × ${st.rows} squares`;sel2.append(o)}sel2.value=v}
   const opSel=tool==='select'&&sel&&sel.type==='op';
   TERR.forEach((t,i)=>{const b=$('p-g'+i);if(b)b.setAttribute('aria-pressed',String(paint.layer==='ground'&&paint.t===i))});
-  ELEV.forEach((e,i)=>{const b=$('p-h'+i);if(b)b.setAttribute('aria-pressed',String(tool!=='sculpt'&&paint.layer==='height'&&paint.h===e.h&&paint.s===e.s))});
-  {const b=$('p-sculpt');if(b){b.setAttribute('aria-pressed',String(tool==='sculpt'));b.hidden=opSel}}
+  {const ho=hSel(),sty=ho&&ho.h>0?ho.s:ho&&ho.h<0?-1:hillStyle;HSTYLE.forEach((e,i)=>{const b=$('p-hs'+i);if(b)b.setAttribute('aria-pressed',String(sty===e.s))});
+   const lv=$('hlevel');if(lv){lv.hidden=$('hl-sep').hidden=!ho;if(ho){$('hl-v').textContent=ho.h>0?'+'+ho.h:ho.h<0?'−'+-ho.h:'Flat';$('hl-v').title=elevName(ho.h,ho.s);$('hl-dn').disabled=ho.h<=HMIN;$('hl-up').disabled=ho.h>=HMAX}}}
   {const mix=objMix&&!objKind.startsWith('stamp:');OBJ.forEach(o=>$('o-'+o.k).setAttribute('aria-pressed',String(mix?mixKinds.has(o.k):objKind===o.k)))}
   TOKINFO.forEach((t,s)=>{const b=$('tk-'+s);if(b)b.setAttribute('aria-pressed',String(tokMix.size?tokMix.has(s):objKind==='tok:'+s))});
   $('toks').querySelectorAll('.sw.many').forEach(b=>{const l=b.dataset.toks.split(',').map(Number);b.setAttribute('aria-pressed',String(tokMix.size?l.some(q=>tokMix.has(q)):l.includes(tokKind())))});stamps.forEach((sp,i)=>{const b=$('o-stamp:'+i);if(b)b.setAttribute('aria-pressed',String(objKind==='stamp:'+i))});
-  $('pm-brush').setAttribute('aria-pressed',String(tool==='brush'));$('pm-draw').setAttribute('aria-pressed',String(tool==='draw'));
+  $('pm-brush').setAttribute('aria-pressed',String(tool==='brush'||tool==='sculpt'));$('pm-draw').setAttribute('aria-pressed',String(tool==='draw'));
+  {const hr=r==='height';$('pm-brush').dataset.sub=hr?'Drag over an area, hold still, then drag up or down':'Drag to paint';$('pm-brush').dataset.key=hr?'':'B';
+   $('pm-draw').dataset.sub=hr?'Click the corners, Enter to finish. Drag any hill or cliff up or down.':'Click the corners, Enter to finish'}
   sizePressed($('sizes'),bsize);sizePressed($('fogsizes'),fogR);
   $('ogap').value=objGap;$('gridlbl').textContent=objKind.startsWith('stamp:')?'Stamp'+(stampRot?` · ${stampRot*90}°`:''):cellLabel();paintPick(objCells);
   $('omix').checked=objMix;$('mixopts').hidden=!objMix;$('odens').value=scatDens;$('odenslbl').textContent=`Fill ${scatDens}%`;$('mixlbl').textContent=mixKinds.size?`${mixKinds.size} in the mix`:'Nothing picked yet';
@@ -1614,7 +1661,7 @@ function buildMine(){const box=$('pane-mine'),mine=st.tokens.filter(t=>mpMayMove
   if(!mine.length){const b=document.createElement('button');b.className='btn primary';b.textContent='Pick a token';b.onclick=()=>$('mpbtn').click();box.append(b);return}
   mine.forEach(t=>{const b=itemBtn('me-'+t.s,tokSwatch(t.s),tokLabel(t.s),'Your token. Click to find it on the map.','',()=>{const q=st.tokens.find(q=>q.s===t.s);if(q){cam.x=q.x-viewW/Z/2;cam.y=q.y-viewH/Z/2;clampCam()}});b.classList.add('tok');box.append(b)});
   const c=myChar,cb=document.createElement('button');cb.className='btn';cb.id='mychar';cb.textContent=c?c.name:'Add your character';cb.dataset.tip=c?'Your character':'Add your character';cb.dataset.sub=c?'HP, AC and ability scores':'Import from D&D Beyond';cb.onclick=()=>openChar('me');box.append(cb)}
-function paintName(){return paint.layer==='ground'?TERR[paint.t].name:ELEV.find(e=>e.h===paint.h&&e.s===paint.s).name}
+function paintName(){return paint.layer==='ground'?TERR[paint.t].name:HSTYLE[hillStyle].name}
 function syncHint(){const h=$('hint');h.replaceChildren();
   const add=html=>{const s=document.createElement('span');s.innerHTML=html;h.append(s)};
   const pill=t=>{const s=document.createElement('span');s.className='pill';s.textContent=t;h.append(s)};
@@ -1625,6 +1672,9 @@ function syncHint(){const h=$('hint');h.replaceChildren();
   else if(tool==='sculpt'&&sculpt){
     if(sculpt.phase==='paint'){pill('Selecting');add('Hold still or <kbd>Shift</kbd> to raise')}
     else{const lv=SLAD[sculpt.base+sculpt.delta];pill(sculpt.delta===0?'No change':lv.h===0?'Flatten':(lv.h>0?'Raise ':'Lower ')+lv.sh);add('Drag up or down, release to place')}}
+  else if(lift&&st.ops[lift.i]){const op=st.ops[lift.i];pill(elevName(op.h,op.s));add(lift.moved?'Drag up or down, release to place':'Drag up or down to raise or lower')}
+  else if(railOf()==='height'&&!(tool==='draw'&&draft.length)&&hSel()){const op=hSel();pill(elevName(op.h,op.s));
+    add(tool==='draw'?'Drag it up or down, or <kbd>↑</kbd> <kbd>↓</kbd>':'<kbd>↑</kbd> <kbd>↓</kbd> raise or lower it');btn('Done','',()=>{sel=null;syncUI()})}
   else if(tool==='object'&&tokKind()<0&&objMix&&!objKind.startsWith('stamp:')&&!mixKinds.size){pill('Mix');add('Pick objects to mix')}
   else if(tool==='object'&&tokKind()>=0&&tokMix.size){pill('Mix');add(`${tokMix.size} tokens · Ctrl-click to add or remove · click the map to ${tokScatter?'scatter':'place'} them`)}
   else if(tool==='measure'&&measure&&measure.follow){pill('Measure');add('Click where it ends')}
@@ -1637,8 +1687,8 @@ function syncHint(){const h=$('hint');h.replaceChildren();
   else{if(!sel)return;
     if(sel.type==='token'){const t=st.tokens[sel.i];pill(t?tokLabel(t.s)+' selected':'Token selected')}
     else if(sel.type!=='op'){const l=selList();pill(l.length===1?OBJ.find(o=>o.k===st.objects[l[0]].k).name+' selected':`${l.length} objects selected`)}
-    else{pill((st.ops[sel.i].layer==='ground'?TERR[st.ops[sel.i].t].name:ELEV.find(e=>e.h===st.ops[sel.i].h&&e.s===st.ops[sel.i].s).name)+' selected');
-      add('Drag corners to reshape')}}}
+    else{const op=st.ops[sel.i];pill((op.layer==='ground'?TERR[op.t].name:elevName(op.h,op.s))+' selected');
+      add(op.layer==='height'?'Drag corners to reshape · <kbd>↑</kbd> <kbd>↓</kbd> raise or lower':'Drag corners to reshape')}}}
 // ================= tooltips =================
 // Every control carries data-tip (name), data-key (shortcut) and data-sub (a one-line note). One floating tip shows them on hover.
 const tipEl=$('tip');let tipT=0,tipOn=null,tipWarm=0;
@@ -2526,7 +2576,7 @@ function tourMap(){const S=(x,y,txt,o={})=>({k:'sign',x,y,v:o.v||0,txt,lang:o.la
     S(104,262,'NEW MAPS (N)\nThe + by the map name, or N, opens New map: give it a name, pick the ground that fills it (sand, scrub, mesa, water, badlands or stone) and its size. Your last choice is remembered.'),
     S(60,150,'TORCHES AND CAMPFIRES\nObjects (O) → Props. They flicker and glow, and fog still hides them. Random spots in the grid popover drops a set number of objects in new random places on every click.',{v:1}),
     S(200,150,'PAINT GROUND (B)\nPick sand, water, roads, towns and more in the tray, then brush it on. Press D to draw a shape instead: click the corners, Enter to finish.'),
-    S(330,150,'HILLS AND CLIFFS (E)\nBrush a hill, a cliff or a pit. Sculpt: drag over an area, hold still until the ring fills, then drag up or down.'),
+    S(330,150,'HILLS AND CLIFFS (E)\nPick Hill or Cliff. Brush: drag over an area, hold still until the ring fills, then drag up or down. Shape: click the corners, then drag the shape up or down.'),
     S(452,196,'TOWNS\nPaint Town and it fills itself with buildings. A road through town becomes its street. In Select, click a building to pick it up and move it.',{v:1}),
     S(210,204,'SELECT (V)\nClick anything to move it. Shift-drag a box to grab several, then Save as stamp to reuse them. Right-click the map for quick actions. Ctrl Z undoes.'),
     S(300,262,'Signs can be written in another script. Tick “Players can read the translation” and they see this text under it.',{lang:'elvish',tr:1}),
