@@ -140,6 +140,7 @@ body.notray .hint{bottom:calc(12px + env(safe-area-inset-bottom,0px))}
 .selbar{position:absolute;z-index:6;display:flex;gap:2px;padding:4px;transform:translate(-50%,-100%)}
 .selbar .ib{width:34px;height:34px}
 .selbar .ib svg{width:18px;height:18px}
+.selbar .ib.ibt{width:auto;min-width:34px;padding:0 8px;font:600 13px 'Work Sans',system-ui,sans-serif}
 /* right-click quick menu */
 .qmenu{position:absolute;z-index:9;display:flex;flex-direction:column;gap:1px;padding:5px;min-width:180px}
 .qmenu button{display:flex;align-items:center;gap:10px;padding:7px 10px;border:0;border-radius:7px;background:transparent;cursor:pointer;font-size:13px;text-align:left;white-space:nowrap}
@@ -699,6 +700,7 @@ function sprite(k,v){v=(v||0)%12;const key=k+':'+v;if(SPR.has(key))return SPR.ge
   else if(k==='crystals'){glow(6,7,10,[170,150,255]);const sh=(x0,y0,x1,y1,wd)=>{for(let t=0;t<=1;t+=.05){const x=x0+(x1-x0)*t,y=y0+(y1-y0)*t,ww=wd*(1-t*.7);for(let k=-ww;k<=ww;k+=.5)put(x+k,y,t>.75?C.crystl:k<0?C.cryst:C.crystd)}};
     sh(6,11,6,0,2.2);sh(3,11,1,4,1.6);sh(9,11,11,5,1.6)}
   else if(k==='sign')signSprite(put,R,w,h,v);
+  else if(k==='dynamite')dynSprite(put,R,LN);
   else if(k==='well'){E(8,8,8,8,(x,y)=>hash(x>>1,y>>1,3)>.5?C.stone:C.stoned);E(8,8,5,5,C.dark);E(8,8.5,3.5,3,C.water);put(7,7,C.water2);
     R(1,6,14,2,C.wood);R(1,5,2,4,C.woodd);R(13,5,2,4,C.woodd);put(8,8,[110,80,60])}
   else if(k==='wagon'){for(const x of [4,20]){R(x,0,7,2,C.wheel);R(x,h-2,7,2,C.wheel)}
@@ -1189,7 +1191,7 @@ function drawFires(g,ts,fv){const list=litFires(fv);if(!list.length)return;const
   list.forEach((o,i)=>{const F=FIRE[o.k],fr=flameFrames(o.k)[still?2:(Math.floor(t/105)+i*3)%8];
     g.drawImage(fr,Math.round(o.x-F.w/2),Math.round(flameTop(o)))})}
 function drawWorld(g,s,ts){ // draw terrain, objects, tokens and grid in map units (transform already set)
-  g.imageSmoothingEnabled=false;g.drawImage(tcan,0,0);g.drawImage(ocan,0,0);const fv=fogView();drawFires(g,ts===undefined?performance.now():ts,fv);
+  g.imageSmoothingEnabled=false;g.drawImage(tcan,0,0);g.drawImage(ocan,0,0);const fv=fogView();drawFires(g,ts===undefined?performance.now():ts,fv);if(g===ctx)drawBlasts(g,fv);
   drawFogSolid(g,fv);
   st.tokens.filter(t=>tokShown(fv,t)).map(t=>{const gh=t.id&&mp.ghost.get(t.id);return gh?{...t,x:gh[0],y:gh[1]}:t}).sort((a,b)=>a.y-b.y).forEach(t=>{if(g===ctx)tokAura(g,t);g.drawImage(shadowImg,Math.round(t.x)-7,Math.round(t.y)-2);
     const f=(frame+(t.o||0))%8,im=sheets[t.s];if(im.complete)g.drawImage(im,f*32,0,32,32,Math.round(t.x)-16,Math.round(t.y)-31,32,32)});
@@ -1227,7 +1229,7 @@ function draw(ts){
   const busy=drag&&(drag.kind==='vertex'||drag.kind==='op');
   if(dirty)renderTerrain();else if(dRect&&lastR&&!(busy&&performance.now()-lastRenderT<40))renderRegion();if(objDirty)renderObjects();
   ctx.setTransform(1,0,0,1,0,0);ctx.fillStyle='#120f14';ctx.fillRect(0,0,cv.width,cv.height);
-  ctx.setTransform(dpr*Z,0,0,dpr*Z,-cam.x*Z*dpr,-cam.y*Z*dpr);drawWorld(ctx,Z,ts);if(mp.role!=='player'&&!fogPreview)drawFogVeil(ctx,st.fog);
+  const[skx,sky]=blastShake();ctx.setTransform(dpr*Z,0,0,dpr*Z,(skx-cam.x*Z)*dpr,(sky-cam.y*Z)*dpr);drawWorld(ctx,Z,ts);if(mp.role!=='player'&&!fogPreview)drawFogVeil(ctx,st.fog);
   ctx.setTransform(dpr,0,0,dpr,-cam.x*Z*dpr,-cam.y*Z*dpr);   // overlays: map coords × Z, in CSS pixels
   ctx.strokeStyle='rgba(242,196,159,.35)';ctx.lineWidth=1;ctx.strokeRect(-.5,-.5,W*Z+1,H*Z+1);
   edgeTabs=[];const MAXC=60,MAXR=40;
@@ -1331,7 +1333,7 @@ function toRaise(){if(!sculpt||sculpt.phase!=='paint')return;
   let base=SLAD0,best=-1;for(const k in cnt)if(cnt[k]>best){best=cnt[k];base=+k}
   Object.assign(sculpt,{phase:'raise',y0:sculpt.cy,base,delta:0});syncHint()}
 let last=0;const reduce=matchMedia('(prefers-reduced-motion: reduce)');
-function loop(ts){mpTick();if(sculpt&&sculpt.phase==='paint'&&performance.now()-sculpt.t>DWELL)toRaise();if($('anim').checked&&!reduce.matches&&ts-last>150){frame=(frame+1)%8;last=ts}draw(ts);placeSelbar();signTick();requestAnimationFrame(loop)}
+function loop(ts){mpTick();if(sculpt&&sculpt.phase==='paint'&&performance.now()-sculpt.t>DWELL)toRaise();if($('anim').checked&&!reduce.matches&&ts-last>150){frame=(frame+1)%8;last=ts}blastTick();draw(ts);placeSelbar();signTick();requestAnimationFrame(loop)}
 
 // ================= interaction =================
 const dist=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1]);
@@ -1605,7 +1607,8 @@ function buildMine(){const box=$('pane-mine'),mine=st.tokens.filter(t=>mpMayMove
   if(!mine.length){const b=document.createElement('button');b.className='btn primary';b.textContent='Pick a token';b.onclick=()=>$('mpbtn').click();box.append(b);return}
   mine.forEach(t=>{const b=itemBtn('me-'+t.s,tokSwatch(t.s),tokLabel(t.s),'Your token. Click to find it on the map.','',()=>{const q=st.tokens.find(q=>q.s===t.s);if(q){cam.x=q.x-viewW/Z/2;cam.y=q.y-viewH/Z/2;clampCam()}});b.classList.add('tok');box.append(b)});
   const c=myChar,cb=document.createElement('button');cb.className='btn';cb.id='mychar';cb.textContent=c?c.name:'Add your character';cb.dataset.tip=c?'Your character':'Add your character';cb.dataset.sub=c?'HP, AC and ability scores':'Import from D&D Beyond';cb.onclick=()=>openChar('me');box.append(cb)}
-function paintName(){return paint.layer==='ground'?TERR[paint.t].name:ELEV.find(e=>e.h===paint.h&&e.s===paint.s).name}
+const elevName=(h,s)=>(ELEV.find(e=>e.h===h&&e.s===s)||{name:h>0?'Raised '+h:h<0?'Lowered '+-h:'Flattened'}).name;
+function paintName(){return paint.layer==='ground'?TERR[paint.t].name:elevName(paint.h,paint.s)}
 function syncHint(){const h=$('hint');h.replaceChildren();
   const add=html=>{const s=document.createElement('span');s.innerHTML=html;h.append(s)};
   const pill=t=>{const s=document.createElement('span');s.className='pill';s.textContent=t;h.append(s)};
@@ -1628,7 +1631,7 @@ function syncHint(){const h=$('hint');h.replaceChildren();
   else{if(!sel)return;
     if(sel.type==='token'){const t=st.tokens[sel.i];pill(t?tokLabel(t.s)+' selected':'Token selected')}
     else if(sel.type!=='op'){const l=selList();pill(l.length===1?OBJ.find(o=>o.k===st.objects[l[0]].k).name+' selected':`${l.length} objects selected`)}
-    else{pill((st.ops[sel.i].layer==='ground'?TERR[st.ops[sel.i].t].name:ELEV.find(e=>e.h===st.ops[sel.i].h&&e.s===st.ops[sel.i].s).name)+' selected');
+    else{pill((st.ops[sel.i].layer==='ground'?TERR[st.ops[sel.i].t].name:st.ops[sel.i].blast?'Crater':elevName(st.ops[sel.i].h,st.ops[sel.i].s))+' selected');
       add('Drag corners to reshape')}}}
 // ================= tooltips =================
 // Every control carries data-tip (name), data-key (shortcut) and data-sub (a one-line note). One floating tip shows them on hover.
@@ -1660,6 +1663,7 @@ function buildSelbar(){const bar=$('selbar');bar.replaceChildren();const add=(ic
     b.setAttribute('aria-label',name);b.dataset.tip=name;if(key)b.dataset.key=key;if(sub)b.dataset.sub=sub;b.onclick=fn;bar.append(b)};
   if(sel.type==='token'){const t=st.tokens[sel.i];if(t)add('sheet',charFor(t.s)?'Character':'Add a character','',charFor(t.s)?'HP, AC and ability scores':'Import from D&D Beyond',()=>openChar(t.s))}
   add('copy','Duplicate','Ctrl D','A copy, one square over',dupSel);
+  dynSelbar(bar,add);
   if(sel.type==='obj'&&isSign(sel.i))add('sign','Edit sign','Enter','Write the message and pick its language',()=>signEdit(sel.i));
   if(sel.type==='obj'||sel.type==='objs')add('stamp','Save as stamp','','Reuse this group from the Objects tray',saveStamp);
   add('trash','Delete','Del','',delSel,'danger')}
@@ -1738,7 +1742,7 @@ function libLabel(){const m=libCur();$('libname').textContent=m?m.name:'';docume
 // replace the open map with s (already cleaned); undo history belongs to the old map
 function libOpen(id,s){if(!s){libSay('That map could not be read.');return false}
   const old=libCur();if(old)libPut(old.id,JSON.stringify(st));
-  st=s;lib.cur=id;hist=[];updUndo();sel=null;draft=[];stroke=null;sculpt=null;drag=null;measure=null;pings=[];
+  st=s;lib.cur=id;hist=[];updUndo();sel=null;draft=[];stroke=null;sculpt=null;drag=null;measure=null;pings=[];fuses=[];blasts=[];
   try{localStorage.setItem('dustmap-v2',JSON.stringify(st))}catch(e){}libStore();
   applySize();fit();syncUI();libLabel();mpChanged();return true}
 function libAdd(name,s,open){const id=libId(),m={id,name:libUniq(name),...libMeta(s)};lib.maps.push(m);
@@ -2063,7 +2067,7 @@ function mpTick(){if(!mp.room)return;let pr;
   else{const tk=drag&&drag.kind==='token'?st.tokens[drag.i]:null,hd=pointer&&pointer.down?pointer.trail[pointer.trail.length-1]:null;
     pr={cur:hover&&hover[0]>=0&&hover[1]>=0&&hover[0]<=W&&hover[1]<=H?[Math.round(hover[0]),Math.round(hover[1])]:null,
       ptr:hd?[Math.round(hd.x),Math.round(hd.y)]:null,meas:measure?{a:measure.a,b:measure.b}:null,
-      drag:tk&&tk.id?{id:tk.id,x:Math.round(tk.x),y:Math.round(tk.y)}:null,ping:mp.pres.ping||null,mv:mp.pres.mv||null,pick:Number.isInteger(mp.pres.pick)?mp.pres.pick:null,ch:mp.role==='player'&&myChar?{c:myChar,n:myCharN}:null}}
+      drag:tk&&tk.id?{id:tk.id,x:Math.round(tk.x),y:Math.round(tk.y)}:null,ping:mp.pres.ping||null,mv:mp.pres.mv||null,pick:Number.isInteger(mp.pres.pick)?mp.pres.pick:null,ch:mp.role==='player'&&myChar?{c:myChar,n:myCharN}:null,bm:mp.role==='dm'&&mp.pres.bm||null}}
   const j=JSON.stringify(pr);if(j===mp.sent)return;mp.sent=mp.role==='off'?'':j;mp.room.presence(pr).catch(()=>{})}
 const ptOk=q=>Array.isArray(q)&&q.length===2&&fin(q[0])&&fin(q[1]);
 function mpPeers(ch){mp.peers=ch.peers;const now=performance.now(),ghost=new Map();let commit=false;
@@ -2077,12 +2081,13 @@ function mpPeers(ch){mp.peers=ch.peers;const now=performance.now(),ghost=new Map
     const dg=pr.drag;if(dg&&typeof dg.id==='string'&&fin(dg.x)&&fin(dg.y)){const t=st.tokens.find(t=>t.id===dg.id);if(t&&mpMayMove(t,p.by)){const gp=[Math.max(0,Math.min(W,+dg.x)),Math.max(0,Math.min(H,+dg.y))];ghost.set(dg.id,gp);
       // players reveal as they walk: follow the token while it's being dragged, not just where it lands
       if(mp.role==='dm'){if(fogWalk(t,mp.walkLast.get(t.id)||[t.x,t.y],gp))commit=true;mp.walkLast.set(t.id,gp)}}}
+    if(mp.role==='player'&&p.by&&p.by===mp.sess.dm)blastPeer(key,pr.bm);   // fuses and blasts only come from the DM
     if(mp.role==='dm'&&charTake(p,pr))commit=true;
     if(mp.role==='dm'){const mv=pr.mv;
       if(mv&&typeof mv.id==='string'&&mp.mvSeen.get(key)!==mv.n){mp.mvSeen.set(key,mv.n);const t=st.tokens.find(t=>t.id===mv.id);
         if(t&&p.by&&p.by!==mp.me&&mpMayMove(t,p.by)&&fin(mv.x)&&fin(mv.y)&&fin(mv.base)&&+mv.base>=(mp.tokR[t.id]||0)){
           const from=mp.walkLast.get(t.id)||[t.x,t.y];t.x=Math.max(8,Math.min(W-8,+mv.x));t.y=Math.max(30,Math.min(H-1,+mv.y));fogWalk(t,from,[t.x,t.y]);mp.walkLast.delete(t.id);commit=true}}}}
-  for(const l of ch.left){mp.trails.delete(l.peer);mp.pingSeen.delete(l.peer);mp.mvSeen.delete(l.peer);mp.pickSeen.delete(l.peer);mp.chSeen.delete(l.peer)}
+  for(const l of ch.left){bmSeen.delete(l.peer);mp.trails.delete(l.peer);mp.pingSeen.delete(l.peer);mp.mvSeen.delete(l.peer);mp.pickSeen.delete(l.peer);mp.chSeen.delete(l.peer)}
   if(mp.role==='dm'&&mpPicks(ch.peers))commit=true;
   for(const id of [...mp.walkLast.keys()])if(!ghost.has(id))mp.walkLast.delete(id);
   mp.ghost=ghost;if(commit)save();mpUI()}
@@ -2484,6 +2489,115 @@ function signInit(o){if(o.k==='sign'){o.v=0;o.txt=o.txt||'';o.lang=o.lang||'comm
    fresh.forEach(signInit);objDirty=true;save();if(fresh.length===1)signEdit(signN)});
  cv.addEventListener('dblclick',e=>{if(tool!=='select'||mp.role==='player')return;const i=signAt(toMap(e));if(i>=0){e.preventDefault();setObjSel([i]);signEdit(i);syncUI()}});
  window.addEventListener('keydown',e=>{if(e.key!=='Enter'||e.target!==document.body&&e.target.tagName!=='CANVAS')return;if(tool==='select'&&sel&&sel.type==='obj'&&isSign(sel.i)&&mp.role!=='player'){e.preventDefault();signEdit(sel.i)}})}
+// ================= dynamite =================
+// A dynamite bundle is an object like any other ({k:'dynamite',x,y,v}) that may also carry br (blast radius in squares,
+// BR_OPTS, default 2) and bd (levels it blasts down, BD_OPTS, default 2). The DM (or a solo editor) lights it from the
+// selection bar, with Enter or a double-click; the fuse burns BLAST_FUSE ms and then it explodes:
+//  - the bundle goes, and a crater height op is added: a ragged circle set to the most common level under the blast minus
+//    bd (−3 at the deepest), tagged blast:1. It goes through the normal elevation model, so it renders, undoes, saves and
+//    syncs like any painted pit, and partial redraw only repaints the crater.
+//  - a few rocks (rubble on stone) land around the rim, and any other dynamite inside the blast goes off a moment later.
+//  - one undo takes back the whole blast (crater, rocks and the bundle).
+// The flash, fireball, shockwave, flying dirt, sparks, smoke and a small screen shake are screen only (never in snapshots),
+// drawn between the objects and the fog so fog still hides them. In a session the DM's presence carries the last few fuses
+// and blasts (bm: [{n,f,x,y,r,s}], f 1 = fuse lit, 0 = boom); players' pages play them, and the crater reaches them with the map.
+OBJ.push({k:'dynamite',name:'Dynamite',sub:'Light it to blast a crater into the ground',g:'Mine & cave'});
+SIZE.dynamite=[10,12];
+ICON.boom='M12 2l1.8 5.6L19 5l-2.2 5.2L22 12l-5.2 1.8L19 19l-5.2-2.6L12 22l-1.8-5.6L5 19l2.2-5.2L2 12l5.2-1.8L5 5l5.2 2.6z';
+const BLAST_FUSE=1500,BLAST_LEN=2600,BR_OPTS=[1,2,3,4],BD_OPTS=[1,2,3];
+const isDyn=o=>!!o&&o.k==='dynamite';
+const blastR=o=>BR_OPTS.includes(o.br)?o.br:2,blastD=o=>BD_OPTS.includes(o.bd)?o.bd:2;
+let fuses=[],blasts=[],bmLog=[],bmN=0,shake=null;
+const bmSeen=new Map();
+function dynSprite(put,R,LN){
+  const st1=[196,52,44],st2=[150,34,34],stl=[232,104,84];
+  for(let s=0;s<3;s++){const x=1+s*3;R(x,3,2,9,st1);R(x+1,3,1,9,st2);put(x,3,stl);put(x,4,stl);R(x,3,2,1,[226,206,170])}
+  R(1,8,8,1,[120,86,56]);R(1,9,8,1,[86,60,40]);
+  LN(5,3,6,1,[70,58,52]);LN(6,1,8,0,[70,58,52])}
+const fuseTip=(x,y,t)=>{const a=Math.min(1,Math.max(0,t));return[x+3-a*3,y-6+a*3]};   // the spark runs down the fuse
+const selDyn=()=>selList().map(i=>st.objects[i]).filter(isDyn);
+// emit a fuse or a blast to players (DM only; presence keeps the last few so a quick chain isn't lost)
+function bmEmit(ev){if(mp.role!=='dm')return;ev.n=++bmN;bmLog.push(ev);if(bmLog.length>8)bmLog.shift();mp.pres.bm=bmLog.slice()}
+function dynLight(list){if(mp.role==='player')return;const now=performance.now();let n=0;
+  list.forEach(o=>{if(!isDyn(o)||fuses.some(f=>f.o===o))return;fuses.push({o,t0:now,x:o.x,y:o.y});n++;bmEmit({f:1,x:Math.round(o.x),y:Math.round(o.y)})});
+  if(n){sel=null;syncUI()}}
+// most common height under the blast circle (sampled every 2 px)
+function blastBase(cx,cy,r){if(!lastR)return 0;const cnt={};let best=0,bn=-1;
+  for(let y=Math.max(0,Math.floor(cy-r));y<Math.min(H,cy+r);y+=2)for(let x=Math.max(0,Math.floor(cx-r));x<Math.min(W,cx+r);x+=2){
+    if((x-cx)*(x-cx)+(y-cy)*(y-cy)>r*r)continue;const v=lastR.Hm[y*W+x];cnt[v]=(cnt[v]||0)+1;if(cnt[v]>bn){bn=cnt[v];best=v}}
+  return best}
+function dynExplode(o){const i=st.objects.indexOf(o);if(i<0)return;   // undone or deleted while the fuse burned
+  push();const r=blastR(o)*GRID,cx=o.x,cy=o.y,sid=Math.floor(Math.random()*100000),R=mulberry(sid);
+  st.objects.splice(i,1);if(sel&&sel.type!=='token'&&sel.type!=='op')sel=null;
+  const base=blastBase(cx,cy,r),h=Math.max(-3,base-blastD(o));
+  if(h<base){const pts=[],N=16;for(let k=0;k<N;k++){const a=k/N*Math.PI*2,d=r*(.84+R()*.26);
+      pts.push([Math.max(0,Math.min(W,Math.round(cx+Math.cos(a)*d))),Math.max(0,Math.min(H,Math.round(cy+Math.sin(a)*d*.92)))])}
+    const op={kind:'poly',layer:'height',h,s:h?1:0,pts,sid:sid%1000,blast:1};st.ops.push(op);markOp(op)}
+  // debris that lands around the rim
+  const stone=lastR&&lastR.L[Math.min(H-1,Math.max(0,cy|0))*W+Math.min(W-1,Math.max(0,cx|0))]===7,n=stone?2:3+Math.floor(R()*3);
+  for(let k=0;k<n;k++){const a=R()*Math.PI*2,d=r*(1.08+R()*.45),x=cx+Math.cos(a)*d,y=cy+Math.sin(a)*d;
+    if(x>4&&y>4&&x<W-4&&y<H-4)st.objects.push({k:stone?'rubble':'rock',x:Math.round(x),y:Math.round(y),v:Math.floor(R()*12)})}
+  objDirty=true;
+  // anything else that goes off with it
+  const now=performance.now();let c=0;
+  st.objects.forEach(q=>{if(isDyn(q)&&!fuses.some(f=>f.o===q)&&Math.hypot(q.x-cx,q.y-cy)<=r+4)fuses.push({o:q,t0:now-BLAST_FUSE+220+(c++)*140,x:q.x,y:q.y})});
+  save();syncUI();blastFx(cx,cy,r,sid);bmEmit({f:0,x:Math.round(cx),y:Math.round(cy),r,s:sid})}
+function blastFx(x,y,r,s){const now=performance.now();blasts.push({x,y,r,s,t0:now});
+  fuses=fuses.filter(f=>f.o||Math.hypot(f.x-x,f.y-y)>2);
+  if(!reduce.matches)shake={t0:now,a:2+r/12}}
+// a player's page: play the fuses and blasts the DM's presence lists (only ones that are new since we first saw them)
+function blastPeer(key,bm){if(!Array.isArray(bm))bm=[];const seen=bmSeen.get(key),top=Math.max(0,...bm.map(e=>e&&fin(e.n)?+e.n:0));bmSeen.set(key,Math.max(seen||0,top));
+  if(seen===undefined)return;const now=performance.now();
+  bm.forEach(e=>{if(!e||!fin(e.n)||+e.n<=seen||!fin(e.x)||!fin(e.y))return;const x=+e.x,y=+e.y;
+    if(e.f===1)fuses.push({t0:now,x,y});else blastFx(x,y,Math.max(8,Math.min(96,fin(e.r)?+e.r:32)),fin(e.s)?+e.s:1)})}
+function blastTick(){const now=performance.now();
+  const due=fuses.filter(f=>f.o&&now-f.t0>=BLAST_FUSE);fuses=fuses.filter(f=>f.o?now-f.t0<BLAST_FUSE:now-f.t0<BLAST_FUSE+1500);
+  due.forEach(f=>dynExplode(f.o));blasts=blasts.filter(b=>now-b.t0<BLAST_LEN)}
+// screen shake offset in CSS px
+function blastShake(){if(!shake)return[0,0];const t=(performance.now()-shake.t0)/380;if(t>=1){shake=null;return[0,0]}
+  const a=shake.a*(1-t)*(1-t);return[Math.round(Math.sin(t*61)*a),Math.round(Math.cos(t*47)*a)]}
+const DIRT=[[150,108,78],[120,84,62],[184,140,100],[96,68,54],[206,170,128]];
+function drawBlasts(g,fv){const now=performance.now(),still=!$('anim').checked||reduce.matches;
+  // DM: show the reach of a selected bundle
+  if(mp.role!=='player'&&tool==='select'&&!drag)selDyn().forEach(o=>{const r=blastR(o)*GRID;g.save();g.setLineDash([3,3]);g.lineWidth=1;g.strokeStyle='rgba(255,140,80,.9)';
+    g.beginPath();g.ellipse(o.x,o.y,r,r*.92,0,0,7);g.stroke();g.fillStyle='rgba(255,120,60,.08)';g.fill();g.restore()});
+  fuses.forEach(f=>{if(fogAt(fv,f.x,f.y))return;const t=(now-f.t0)/BLAST_FUSE,[sx,sy]=fuseTip(f.x,f.y,t),fl=(Math.floor(now/45)%3);
+    const gr=g.createRadialGradient(sx,sy,0,sx,sy,7);gr.addColorStop(0,'rgba(255,220,120,.75)');gr.addColorStop(1,'rgba(255,160,60,0)');g.fillStyle=gr;g.fillRect(sx-7,sy-7,14,14);
+    g.fillStyle='#fff6c8';g.fillRect(Math.round(sx),Math.round(sy),1,1);
+    if(!still){const R=mulberry(Math.floor(now/45)*7+(f.x|0));for(let k=0;k<4+fl;k++){g.fillStyle=k%2?'#ffd060':'#ff8a30';g.fillRect(Math.round(sx+(R()-.5)*6),Math.round(sy-R()*5),1,1)}
+      for(let k=0;k<3;k++){const p=((now/700)+k/3)%1;g.fillStyle=`rgba(200,190,180,${.35*(1-p)})`;g.beginPath();g.arc(sx+Math.sin(p*6+k)*2,sy-3-p*10,1+p*2.5,0,7);g.fill()}}});
+  blasts.forEach(b=>{if(fogAt(fv,b.x,b.y))return;const t=(now-b.t0)/1000,{x,y,r}=b;
+    if(still){if(t<.6){const a=1-t/.6,gr=g.createRadialGradient(x,y,0,x,y,r*1.4);gr.addColorStop(0,`rgba(255,240,200,${a})`);gr.addColorStop(1,'rgba(255,140,60,0)');g.fillStyle=gr;g.fillRect(x-r*1.4,y-r*1.4,r*2.8,r*2.8)}return}
+    const R=mulberry(b.s);
+    // scorch under it all while the dust settles
+    {const a=Math.min(1,t*6)*Math.max(0,1-t/2.6)*.5,gr=g.createRadialGradient(x,y,0,x,y,r*1.1);gr.addColorStop(0,`rgba(30,20,20,${a})`);gr.addColorStop(1,'rgba(30,20,20,0)');g.fillStyle=gr;g.fillRect(x-r*1.1,y-r*1.1,r*2.2,r*2.2)}
+    // flying dirt: a fake height z with gravity; pieces land, then fade
+    const G=420;for(let k=0;k<70;k++){const a=R()*Math.PI*2,sp=r*(.7+R()*1.9),vz=60+R()*150,T=2*vz/G,c=DIRT[k%DIRT.length],sz=R()<.3?2:1,tt=Math.min(t,T),
+      px=x+Math.cos(a)*sp*tt,py=y+Math.sin(a)*sp*tt*.9,z=Math.max(0,vz*tt-.5*G*tt*tt),al=t<T?1:Math.max(0,1-(t-T)/.7);if(al<=0)continue;
+      g.fillStyle=`rgba(${c[0]},${c[1]},${c[2]},${al})`;g.fillRect(Math.round(px),Math.round(py-z),sz,sz)}
+    // smoke: puffs that swell, drift up and thin out
+    for(let k=0;k<14;k++){const a=R()*Math.PI*2,d=R()*r*.6,life=1.6+R()*.9,d0=.05+R()*.15,p=(t-d0)/life;if(p<0||p>1)continue;
+      const sx=x+Math.cos(a)*d*(1+p*.6),sy=y+Math.sin(a)*d*.8-p*(14+R()*14),rad=3+p*r*.55,sh=110+R()*40|0;
+      g.fillStyle=`rgba(${sh},${sh-12},${sh-22},${.6*(1-p)*(1-p)})`;g.beginPath();g.arc(sx,sy,rad,0,7);g.fill()}
+    // fireball and flash
+    if(t<.5){const p=t/.5,rad=r*(.35+p*.85),gr=g.createRadialGradient(x,y-p*4,0,x,y-p*4,rad);
+      gr.addColorStop(0,`rgba(255,246,210,${1-p})`);gr.addColorStop(.35,`rgba(255,190,80,${.95*(1-p)})`);gr.addColorStop(.7,`rgba(230,90,40,${.7*(1-p)})`);gr.addColorStop(1,'rgba(160,50,30,0)');
+      g.fillStyle=gr;g.fillRect(x-rad,y-rad-4,rad*2,rad*2+4)}
+    if(t<.14){const a=1-t/.14,rr=r*2.4,gr=g.createRadialGradient(x,y,0,x,y,rr);gr.addColorStop(0,`rgba(255,255,240,${a})`);gr.addColorStop(1,'rgba(255,230,180,0)');g.fillStyle=gr;g.fillRect(x-rr,y-rr,rr*2,rr*2)}
+    // shockwave ring
+    if(t<.55){const p=t/.55;g.strokeStyle=`rgba(255,236,200,${.8*(1-p)})`;g.lineWidth=2.5*(1-p)+.5;g.beginPath();g.ellipse(x,y,r*(.3+p*1.9),r*(.3+p*1.9)*.92,0,0,7);g.stroke()}
+    // sparks
+    for(let k=0;k<28;k++){const a=R()*Math.PI*2,sp=r*(2+R()*3),life=.25+R()*.45;if(t>life)continue;const p=t/life;
+      g.fillStyle=p<.5?'#fff2b0':'#ff9a40';g.fillRect(Math.round(x+Math.cos(a)*sp*t),Math.round(y+Math.sin(a)*sp*t*.9-8*p),1,1)}})}
+cv.addEventListener('dblclick',e=>{if(tool!=='select'||mp.role==='player')return;const h=hit(toMap(e));if(h&&h.type==='obj'&&isDyn(st.objects[h.i])){e.preventDefault();dynLight([st.objects[h.i]])}});
+window.addEventListener('keydown',e=>{if(e.key!=='Enter'||e.target!==document.body&&e.target.tagName!=='CANVAS')return;if(tool==='select'&&mp.role!=='player'&&selDyn().length){e.preventDefault();dynLight(selDyn())}});
+// selection bar: light it, and pick how big and how deep it blasts
+function dynSelbar(bar,add){const l=selDyn();if(!l.length)return;const o=l[0],r=blastR(o),d=blastD(o);
+  add('boom',l.length>1?'Light all '+l.length+' fuses':'Light fuse','Enter',`Blasts a crater ${d} level${d>1?'s':''} down, ${r*2} squares across`,()=>dynLight(selDyn()));
+  const txt=(label,name,sub,fn)=>{const b=document.createElement('button');b.className='ib ibt';b.textContent=label;b.setAttribute('aria-label',name);b.dataset.tip=name;b.dataset.sub=sub;b.onclick=fn;bar.append(b)};
+  const set=(f,opts,cur)=>{push();const nx=opts[(opts.indexOf(cur)+1)%opts.length];selDyn().forEach(q=>q[f]=nx);save();selKey='';syncUI()};
+  txt(r*2+'□','Blast width: '+r*2+' squares','Click for a bigger or smaller blast',()=>set('br',BR_OPTS,r));
+  txt('−'+d,'Blast depth: '+d+' level'+(d>1?'s':''),'Click to blast deeper or shallower',()=>set('bd',BD_OPTS,d))}
 // ---- the tour map: a small world where every sign explains the tool that built the ground around it ----
 function tourMap(){const S=(x,y,txt,o={})=>({k:'sign',x,y,v:o.v||0,txt,lang:o.lang||'common',...(o.tr?{tr:1}:{})});
   const ops=[
@@ -2526,12 +2640,12 @@ function tourMap(){const S=(x,y,txt,o={})=>({k:'sign',x,y,v:o.v||0,txt,lang:o.la
     S(232,280,'FOG OF WAR (F)\nThe cave to the south is hidden from players. Paint Reveal over it, or double-click to paint the opposite way. Turn on Players reveal as they walk and fog clears wherever their tokens go. The eye shows what players see.',{v:2}),
     S(330,380,'Turn back, mortal. What sleeps here does not forgive.',{lang:'infernal'}),
     S(188,282,'MEASURE (M) AND PING (P)\nDrag between squares to see the distance. Click to ping, drag to point. In a session everyone sees them.',{v:2}),
-    S(440,276,'MINES\nStone is cave floor; raise it for rock walls. Mine rail follows your stroke. Objects (O) has carts, lanterns, timbers and crystals.',{v:1}),
+    S(440,276,'MINES\nStone is cave floor; raise it for rock walls. Mine rail follows your stroke. Objects (O) has carts, lanterns, timbers, crystals and dynamite: double-click a bundle to light it and blast a crater.',{v:1}),
     S(600,262,'PLAY TOGETHER\nThe button at the top right starts a live session. Players pick a token and move only their own, which glows gold for them. You see the whole map; they see what you reveal.'),
     {k:'wagon',x:56,y:186,v:2},{k:'barrels',x:26,y:196,v:0},{k:'crates',x:130,y:190,v:0},{k:'campfire',x:166,y:188,v:0},
     {k:'torch',x:462,y:290,v:0},{k:'torch',x:498,y:290,v:0},
     {k:'boulder',x:70,y:340,v:0},{k:'boulder',x:130,y:400,v:3},{k:'rock',x:100,y:372,v:0},
-    {k:'cart',x:550,y:356,v:0},{k:'lantern',x:480,y:300,v:0},{k:'lantern',x:600,y:330,v:0},{k:'timber',x:500,y:420,v:0},{k:'crystals',x:610,y:420,v:0},{k:'rubble',x:620,y:300,v:0},
+    {k:'cart',x:550,y:356,v:0},{k:'lantern',x:480,y:300,v:0},{k:'lantern',x:600,y:330,v:0},{k:'timber',x:500,y:420,v:0},{k:'crystals',x:610,y:420,v:0},{k:'rubble',x:620,y:300,v:0},{k:'dynamite',x:596,y:300,v:0},
     {k:'crystals',x:290,y:420,v:1},{k:'tree',x:210,y:110,v:0},{k:'well',x:520,y:200,v:0}];
   const tokens=[{s:0,x:56,y:232,o:0},{s:1,x:72,y:232,o:3},{s:2,x:56,y:248,o:5},{s:3,x:72,y:248,o:2},{s:4,x:344,y:392,o:1}];
   // the cave (columns 16–25, rows 18–27) starts hidden
@@ -2540,7 +2654,7 @@ function tourMap(){const S=(x,y,txt,o={})=>({k:'sign',x,y,v:o.v||0,txt,lang:o.la
 function tourOpen(){const s=libClean(tourMap());if(!s)return;const m=libAdd('Dustmap tour',s,true);if(m)libHide()}
 $('libtour').onclick=tourOpen;$('tour').onclick=()=>{menuShow(false);tourOpen()};
 // read-only peek for the tests
-window.__dustmap=()=>({st,fog:fogGet(),litFires:litFires(fogView()).length,role:mp.role,cam:{...cam},Z,pings:pings.map(p=>({x:p.x,y:p.y,rgb:p.rgb||null})),tool,peers:mp.peers.length,busy:mp.busy,err:mp.err,again:mp.again});
+window.__dustmap=()=>({st,fog:fogGet(),litFires:litFires(fogView()).length,role:mp.role,cam:{...cam},Z,pings:pings.map(p=>({x:p.x,y:p.y,rgb:p.rgb||null})),blasts:blasts.map(b=>({x:b.x,y:b.y,r:b.r})),fuses:fuses.length,tool,peers:mp.peers.length,busy:mp.busy,err:mp.err,again:mp.again});
 libInit();mpInit();
 buildTools();buildObjs();buildToks();buildPaints();updUndo();sizeCanvas();syncUI();requestAnimationFrame(loop);
 setTimeout(buildPaints,0);
