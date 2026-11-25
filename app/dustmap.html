@@ -424,9 +424,16 @@ a.btn{text-decoration:none;color:var(--fg)}
 
 <script>
 (()=>{
-// ?as=player opens a throwaway player in another tab (from the DM's Play together dialog), so one person can see both views.
+// "Open a test player" (DM's Play together dialog) opens a throwaway player in another tab, so one person can see both views.
 // It gets its own Firebase identity and keeps this browser's saved maps untouched: storage is an in-memory copy.
-const TESTPLAYER=/[?&]as=player\b/.test(location.search);
+// The tab is marked by its window name, not its address, so reopening Dustmap from history or the address bar
+// is always the real you (the DM), never the test player. Old ?as=player links still work, and the marker comes off the address.
+const TPNAME='dustmap-test-player';
+const TESTPLAYER=(()=>{let t=false;try{t=window.name===TPNAME}catch(e){}
+  const q=location.search.replace(/^\?/,'').split('&').filter(Boolean);
+  if(q.includes('as=player')){t=true;try{window.name=TPNAME}catch(e){}
+    const rest=q.filter(x=>x!=='as=player').join('&');try{history.replaceState(null,'',location.pathname+(rest?'?'+rest:'')+location.hash)}catch(e){}}
+  return t})();
 const localStorage=TESTPLAYER?(()=>{const m=new Map();try{for(let i=0;i<window.localStorage.length;i++){const k=window.localStorage.key(i);m.set(k,window.localStorage.getItem(k))}}catch(e){}
   m.set('dustmap-name','Test player');
   return{getItem:k=>m.has(k)?m.get(k):null,setItem:(k,v)=>{m.set(k,String(v))},removeItem:k=>{m.delete(k)},clear:()=>m.clear(),key:i=>[...m.keys()][i]??null,get length(){return m.size}}})():window.localStorage;
@@ -2059,11 +2066,11 @@ function mpPinged(x,y){if(mp.role!=='off')mp.pres.ping={x:Math.round(x),y:Math.r
 
 // ---- presence: what I'm doing, sent as absolute state ----
 function mpTick(){if(!mp.room)return;let pr;
-  if(mp.role==='off'){if(!mp.sent)return;pr={cur:null,ptr:null,meas:null,drag:null,ping:null,mv:null,pick:null,ch:null}}
+  if(mp.role==='off'){if(!mp.sent)return;pr={cur:null,ptr:null,meas:null,drag:null,ping:null,mv:null,pick:null,ch:null,tp:null}}
   else{const tk=drag&&drag.kind==='token'?st.tokens[drag.i]:null,hd=pointer&&pointer.down?pointer.trail[pointer.trail.length-1]:null;
     pr={cur:hover&&hover[0]>=0&&hover[1]>=0&&hover[0]<=W&&hover[1]<=H?[Math.round(hover[0]),Math.round(hover[1])]:null,
       ptr:hd?[Math.round(hd.x),Math.round(hd.y)]:null,meas:measure?{a:measure.a,b:measure.b}:null,
-      drag:tk&&tk.id?{id:tk.id,x:Math.round(tk.x),y:Math.round(tk.y)}:null,ping:mp.pres.ping||null,mv:mp.pres.mv||null,pick:Number.isInteger(mp.pres.pick)?mp.pres.pick:null,ch:mp.role==='player'&&myChar?{c:myChar,n:myCharN}:null}}
+      drag:tk&&tk.id?{id:tk.id,x:Math.round(tk.x),y:Math.round(tk.y)}:null,ping:mp.pres.ping||null,mv:mp.pres.mv||null,pick:Number.isInteger(mp.pres.pick)?mp.pres.pick:null,ch:mp.role==='player'&&myChar?{c:myChar,n:myCharN}:null,tp:TESTPLAYER?1:null}}
   const j=JSON.stringify(pr);if(j===mp.sent)return;mp.sent=mp.role==='off'?'':j;mp.room.presence(pr).catch(()=>{})}
 const ptOk=q=>Array.isArray(q)&&q.length===2&&fin(q[0])&&fin(q[1]);
 function mpPeers(ch){mp.peers=ch.peers;const now=performance.now(),ghost=new Map();let commit=false;
@@ -2123,7 +2130,7 @@ function mpPeople(){const s=mp.sess||{assign:{}},ids=new Set(),here=new Set();
   return{ids:[...ids],here}}
 function mpUI(){const b=$('mpbtn');b.replaceChildren();b.classList.toggle('live',mp.role!=='off');
   if(mp.role!=='off'){const d=document.createElement('span');d.className='dot';b.append(d)}
-  b.append(mp.role==='dm'?'Live · DM':mp.role==='player'?(!Object.values(mp.sess.assign).includes(mp.me)?'Pick a token':TESTPLAYER?'Live · Test player':'Live · Playing'):'Play together');
+  b.append(mp.role==='dm'?'Live · DM':mp.role==='player'?(!Object.values(mp.sess.assign).includes(mp.me)?(Number.isInteger(mp.pres.pick)?'Joining…':'Pick a token'):TESTPLAYER?'Live · Test player':'Live · Playing'):'Play together');
   const{ids,here}=mpPeople();const pk=ids.join();
   if(mp.user&&pk!==mpProfKey){mpProfKey=pk;mp.user.profiles(ids).then(ps=>{mp.profiles={...mp.profiles,...ps};mpKey='';mpRender()}).catch(()=>{})}
   const key=JSON.stringify([mp.avail,mp.sess,mp.role,ids,[...here],mp.err,st.tokens.map(t=>t.s)]);if(key!==mpKey){mpKey=key;mpRender()}}
@@ -2153,44 +2160,67 @@ function mpRender(){if($('mpmodal').hidden)return;const box=$('mpbody');box.repl
       button('Start session','primary',()=>mpWrite({live:true,dm:mp.me,assign:(s&&s.assign)||{}}),a)}
     else para('Nobody is running a session right now. When your DM starts one, this page switches to the shared map by itself.');
     mpNewRoom(box);para(invite,'note');return}
-  const amDM=mp.role==='dm';
+  const amDM=mp.role==='dm',{ids,here}=mpPeople(),dmHere=amDM||mp.peers.some(p=>p.by===s.dm&&!p.sameTab);
+  const isTest=id=>mp.peers.some(p=>p.by===id&&p.presence&&p.presence.tp);
   para(amDM?'You’re the DM. Players see your map live and pick their own token.':`<b></b> is the DM. Your view follows their map.`).querySelector('b')?.append(mpName(s.dm));
-  if(mp.role==='player'){mpPicker(box,s);const a=document.createElement('div');a.className='mpacts';box.append(a);
-    button(myChar?'Your character: '+myChar.name:'Add your D&D Beyond character',myChar?'':'primary',()=>{$('mpmodal').hidden=true;openChar('me')},a).id='mpchar'}
-  const{ids,here}=mpPeople(),list=document.createElement('div');list.className='mppeople';box.append(list);
+  // the room's owner can always get the DM role back, and is told so when the DM has gone (a closed test player, say)
+  if(!amDM&&mp.owner&&!TESTPLAYER){const a=document.createElement('div');a.className='mpacts';box.append(a);
+    if(!dmHere)para('The DM isn’t connected, so nothing changes on the map until you take over.','note');
+    button('Take over as DM',dmHere?'':'primary',()=>mpWrite({...s,dm:mp.me}),a).id='mptakeover'}
+  if(mp.role==='player'){mpPicker(box,s,dmHere);const a=document.createElement('div');a.className='mpacts';box.append(a);
+    button(myChar?'Your character: '+myChar.name:'Add your D&D Beyond character','',()=>{mpPickFlush();$('mpmodal').hidden=true;openChar('me')},a).id='mpchar'}
+  const list=document.createElement('div');list.className='mppeople';box.append(list);
   ids.sort((a,b)=>(b===s.dm)-(a===s.dm)||(b===mp.me)-(a===mp.me)).forEach(id=>{
     const row=document.createElement('div');row.className='mpp'+(here.has(id)?'':' away');const pf=mp.profiles[id];
     if(pf&&pf.avatarUrl){const im=document.createElement('img');im.alt='';im.src=pf.avatarUrl;row.append(im)}
     const nm=document.createElement('div');nm.className='nm';const bn=document.createElement('b');bn.textContent=mpName(id)+(id===mp.me?' (you)':'');
     const mine=Object.keys(s.assign).filter(k=>s.assign[k]===id).map(k=>tokName(+k));
     const sub=document.createElement('span');sub.textContent=(id===s.dm?'DM':mine.length?'Playing '+mine.join(' & '):'Watching')+(here.has(id)?'':' · away');nm.append(bn,sub);row.append(nm);
-    if(mp.owner&&id!==s.dm){button(id===mp.me?'Take over as DM':'Make DM','',()=>mpWrite({...s,dm:id}),row).title=id===mp.me||mp.fb?'':'They need Editor access to this page to change the map'}
+    // the DM role goes to real people only: a test player closes with its tab and would leave the table without a DM
+    if(mp.owner&&id!==s.dm&&id!==mp.me&&!isTest(id)){button('Make DM','',()=>mpWrite({...s,dm:id}),row).title=mp.fb?'':'They need Editor access to this page to change the map'}
     list.append(row)});
   if(mp.fb){const a=document.createElement('div');a.className='mpacts';box.append(a);const link=mp.user.link();
-    if(amDM&&!TESTPLAYER)button('Open a test player','',()=>{window.open(location.pathname+'?as=player#room='+link.split('#room=')[1],'_blank');
+    if(amDM&&!TESTPLAYER)button('Open a test player','',()=>{window.open(location.pathname+location.search+'#room='+link.split('#room=')[1],TPNAME);
       mpSay('A test player opened in a new tab. Pick a token there, then put the two tabs side by side.')},a).title='See exactly what a player sees, in a new tab';
-    button('Copy room link','primary',async e=>{const b=e.currentTarget;try{await navigator.clipboard.writeText(link);b.textContent='Copied'}catch(err){mpSay('Copy this link: '+link)}setTimeout(()=>b.textContent='Copy room link',1500)},a)}
-  if(amDM||mp.owner){const a=document.createElement('div');a.className='mpacts';box.append(a);button('End session','warn',()=>mpWrite({...s,live:false}),a)}
-  mpNewRoom(box);
-  para(invite,'note')}
-// players: choose your token, one each; taken ones show who has them
-function mpPicker(box,s){const mine=Object.keys(s.assign).find(k=>s.assign[k]===mp.me),want=mp.pres.pick;
-  if(mine!==undefined&&(mp.autoPick||+mine===mp.closeOn)){mp.autoPick=false;mp.closeOn=null;setTimeout(()=>{$('mpmodal').hidden=true},600)}   // close once their pick lands, so they can play
-  const h=document.createElement('p');h.innerHTML=mine!==undefined?'You’re playing <b></b>. Pick another to switch.':Number.isInteger(want)?'Joining as <b></b>…':'<b>Pick your token.</b>';
-  const hb=h.querySelector('b');if(hb&&(mine!==undefined||Number.isInteger(want)))hb.textContent=tokLabel(mine!==undefined?+mine:want);box.append(h);
+    if(TESTPLAYER)button('Close test player','',()=>{try{window.name=''}catch(e){}window.close();setTimeout(()=>{location.href=location.pathname+location.search+location.hash},300)},a).title='Back to your own view';
+    else button('Copy room link',amDM?'primary':'',async e=>{const b=e.currentTarget;try{await navigator.clipboard.writeText(link);b.textContent='Copied'}catch(err){mpSay('Copy this link: '+link)}setTimeout(()=>b.textContent='Copy room link',1500)},a)}
+  // running the session is the DM's job: players (the room's owner included, while someone else is DM) don't get End session
+  if(amDM){const a=document.createElement('div');a.className='mpacts';box.append(a);button('End session','warn',()=>mpWrite({...s,live:false}),a)}
+  if(amDM)para(invite,'note')}
+// players: choose your token, one each; taken ones show who has them. A click selects it, "Play as …" (or a double click)
+// sends it, and closing the dialog sends a selection that wasn't sent yet. The DM's page assigns it, then the dialog closes.
+function mpPickSend(i){if(!Number.isInteger(i))return;mp.pickSel=null;mp.pres.pick=i;mp.closeOn=i;mpKey='';mpUI();mpRender()}
+function mpPickFlush(){if(mp.role!=='player'||!Number.isInteger(mp.pickSel)||!mp.sess)return;const s=mp.sess,mine=Object.keys(s.assign).find(k=>s.assign[k]===mp.me);
+  if(mine!==undefined&&+mine===mp.pickSel){mp.pickSel=null;return}if(s.assign[mp.pickSel])return;mpPickSend(mp.pickSel)}
+function mpPicker(box,s,dmHere){const mine=Object.keys(s.assign).find(k=>s.assign[k]===mp.me),want=mp.pres.pick;
+  if(mine!==undefined&&(mp.autoPick||+mine===mp.closeOn)){mp.autoPick=false;mp.closeOn=null;mp.pickSel=null;setTimeout(()=>{$('mpmodal').hidden=true},600)}   // close once their pick lands, so they can play
+  if(Number.isInteger(mp.pickSel)&&s.assign[mp.pickSel]&&s.assign[mp.pickSel]!==mp.me)mp.pickSel=null;   // someone else took it meanwhile
+  const pending=Number.isInteger(want)&&s.assign[want]!==mp.me&&!(s.assign[want]&&s.assign[want]!==mp.me);
+  const sel=Number.isInteger(mp.pickSel)?mp.pickSel:pending?want:mine!==undefined?+mine:null;
+  const h=document.createElement('p');h.id='mppickmsg';
+  if(pending&&!Number.isInteger(mp.pickSel)){h.innerHTML=dmHere?'Joining as <b></b>…':'<b></b> is picked. It’s yours as soon as the DM’s page is open.';h.querySelector('b').textContent=tokLabel(want)}
+  else if(mine!==undefined){h.innerHTML='You’re playing <b></b>. Pick another to switch.';h.querySelector('b').textContent=tokLabel(+mine)}
+  else h.innerHTML='<b>Pick your token</b>, then press Play.';
+  box.append(h);
   const grid=document.createElement('div');grid.className='mppick';let grp='';
   TOKINFO.forEach((t,i)=>{if(t.group!==grp){grp=t.group;const g=document.createElement('div');g.className='grp';g.textContent=grp;grid.append(g)}
     const b=document.createElement('button');b.className='tokbtn';b.title=tokLabel(i);b.setAttribute('aria-label',tokLabel(i));
-    const owner=s.assign[i];b.setAttribute('aria-pressed',String(owner===mp.me||(mine===undefined&&want===i)));
+    const owner=s.assign[i];b.setAttribute('aria-pressed',String(sel===i));
     if(owner&&owner!==mp.me){b.disabled=true;b.title=tokLabel(i)+' · taken by '+mpName(owner)}
     const c=document.createElement('canvas');c.width=c.height=32;const g=c.getContext('2d');const im=sheets[i];
     const paint=()=>g.drawImage(im,0,0,32,32,0,0,32,32);if(im.complete)paint();else im.addEventListener('load',paint,{once:true});b.append(c);
-    b.onclick=()=>{mp.pres.pick=i;mp.closeOn=i;mpKey='';mpRender()};grid.append(b)});
-  box.append(grid)}
+    b.onclick=()=>{mp.pickSel=i;mpKey='';mpRender()};b.ondblclick=()=>mpPickSend(i);grid.append(b)});
+  box.append(grid);
+  const a=document.createElement('div');a.className='mpacts';box.append(a);
+  const go=document.createElement('button');go.className='btn primary';go.id='mpplay';
+  const ready=Number.isInteger(mp.pickSel)&&!(mine!==undefined&&+mine===mp.pickSel);
+  go.textContent=ready?'Play as '+tokLabel(mp.pickSel):pending?'Waiting for the DM…':mine!==undefined?'Playing '+tokLabel(+mine):'Play';
+  go.disabled=!ready;go.onclick=()=>mpPickSend(mp.pickSel);a.append(go)}
+function mpClose(){mpPickFlush();$('mpmodal').hidden=true;mp.autoPick=false}
 $('mpbtn').onclick=()=>{$('mpmodal').hidden=false;mpKey='';mpSay('');mpUI();mpRender()};
-$('mpclose').onclick=()=>{$('mpmodal').hidden=true;mp.autoPick=false};
-$('mpmodal').onclick=e=>{if(e.target.id==='mpmodal')e.currentTarget.hidden=true};
-$('mpmodal').addEventListener('keydown',e=>{if(e.key==='Escape')$('mpmodal').hidden=true;e.stopPropagation()});
+$('mpclose').onclick=mpClose;
+$('mpmodal').onclick=e=>{if(e.target.id==='mpmodal')mpClose()};
+$('mpmodal').addEventListener('keydown',e=>{if(e.key==='Escape')mpClose();e.stopPropagation()});
 // ================= characters from D&D Beyond =================
 // A player pastes their character's link and Dustmap keeps a small summary of the sheet (name, class, HP, AC, scores),
 // tied to a token by its sheet index. Only the summary is stored or shared, never the whole D&D Beyond JSON.
