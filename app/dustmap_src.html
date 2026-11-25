@@ -348,6 +348,8 @@ a.btn{text-decoration:none;color:var(--fg)}
         <div class="row" id="gridrow"><span class="note" id="gridlbl">1 × 1</span><button class="btn sm ghost" id="gridreset" style="margin-left:auto">Reset</button></div>
         <label class="note" for="ogap" id="ogaplbl">Spacing</label>
         <input type="range" id="ogap" min="0" max="16" step="1" value="2">
+        <label class="note" for="tgap" id="tgaplbl" hidden>1 square between</label>
+        <input type="range" id="tgap" min="0" max="6" step="1" value="1" hidden>
         <label class="check note" for="omix"><input type="checkbox" id="omix"> <span id="omixlbl">Random mix</span></label>
       </div>
     </div>
@@ -567,7 +569,7 @@ const mp={db:null,room:null,user:null,me:null,owner:false,edit:false,avail:false
   pushed:{map:null,tok:null,fog:null},fog:null,walkLast:new Map(),lastPos:new Map(),tokR:{},busy:false,again:false,timer:0,
   peers:[],profiles:{},trails:new Map(),pingSeen:new Map(),mvSeen:new Map(),ghost:new Map(),
   pres:{},pickSeen:new Map(),chars:null,chSeen:new Map(),chPend:false,sent:'',myPing:0,myMv:0,pend:null,err:'',heldTok:null};
-let tool='select',paint={layer:'ground',t:3},tab='ground',paintMode='brush',groundPaint={layer:'ground',t:3},heightPaint={layer:'height',h:1,s:0},hillMode='brush',hillStyle=0,tokGroup='Party',objKind='saloon',bsize=6,objCells=new Set(['1,1']),objMix=false,mixKinds=new Set(),scatDens=70,scatSeed=1,objGap=2,boxSel=null,stampRot=0,objScat=false,scatCount=6,scatArea=4,tokMix=new Set(),tokScatter=false,tokSeed=1;
+let tool='select',paint={layer:'ground',t:3},tab='ground',paintMode='brush',groundPaint={layer:'ground',t:3},heightPaint={layer:'height',h:1,s:0},hillMode='brush',hillStyle=0,tokGroup='Party',objKind='saloon',bsize=6,objCells=new Set(['1,1']),objMix=false,mixKinds=new Set(),scatDens=70,scatSeed=1,objGap=2,boxSel=null,stampRot=0,objScat=false,scatCount=6,scatArea=4,tokMix=new Set(),tokScatter=false,tokSeed=1,tokGap=1;
 let stamps=(()=>{try{return JSON.parse(localStorage.getItem('dustmap-stamps'))||[]}catch(e){return[]}})();
 const saveStamps=()=>{try{localStorage.setItem('dustmap-stamps',JSON.stringify(stamps))}catch(e){}};
 const selList=()=>!sel?[]:sel.type==='obj'?[sel.i]:sel.type==='objs'?sel.list:[];
@@ -957,19 +959,26 @@ function buildPaints(){const box=$('paints');box.replaceChildren();
     const v=document.createElement('span');v.id='hl-v';lv.append(sb('hl-dn','down','Lower',-1),v,sb('hl-up','up','Raise',1));
     const sp=tsep();sp.id='hl-sep';box.append(sp,lv)}
   syncUI()}
-function placementTokens(cx,cy){const s=tokKind();if(s<0)return[];const cells=cellList(),b=cellBox(cells);
+// Tokens sit on squares tokGap squares apart (0 = side by side), the same every time.
+// "Scatter randomly" picks random spots on that spaced lattice around the cursor; with it off, a mix fills the picked squares in order.
+function placementTokens(cx,cy){const s=tokKind();if(s<0)return[];const cells=cellList(),b=cellBox(cells),P=(1+tokGap)*GRID;
   const snap=v=>altDown?Math.round(v):Math.round(v/8)*8,put=(t,x,y)=>({s:t,x:Math.max(8,Math.min(W-8,x)),y:Math.max(30,Math.min(H-1,y))});
-  if(tokMix.size||tokScatter){
-    // scattered: as many tokens as squares picked in the grid (or one of each in the mix), dropped on random squares around the cursor
-    const kinds=tokMix.size?[...tokMix]:[s],n=cells.length>1?cells.length:kinds.length,R=mulberry(tokSeed*7919+13);
-    const side=Math.max(2,Math.ceil(Math.sqrt(n*2.2))),qc=Math.floor(cx/GRID)-Math.floor((side-1)/2),qr=Math.floor(cy/GRID)-Math.floor((side-1)/2);
-    const sq=[];for(let r=0;r<side;r++)for(let c=0;c<side;c++)sq.push([qc+c,qr+r]);
+  const kinds=tokMix.size?[...tokMix]:[s];
+  if(tokScatter){
+    // scattered: as many tokens as squares picked in the grid (or one of each in the mix), dropped on random spots of the spaced lattice around the cursor
+    const n=cells.length>1?cells.length:kinds.length,R=mulberry(tokSeed*7919+13);
+    const side=Math.max(2,Math.ceil(Math.sqrt(n*2.2))),qc=Math.floor(cx/GRID),qr=Math.floor(cy/GRID),o=(side-1)/2;
+    const sq=[];for(let r=0;r<side;r++)for(let c=0;c<side;c++)sq.push([c,r]);
     for(let i=sq.length-1;i>0;i--){const j=Math.floor(R()*(i+1));[sq[i],sq[j]]=[sq[j],sq[i]]}
     const who=Array.from({length:n},(_,i)=>i<kinds.length?kinds[i]:kinds[Math.floor(R()*kinds.length)]);
     for(let i=who.length-1;i>0;i--){const j=Math.floor(R()*(i+1));[who[i],who[j]]=[who[j],who[i]]}
-    return who.map((t,i)=>{const[c,r]=sq[i];const jx=Math.round((R()-.5)*8),jy=Math.round((R()-.5)*6);return put(t,c*GRID+GRID/2+jx,r*GRID+GRID/2+jy)})}
-  const x0=cx-(b.c-1)*GRID/2,y0=cy-(b.r-1)*GRID/2;
-  return cells.map(([c,r])=>put(s,snap(x0+(c-b.c0)*GRID),snap(y0+(r-b.r0)*GRID)))}
+    // a little jitter only when packed side by side; spread out, they stay dead centre on their squares
+    return who.map((t,i)=>{const[c,r]=sq[i],jx=tokGap?0:Math.round((R()-.5)*8),jy=tokGap?0:Math.round((R()-.5)*6);
+      return put(t,(qc+Math.round((c-o)*(1+tokGap)))*GRID+GRID/2+jx,(qr+Math.round((r-o)*(1+tokGap)))*GRID+GRID/2+jy)})}
+  // even layout: the picked squares (or one row, one of each, for a mix on a single square), kinds taken in turn
+  const cl=cells.length===1&&kinds.length>1?kinds.map((_,i)=>[i+1,1]):cells,bb=cl===cells?b:cellBox(cl);
+  const x0=cx-(bb.c-1)*P/2,y0=cy-(bb.r-1)*P/2;
+  return cl.map(([c,r],i)=>put(kinds[i%kinds.length],snap(x0+(c-bb.c0)*P),snap(y0+(r-bb.r0)*P)))}
 function placementItems(cx,cy){
   if(tokKind()>=0)return[];
   if(objKind.startsWith('stamp:')){const sp=stamps[+objKind.slice(6)];if(!sp)return[];return sp.items.map(it=>{const[dx,dy]=rotQ(it.dx,it.dy,stampRot);return{k:it.k,v:it.v,x:Math.round(cx+dx),y:Math.round(cy+dy)}})}
@@ -1039,10 +1048,10 @@ const TOKGROUPS=[['Party','Party','Party token'],['Townsfolk','Town','Townsfolk'
 const tokKindName=g=>(TOKGROUPS.find(q=>q[0]===g)||[0,0,'Token'])[2];
 const tokSiblings=s=>{const t=TOKINFO[s];return t?TOKINFO.map((q,i)=>i).filter(i=>TOKINFO[i].name===t.name&&TOKINFO[i].group===t.group):[]};
 let tokVarOpen=null;   // character name whose colour column is open
-function tokPick(s,e){const multi=e&&(e.ctrlKey||e.metaKey);
+function tokPick(s,e){const multi=e&&(e.ctrlKey||e.metaKey),wasMix=tokMix.size>0;
   if(multi){if(!tokMix.size){const c=tokKind();if(c>=0)tokMix.add(c)}if(tokMix.has(s))tokMix.delete(s);else tokMix.add(s);
     if(tokMix.size===1){objKind='tok:'+[...tokMix][0];tokMix.clear()}else objKind='tok:'+(tokMix.has(s)||!tokMix.size?s:[...tokMix][0])}
-  else{tokMix.clear();objKind='tok:'+s}objMix=false}
+  else{if(tokMix.size)tokScatter=false;tokMix.clear();objKind='tok:'+s}if(tokMix.size&&!wasMix)tokScatter=true;objMix=false}
 function buildToks(){const box=$('toks');box.replaceChildren();const cur=tokKind();if(cur>=0&&TOKINFO[cur])tokGroup=TOKINFO[cur].group;
   const seg=document.createElement('div');seg.className='seg col';seg.setAttribute('role','group');seg.setAttribute('aria-label','Token group');
   TOKGROUPS.forEach(([g,short])=>{const b=document.createElement('button');b.id='tg-'+g;b.textContent=short;b.setAttribute('aria-pressed',String(g===tokGroup));b.dataset.tip=g;
@@ -1448,7 +1457,7 @@ cv.addEventListener('pointerdown',e=>{const p=toMap(e);cv.setPointerCapture(e.po
     draft.push(clamp(p).map(v=>Math.round(v*2)/2));syncHint();return}
   if(tool==='brush'){stroke={pts:[clamp(p)],r:bsize};return}
   if(tool==='sculpt'){sculpt={phase:'paint',pts:[clamp(p)],cy:e.clientY,t:performance.now(),y0:0,base:0,delta:0};syncHint();return}
-  if(tool==='object'&&tokKind()>=0){const ts=placementTokens(p[0],p[1]);if(!ts.length)return;push();ts.forEach(t=>st.tokens.push({...t,o:Math.floor(Math.random()*8)}));save();if(tokMix.size||tokScatter)tokSeed++;return}
+  if(tool==='object'&&tokKind()>=0){const ts=placementTokens(p[0],p[1]);if(!ts.length)return;push();ts.forEach(t=>st.tokens.push({...t,o:Math.floor(Math.random()*8)}));save();if(tokScatter)tokSeed++;return}
   if(tool==='object'){const items=placementItems(p[0],p[1]);if(!items.length)return;push();const g=items.length>1?'g'+Date.now().toString(36):undefined;items.forEach(it=>st.objects.push(g?{...it,g}:it));objDirty=true;save();if((objMix||objScat)&&!objKind.startsWith('stamp:'))scatSeed++;return}
   if(tool==='fog'&&mp.role!=='player'){const q=clamp(p),now=performance.now(),lc=fogLastClick;fogLastClick=null;
     // a second press right after a click on the same spot (a double click) takes that click back and paints the other way
@@ -1588,9 +1597,9 @@ const walkStep=d=>{const r=Math.max(1,Math.min(WALK_MAX,walkR()+d));if(r===walkR
 $('walkr-dn').onclick=()=>walkStep(-1);$('walkr-up').onclick=()=>walkStep(1);
 $('fog-walk').onclick=()=>{push();st.fogWalk=!st.fogWalk;if(!st.fogWalk)delete st.fogWalk;else st.tokens.forEach(t=>fogWalk(t,[t.x,t.y],[t.x,t.y]));save();syncUI()};$('fog-none').onclick=()=>fogWhole('0');
 $('fogprev').onclick=()=>{fogPreview=!fogPreview;syncUI()};
-$('ogap').oninput=e=>{objGap=+e.target.value};
+$('ogap').oninput=e=>{objGap=+e.target.value};$('tgap').oninput=e=>{tokGap=+e.target.value;syncUI()};
 $('gridreset').onclick=()=>{objCells=new Set(['1,1']);syncUI()};
-$('omix').onchange=e=>{if(tokKind()>=0){tokScatter=e.target.checked;if(!tokScatter&&tokMix.size){objKind='tok:'+[...tokMix][0];tokMix.clear();buildToks()}syncUI();return}objMix=e.target.checked;if(objMix){if(objKind.startsWith('stamp:')||objKind.startsWith('tok:'))objKind='crates';if(!mixKinds.size)mixKinds.add(objKind)}syncUI()};
+$('omix').onchange=e=>{if(tokKind()>=0){tokScatter=e.target.checked;syncUI();return}objMix=e.target.checked;if(objMix){if(objKind.startsWith('stamp:')||objKind.startsWith('tok:'))objKind='crates';if(!mixKinds.size)mixKinds.add(objKind)}syncUI()};
 $('odens').oninput=e=>{scatDens=+e.target.value;$('odenslbl').textContent=`Fill ${scatDens}%`};
 $('mixreroll').onclick=()=>{scatSeed++;tokSeed++};$('scatreroll').onclick=()=>{scatSeed++};
 $('pl-grid').onclick=()=>{objScat=false;syncUI()};$('pl-scat').onclick=()=>{objScat=true;if(objKind.startsWith('stamp:'))objKind='crates';syncUI()};
@@ -1663,14 +1672,14 @@ function syncUI(){
   sizePressed($('sizes'),bsize);sizePressed($('fogsizes'),fogR);
   $('ogap').value=objGap;$('gridlbl').textContent=objKind.startsWith('stamp:')?'Stamp'+(stampRot?` · ${stampRot*90}°`:''):cellLabel();paintPick(objCells);
   $('omix').checked=objMix;$('mixopts').hidden=!objMix;$('odens').value=scatDens;$('odenslbl').textContent=`Fill ${scatDens}%`;$('mixlbl').textContent=mixKinds.size?`${mixKinds.size} in the mix`:'Nothing picked yet';
-  {const tk=tokKind()>=0,ts=tk&&(tokMix.size>0||tokScatter);$('ogaplbl').hidden=$('ogap').hidden=tk;$('omixlbl').textContent=tk?'Scatter randomly':'Random mix';
-   if(tk){$('omix').checked=ts;$('mixopts').hidden=!ts;const n=cellList().length;$('mixlbl').textContent=(tokMix.size?`${tokMix.size} in the mix · `:'')+(n>1?`${n} tokens`:tokMix.size?'one of each':'1 token')}
+  {const tk=tokKind()>=0,ts=tk&&tokScatter;$('ogaplbl').hidden=$('ogap').hidden=tk;$('tgaplbl').hidden=$('tgap').hidden=!tk;$('tgap').value=tokGap;$('tgaplbl').textContent=tokGap?`${tokGap} square${tokGap>1?'s':''} between`:'Side by side';$('omixlbl').textContent=tk?'Scatter randomly':'Random mix';
+   if(tk){$('omix').checked=ts;$('mixopts').hidden=!ts&&!tokMix.size;$('mixreroll').hidden=!ts;const n=cellList().length;$('mixlbl').textContent=(tokMix.size?`${tokMix.size} in the mix · `:'')+(n>1?`${n} tokens`:tokMix.size?'one of each':'1 token')}
    const stp=objKind.startsWith('stamp:'),scat=objScat&&!tk&&!stp;
    $('placemode').hidden=tk;$('pl-grid').setAttribute('aria-pressed',String(!scat));$('pl-scat').setAttribute('aria-pressed',String(scat));
    $('gridpick').hidden=$('gridrow').hidden=scat;$('scatopts').hidden=!scat;$('odensrow').hidden=tk||scat;
    $('scount').value=scatCount;$('scountlbl').textContent=scatCount+(scatCount===1?' object':' objects');$('sarea').value=scatArea;$('sarealbl').textContent=scatArea+(scatArea===1?' square wide':' squares wide');
-   $('ogaplbl').textContent=scat?'Keep apart by':'Spacing';$('mixreroll').hidden=scat;
-   $('gridnote').textContent=ts?'Pick how many squares for how many tokens. They land on random squares around the cursor. Ctrl-click tokens to mix them.':scat?'Each click drops them in new random spots. R or Re-roll shuffles the preview.':'Drag for a block, click squares for a pattern. Right-click the map or R turns it.';
+   $('ogaplbl').textContent=scat?'Keep apart by':'Spacing';if(!tk)$('mixreroll').hidden=scat;
+   $('gridnote').textContent=ts?'Pick how many squares for how many tokens. They land on random spots around the cursor, kept the gap apart. Ctrl-click tokens to mix them.':tk?'Drag for a block, click squares for a pattern. The slider sets the gap between tokens. Ctrl-click tokens to mix them.':scat?'Each click drops them in new random spots. R or Re-roll shuffles the preview.':'Drag for a block, click squares for a pattern. Right-click the map or R turns it.';
    $('gridbadge').textContent=stp?(stampRot?stampRot*90+'°':''):scat?'×'+scatCount:objMix&&!tk||ts?'mix':objCells.size>1?cellLabel().replace(/ × /,'×').replace(' squares',''):''}
   // the tray shows only what the active tool needs
   const show={'pane-mode':!pl&&(r==='paint'||r==='height')&&!opSel,paints:!pl&&(r==='paint'||r==='height'||opSel),'pane-size':!pl&&(tool==='brush'||tool==='sculpt'||(tool==='draw'&&isPathPaint(paint)&&paint.t!==9)),
@@ -1707,7 +1716,7 @@ function syncHint(){const h=$('hint');h.replaceChildren();
   else if(railOf()==='height'&&!(tool==='draw'&&draft.length)&&hSel()){const op=hSel();pill(elevName(op.h,op.s));
     add(tool==='draw'?'Drag it up or down, or <kbd>↑</kbd> <kbd>↓</kbd>':'<kbd>↑</kbd> <kbd>↓</kbd> raise or lower it');btn('Done','',()=>{sel=null;syncUI()})}
   else if(tool==='object'&&tokKind()<0&&objMix&&!objKind.startsWith('stamp:')&&!mixKinds.size){pill('Mix');add('Pick objects to mix')}
-  else if(tool==='object'&&tokKind()>=0&&tokMix.size){pill('Mix');add(`${tokMix.size} tokens · Ctrl-click to add or remove · click the map to scatter them`)}
+  else if(tool==='object'&&tokKind()>=0&&tokMix.size){pill('Mix');add(`${tokMix.size} tokens · Ctrl-click to add or remove · click the map to ${tokScatter?'scatter':'place'} them`)}
   else if(tool==='measure'&&measure&&measure.follow){pill('Measure');add('Click where it ends')}
   else if(tool==='fog'&&mp.role!=='player'){const once=fogMode==='hide'?'hides':'reveals',twice=fogMode==='hide'?'reveals':'hides';
     if(fogPaint)pill(fogPaint.v==='1'?'Hiding':'Revealing');else pill('Fog');add(`Click or drag ${once} · double-click and drag ${twice}`)}
@@ -2896,7 +2905,7 @@ function tourMap(){const S=(x,y,txt,o={})=>({k:'sign',x,y,v:o.v||0,txt,lang:o.la
     {kind:'stroke',layer:'ground',t:9,r:5,pts:[[470,320],[510,336],[550,356],[590,384],[620,420]]}].map((o,i)=>({...o,sid:100+i}));
   const objects=[
     S(104,200,'Welcome to Dustmap!\nHover a sign to read it. Each one explains the tool that made the ground around it. Follow the road east.',{v:1}),
-    S(150,262,'TOKENS (T)\nClick a character to open its colours above it (↑ ↓ step through them), then click the map. Ctrl-click several to mix them and scatter them on random squares. Drag a token to move it; it snaps to squares. Alt places freely.'),
+    S(150,262,'TOKENS (T)\nClick a character to open its colours above it (↑ ↓ step through them), then click the map. Ctrl-click several to mix them. The grid popover sets how many and the gap between them; Scatter randomly drops them on random spots. Drag a token to move it; it snaps to squares. Alt places freely.'),
     S(104,262,'NEW MAPS (N)\nThe + by the map name, or N, opens New map: give it a name, pick the ground that fills it (sand, scrub, mesa, water, badlands or stone) and its size. Your last choice is remembered.'),
     S(60,150,'TORCHES AND CAMPFIRES\nObjects (O) → Props. They flicker and glow, and fog still hides them. Random spots in the grid popover drops a set number of objects in new random places on every click.',{v:1}),
     S(200,150,'PAINT GROUND (B)\nPick sand, water, roads, towns and more in the tray, then brush it on. Press D to draw a shape instead: click the corners, Enter to finish.'),

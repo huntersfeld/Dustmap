@@ -36,7 +36,7 @@ await p.evaluate(()=>window.scrollTo(0,0));
 let [x,y]=m(203,183);await p.mouse.move(x,y);await p.waitForTimeout(100);await p.mouse.click(x,y);await p.waitForTimeout(150);
 let t=await tokens();ok(t.length===n0+1,'one token placed');const last=t[t.length-1];
 ok(last.s===s&&last.x===200&&last.y===184,'snapped to 8 px: '+JSON.stringify(last));
-// 2x2 group of rattlesnakes (variant A), one square apart
+// 2x2 group of rattlesnakes (variant A), with the default one empty square between them
 await p.click('#tg-Enemies');await p.click('#toks .sw[aria-label="Rattlesnake"]');const snake=+(await p.getAttribute('#tokvars .sw[aria-label="Rattlesnake (A)"]','id')).slice(3);
 await p.click(`#tk-${snake}`);if(await p.isHidden('#gridpop'))await p.click('#gridbtn');
 const cell=async(c,r)=>{const bb=await (await p.$(`#gridpick span[data-c="${c}"][data-r="${r}"]`)).boundingBox();return[bb.x+bb.width/2,bb.y+bb.height/2]};
@@ -47,7 +47,7 @@ await p.mouse.click(x,y);await p.waitForTimeout(150);
 t=await tokens();ok(t.length===n0+5,'2x2 group placed: '+t.length);
 const grp=t.slice(-4);ok(grp.every(q=>q.s===snake),'all snakes');
 const xs=[...new Set(grp.map(q=>q.x))].sort((a,b)=>a-b),ys=[...new Set(grp.map(q=>q.y))].sort((a,b)=>a-b);
-ok(xs.length===2&&ys.length===2&&xs[1]-xs[0]===16&&ys[1]-ys[0]===16,'one square apart '+xs+' / '+ys);
+ok(xs.length===2&&ys.length===2&&xs[1]-xs[0]===32&&ys[1]-ys[0]===32,'one square between '+xs+' / '+ys);
 await p.screenshot({path:path.join(OUT,'tok_placed.png'),clip:{x:x-160,y:y-200,width:320,height:280}});
 // select the bandit and delete it
 await p.keyboard.press('v');[x,y]=m(200,172);await p.mouse.click(x,y);await p.waitForTimeout(150);
