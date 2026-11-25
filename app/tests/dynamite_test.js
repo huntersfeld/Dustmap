@@ -46,7 +46,8 @@ crater=s.ops.filter(o=>o.blast);if(crater.length!==3)fail('expected 3 craters af
 if(!crater.some(o=>o.h===-3))fail('a 3-deep blast on flat ground should reach −3');
 if((await S()).blasts.length<1)fail('blast effects should be playing');
 await p.waitForTimeout(2600);await p.screenshot({path:path.join(OUT,'dynamite_chain.png')});
-// selecting a crater names it
+// selecting a crater names it (clear any rock the chain threw onto that spot, so the click lands on the crater)
+await p.evaluate(()=>{const s=window.__dustmap().st;s.objects=s.objects.filter(o=>o.k==='dynamite'||Math.hypot(o.x-150,o.y-250)>14)});
 await p.mouse.click(...await scr(150,250));await p.waitForTimeout(200);
 if(!(await p.textContent('#hint')).includes('Crater'))fail('a selected crater should be called Crater: '+(await p.textContent('#hint')));
 console.log(errs.length?'FAILED\n'+errs.join('\n'):'dynamite_test: all checks passed');await b.close();process.exit(errs.length?1:0)})();
