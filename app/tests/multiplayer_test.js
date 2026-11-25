@@ -86,6 +86,15 @@ try{
   const tokId=wiz.id;await p2.evaluate(async id=>{const r=await window.claude.use('room');await r.presence({mv:{id,x:40,y:60,n:5,base:999}})},tokId);
   await wait(600);if((await S(dm)).st.tokens.find(t=>t.id===tokId).x===40)fail('DM accepted a move from a player who does not own the token');
 
+  // DM lights a stick of dynamite: players see the fuse and the blast, and get the crater with the map
+  await dm.keyboard.press('o');await dm.click('#o-dynamite');{const a=await scr(dm,320,240);await dm.mouse.click(...a)}
+  await until(async()=>(await S(dm)).st.objects.some(o=>o.k==='dynamite'),'DM placed dynamite');
+  await until(async()=>(await S(p1)).st.objects.some(o=>o.k==='dynamite'),'player sees the dynamite');
+  await dm.keyboard.press('v');{const o=(await S(dm)).st.objects.find(o=>o.k==='dynamite'),a=await scr(dm,o.x,o.y);await dm.mouse.dblclick(...a)}
+  await until(async()=>(await S(p1)).fuses>0,'player sees the lit fuse');
+  await until(async()=>(await S(p1)).blasts.some(q=>Math.abs(q.x-320)<12&&Math.abs(q.y-240)<12),'player sees the blast');
+  await until(async()=>(await S(p1)).st.ops.some(o=>o.blast)&&!(await S(p1)).st.objects.some(o=>o.k==='dynamite'),'player gets the crater');
+  if((await S(p2)).blasts.length<1)fail('second player missed the blast');
   // DM draws: players see it
   await dm.keyboard.press('d');{const box=await (await dm.$('#map')).boundingBox();const c=[box.x+box.width/2,box.y+box.height/2];
     for(const[dx,dy]of[[-40,-30],[40,-30],[40,30],[-40,30]])await dm.mouse.click(c[0]+dx,c[1]+dy);await dm.keyboard.press('Enter')}
