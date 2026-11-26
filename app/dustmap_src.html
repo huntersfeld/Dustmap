@@ -2125,12 +2125,17 @@ async function fbRuntime(cfg){
     if(TESTPLAYER)await auth.setPersistence(fb.auth.Auth.Persistence.NONE);   // a fresh identity every time
     me=await new Promise((res,rej)=>{const off=auth.onAuthStateChanged(u=>{if(u){off();res(u.uid)}else auth.signInAnonymously().catch(rej)})})}
   // the room is the group: its link opens it, and this browser remembers the last one for a bare visit
-  let room=(location.hash.match(/room=([A-Za-z0-9_-]{6,40})/)||[])[1];const joined=!!room;let saved=null;try{saved=localStorage.getItem('dustmap-room')}catch(e){}
-  if(!room&&saved&&/^[A-Za-z0-9_-]{6,40}$/.test(saved))room=saved;
-  if(!room)room=Math.random().toString(36).slice(2,8)+Math.random().toString(36).slice(2,8);
-  history.replaceState(null,'','#room='+room);try{localStorage.setItem('dustmap-room',room)}catch(e){}
+  // A room link (#room=…) opens that room. A bare visit opens this browser's own room (the one it owns), never
+  // someone else's room it once joined, so opening Dustmap never drops you into another group as a player.
+  const okId=v=>typeof v==='string'&&/^[A-Za-z0-9_-]{6,40}$/.test(v),ls=k=>{try{return localStorage.getItem(k)}catch(e){return null}},lset=(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}};
+  let room=(location.hash.match(/room=([A-Za-z0-9_-]{6,40})/)||[])[1];const joined=!!room;
+  if(!room){   // this browser's own room first, then (older browsers only remember that) the last room, if it's ours
+    for(const c of[ls('dustmap-own-room'),ls('dustmap-room')]){if(!okId(c))continue;let o=null;try{o=(await fdb.ref('rooms/'+c+'/owner').get()).val()}catch(e){}
+      if(!o||o===me){room=c;break}}
+    if(!room){room=Math.random().toString(36).slice(2,8)+Math.random().toString(36).slice(2,8);lset('dustmap-own-room',room)}}
+  history.replaceState(null,'','#room='+room);lset('dustmap-room',room);
   const R=fdb.ref('rooms/'+room);let owner=(await R.child('owner').get()).val();
-  R.child('owner').on('value',s=>{owner=s.val()});
+  R.child('owner').on('value',s=>{owner=s.val();if(owner===me)lset('dustmap-own-room',room)});
   const err=e=>({code:/permission/i.test(String(e&&(e.code||e.message)))?'invalid_argument':'unavailable',message:String(e&&e.message||e)});
   const snapOf=(id,v)=>({id,exists:!!(v&&typeof v.j==='string'),data:()=>{try{return JSON.parse(v.j)}catch(e){return undefined}},metadata:{fromCache:false,hasPendingWrites:false}});
   // RTDB nests children inside their parent, so writing live/map would wipe live/map/parts: keep every
@@ -2149,7 +2154,7 @@ async function fbRuntime(cfg){
       colNode(p).on('value',cb,e=>onErr&&onErr(err(e)));return()=>colNode(p).off('value',cb)}});
   // presence: one node per open tab, removed by the server when the tab goes away
   const tab=me+'_'+Math.random().toString(36).slice(2,8),P=R.child('presence/'+tab);P.onDisconnect().remove();
-  let mine={},ptimer=0,peers=Object.freeze([]);const peerL=[];
+  let mine=TESTPLAYER?{tp:1}:{},ptimer=0,peers=Object.freeze([]);const peerL=[];
   const flush=()=>{ptimer=0;P.set({by:me,p:JSON.stringify(mine)}).catch(()=>{})};
   R.child('presence').on('value',s=>{const old=new Map(peers.map(p=>[p.peer,p])),list=[];
     s.forEach(ch=>{const v=ch.val()||{};let pr={};try{pr=JSON.parse(v.p)||{}}catch(e){}const o=old.get(ch.key);
@@ -2197,6 +2202,10 @@ async function mpInit(){
   db.doc('live/tokens').onSnapshot(sn=>{mp.ready.tok=true;mp.tok=sn.exists?sn.data():null;
     if(mp.tok&&Array.isArray(mp.tok.list))mp.tok.list.forEach(t=>{if(t&&typeof t.id==='string'&&fin(t.r))mp.tokR[t.id]=Math.max(mp.tokR[t.id]||0,+t.r)});mpTryTokens()},mpFail);
   room.onPeers(mpPeers);
+  // the room's owner is the DM when they open Dustmap: if the DM role sits with someone who isn't here (a closed test
+  // player, a friend from last week), take it back. A DM who is connected keeps it; the owner can still hand it over later.
+  if(mp.owner&&!TESTPLAYER){let tries=0;const reclaim=()=>{if(!mp.ready.sess&&++tries<8){setTimeout(reclaim,1500);return}const s=mp.sess;
+    if(s&&s.live&&s.dm!==mp.me&&!mp.peers.some(p=>p.by===s.dm&&!p.sameTab))mpWrite({...s,dm:mp.me})};setTimeout(reclaim,3000)}
   if(mp.fb){user.onNames(()=>{mp.profiles={};mpProfKey='';mpUI();if(!$('libmodal').hidden&&!libRename)libRender()});if(user.joined&&!mpName0)$('mpbtn').click()}   // arrived by a room link: ask their name
   mpUI()}
 function mpFail(e){mp.err=e&&e.code==='revoked'?'Access to the shared map was withdrawn.':'The shared map can’t be reached right now.';mpUI()}
@@ -2339,12 +2348,12 @@ function mpUI(){const b=$('mpbtn');b.replaceChildren();b.classList.toggle('live'
   b.append(mp.role==='dm'?'Live · DM':mp.role==='player'?(!Object.values(mp.sess.assign).includes(mp.me)?(Number.isInteger(mp.pres.pick)?'Joining…':'Pick a token'):TESTPLAYER?'Live · Test player':'Live · Playing'):'Play together');
   const{ids,here}=mpPeople();const pk=ids.join();
   if(mp.user&&pk!==mpProfKey){mpProfKey=pk;mp.user.profiles(ids).then(ps=>{mp.profiles={...mp.profiles,...ps};mpKey='';mpRender()}).catch(()=>{})}
-  const key=JSON.stringify([mp.avail,mp.sess,mp.role,ids,[...here],mp.err,st.tokens.map(t=>t.s)]);if(key!==mpKey){mpKey=key;mpRender()}}
+  const key=JSON.stringify([mp.avail,mp.sess,mp.role,ids,[...here],mp.peers.filter(p=>p.presence&&p.presence.tp).map(p=>p.by),mp.err,st.tokens.map(t=>t.s)]);if(key!==mpKey){mpKey=key;mpRender()}}
 function mpSay(t){$('mpmsg').textContent=t||''}
 // anyone who doesn't own this room can start one of their own (and become its DM); the old room stays reachable by its link
 function mpNewRoom(box){if(!mp.fb||mp.owner||TESTPLAYER)return;const a=document.createElement('div');a.className='mpacts';box.append(a);
   const b=document.createElement('button');b.className='btn';b.textContent='Start my own room';b.title='A new room where you are the owner and DM. Your saved maps come with you.';
-  b.onclick=()=>{const id=Math.random().toString(36).slice(2,8)+Math.random().toString(36).slice(2,8);try{localStorage.setItem('dustmap-room',id)}catch(e){}location.hash='room='+id;location.reload()};a.append(b)}
+  b.onclick=()=>{const id=Math.random().toString(36).slice(2,8)+Math.random().toString(36).slice(2,8);try{localStorage.setItem('dustmap-room',id);localStorage.setItem('dustmap-own-room',id)}catch(e){}location.hash='room='+id;location.reload()};a.append(b)}
 async function mpWrite(d){mpSay('');try{await mp.db.doc('live/session').set(d)}
   catch(e){mpSay(e&&e.code==='invalid_argument'?(mp.fb?'Only the room’s owner or DM can do that.':'That needs Editor access to this page.'):'That didn’t go through. Try again in a moment.')}}
 function mpRender(){if($('mpmodal').hidden)return;const box=$('mpbody');box.replaceChildren();const s=mp.sess,live=s&&s.live;
@@ -3293,7 +3302,7 @@ function tourOpen(){const s=libClean(tourMap());if(!s)return;const m=libAdd('Dus
 $('libtour').onclick=tourOpen;$('tour').onclick=()=>{menuShow(false);tourOpen()};
 // read-only peek for the tests
 window.__terrain=()=>({cv:tcan,L:lastR.L,W,H});
-window.__dustmap=()=>({st,fog:fogGet(),litFires:litFires(fogView()).length,role:mp.role,cam:{...cam},Z,pings:pings.map(p=>({x:p.x,y:p.y,rgb:p.rgb||null})),blasts:blasts.map(b=>({x:b.x,y:b.y,r:b.r})),fuses:fuses.length,kills:kills.length,tool,peers:mp.peers.length,busy:mp.busy,err:mp.err,again:mp.again,ks:kLive()?{n:kstep.n,path:kstep.path}:null,hist:hist.length,sel});
+window.__mpMe=()=>mp.me;window.__dustmap=()=>({st,fog:fogGet(),litFires:litFires(fogView()).length,role:mp.role,cam:{...cam},Z,pings:pings.map(p=>({x:p.x,y:p.y,rgb:p.rgb||null})),blasts:blasts.map(b=>({x:b.x,y:b.y,r:b.r})),fuses:fuses.length,kills:kills.length,tool,peers:mp.peers.length,busy:mp.busy,err:mp.err,again:mp.again,ks:kLive()?{n:kstep.n,path:kstep.path}:null,hist:hist.length,sel});
 libInit();mpInit();
 buildTools();buildObjs();buildToks();buildPaints();updUndo();sizeCanvas();syncUI();requestAnimationFrame(loop);
 setTimeout(buildPaints,0);
