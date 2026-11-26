@@ -24,8 +24,8 @@ const home=await curName();
 // a second map, "Cellar" (20 x 14), with a landing spot and a door in its top-right corner leading back home
 await p.keyboard.press('n');await p.waitForTimeout(200);await p.selectOption('#newsize','20x14');await p.fill('#newname','Cellar');await p.press('#newname','Enter');await p.waitForTimeout(900);
 if(await curName()!=='Cellar')fail('Cellar should be open');
-await p.keyboard.press('o');await p.click('#o-landing');await clickMap(56,184);
-await p.click('#o-door');await clickMap(300,40);
+await p.keyboard.press('o');await p.click('#oc-interact');await p.click('#o-landing');await clickMap(56,184);
+await p.click('#oc-interact');await p.click('#o-door');await clickMap(300,40);
 if(await p.isHidden('#portedit'))fail('placing a door should open its editor');
 let st=(await S()).st;let door=st.objects.find(o=>o.k==='door');
 if(!door||!door.id||door.x!==296||door.y!==40)fail('door should get an id and sit on a square: '+JSON.stringify(door));
@@ -41,7 +41,7 @@ await p.screenshot({path:path.join(OUT,'portals_cellar_editor.png')});
 // back home: a door in the bottom-right corner leading to the Cellar, arriving automatically (beside the door back)
 await p.click('#libbtn');await p.click('.libmap:has-text("'+home+'") button:has-text("Open")');await p.waitForTimeout(700);
 st=(await S()).st;const W=st.cols*16,H=st.rows*16,dx=Math.floor((W-24)/16)*16+8,dy=Math.floor((H-24)/16)*16+8;
-await p.keyboard.press('o');await p.click('#o-door');await clickMap(dx,dy);await p.selectOption('#ptto',{label:'Cellar'});
+await p.keyboard.press('o');await p.click('#oc-interact');await p.click('#o-door');await clickMap(dx,dy);await p.selectOption('#ptto',{label:'Cellar'});
 const ats=await p.$$eval('#ptat option',os=>os.map(o=>o.textContent));
 if(ats.length!==3||!/Automatic/.test(ats[0])||!/Landing spot 1/.test(ats[1])||!/Beside the door/.test(ats[2]))fail('Arrive should list the cellar landing spot and door: '+ats);
 await p.click('#ptdone');
@@ -82,8 +82,8 @@ if(await curName()!==home)fail('a walk-off door should not open when stepped on'
 await p.click('#undo');await p.waitForTimeout(200);
 
 // stairs to another spot on the same map, arriving at a landing spot
-await p.keyboard.press('o');await p.click('#o-landing');await clickMap(40,40);
-await p.click('#o-stairsdown');await clickMap(200,200);await p.selectOption('#ptto','here');{const v=await p.$eval('#ptat',s=>[...s.options].find(o=>/Landing spot/.test(o.textContent)).value);await p.selectOption('#ptat',v)}await p.click('#ptdone');
+await p.keyboard.press('o');await p.click('#oc-interact');await p.click('#o-landing');await clickMap(40,40);
+await p.click('#oc-interact');await p.click('#o-stairsdown');await clickMap(200,200);await p.selectOption('#ptto','here');{const v=await p.$eval('#ptat',s=>[...s.options].find(o=>/Landing spot/.test(o.textContent)).value);await p.selectOption('#ptat',v)}await p.click('#ptdone');
 st=(await S()).st;const stairs=st.objects.find(o=>o.k==='stairsdown');if(stairs.to!=='here'||!stairs.at)fail('stairs should lead to a landing spot here: '+JSON.stringify(stairs));
 await p.keyboard.press('v');const p2=party(st)[1];await dragMap([p2.x,p2.y-10],[stairs.x,stairs.y-10]);await p.waitForTimeout(400);
 if(await curName()!==home)fail('same-map stairs should keep the map open');

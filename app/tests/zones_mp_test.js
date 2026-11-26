@@ -42,10 +42,10 @@ try{
   const zx=Math.floor(mine.x/16)*16+56,zy=Math.floor(mine.y/16)*16-8;   // two squares right of the token's square
 
   // the DM puts out a torch above the token, places a zone to its right, links the torch and writes a message
-  await dm.keyboard.press('o');await dm.click('#o-torch');await clickMap(dm,mine.x,mine.y-56);
+  await dm.keyboard.press('o');await dm.click('#oc-light');await dm.click('#o-torch');await clickMap(dm,mine.x,mine.y-56);
   await dm.keyboard.press('v');await clickMap(dm,mine.x,mine.y-56);await dm.click('#selbar [aria-label="Put it out"]');
   const lit0=(await S(dm)).st.objects.filter(o=>o.k==='torch'&&!o.off).length;
-  await dm.keyboard.press('o');await dm.click('#o-zone');await clickMap(dm,zx,zy);
+  await dm.keyboard.press('o');await dm.click('#oc-interact');await dm.click('#o-zone');await clickMap(dm,zx,zy);
   if(await dm.isHidden('#zoneedit'))fail('placing a zone should open its editor');
   await dm.fill('#zname','Creaky board');await dm.fill('#zmsg','The floorboard creaks. A torch flares up.');
   await dm.click('#zlink');await clickMap(dm,mine.x,mine.y-58);await dm.click('#zlink');
