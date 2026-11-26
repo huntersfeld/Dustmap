@@ -1,5 +1,5 @@
-// Trigger zones: the DM places an invisible zone, links dynamite, a torch and a door to it, and paints fog over a room
-// beside it. A party token walking through the zone reveals that room (and only it), lights the torch, locks the door,
+// Trigger zones: the DM places an invisible zone, links dynamite, a torch and a door to it, marks the part of a fogged
+// room it reveals. A party token walking through the zone reveals only those squares, lights the torch, locks the door,
 // lights the fuse and shows the message; a once-only zone is then spent. An "Ask me first" zone that goes off every time
 // waits for Fire / Skip. Zones never reach the map image.
 // Run after `python3 app/build_dustmap.py`.
@@ -21,16 +21,16 @@ const zones=st=>st.objects.filter(o=>o.k==='zone');
 // a fresh 20 x 14 map with a party token, dynamite, a torch and a door
 await p.keyboard.press('n');await p.waitForTimeout(200);await p.selectOption('#newsize','20x14');await p.fill('#newname','Trap room');await p.press('#newname','Enter');await p.waitForTimeout(900);
 await p.evaluate(()=>{window.__dustmap().st.tokens=[{s:0,x:24,y:104,o:0}]});
-await p.keyboard.press('o');await p.click('#o-dynamite');await clickMap(232,200);
-await p.click('#o-torch');await clickMap(168,40);
-await p.click('#o-door');await clickMap(296,40);await p.click('#ptdone');
+await p.keyboard.press('o');await p.click('#oc-interact');await p.click('#o-dynamite');await clickMap(232,200);
+await p.click('#oc-light');await p.click('#o-torch');await clickMap(168,40);
+await p.click('#oc-interact');await p.click('#o-door');await clickMap(296,40);await p.click('#ptdone');
 // put the torch out from the selection bar
 await p.keyboard.press('v');await clickMap(168,40);await p.click('#selbar [aria-label="Put it out"]');
 let st=(await S()).st;if(!st.objects.find(o=>o.k==='torch').off)fail('Put it out should mark the torch off');
 if((await S()).litFires!==0)fail('an unlit torch gives no light');
 
 // place a zone: it snaps to squares and opens its editor
-await p.keyboard.press('o');await p.click('#o-zone');await clickMap(90,90);
+await p.keyboard.press('o');await p.click('#oc-interact');await p.click('#o-zone');await clickMap(90,90);
 if(await p.isHidden('#zoneedit'))fail('placing a zone should open its editor');
 let z=zones((await S()).st)[0];
 if(!z||!z.id||z.w!==2||z.h!==2||z.x!==96||z.y!==96)fail('zone should be 2x2 on whole squares: '+JSON.stringify(z));
@@ -41,6 +41,16 @@ await p.click('#zlink');await clickMap(232,198);await clickMap(168,38);await cli
 z=zones((await S()).st)[0];if(z.tg.length!==3)fail('three things should be linked: '+JSON.stringify(z.tg));
 if(!/1 dynamite, 1 fire, 1 door/.test(await p.textContent('#zlinked')))fail('linked summary: '+await p.textContent('#zlinked'));
 if(await p.isHidden('#zdrrow'))fail('door action should show once a door is linked');
+// mark the squares it reveals: columns 8-10, rows 3-6 of the room; a second box, then a click on it removes it
+if(await p.inputValue('#zrv')!=='2')fail('new zones should reveal an area the DM marks');
+await p.click('#zmark');if(!(await p.isHidden('#zname')))fail('marking should shrink the editor');
+await dragMap([8*16+8,3*16+8],[10*16+8,6*16+8],6);
+await dragMap([12*16+8,8*16+8],[12*16+8,9*16+8],4);
+z=zones((await S()).st)[0];if(JSON.stringify(z.ra)!=='[[8,3,10,6],[12,8,12,9]]')fail('two areas should be marked: '+JSON.stringify(z.ra));
+await clickMap(12*16+8,8*16+8);
+z=zones((await S()).st)[0];if(JSON.stringify(z.ra)!=='[[8,3,10,6]]')fail('clicking an area should remove it: '+JSON.stringify(z.ra));
+await p.screenshot({path:path.join(OUT,'zones_mark_area.png')});
+await p.click('#zmark');if(!/1 area, 12 squares/.test(await p.textContent('#zmarked')))fail('marked summary: '+await p.textContent('#zmarked'));
 await p.screenshot({path:path.join(OUT,'zones_editor.png')});
 await p.click('#zdone');
 st=(await S()).st;if(st.objects.length!==4)fail('linking should not place or move objects: '+st.objects.length);
@@ -56,7 +66,8 @@ const t=st.tokens[0];await dragMap([t.x,t.y-10],[t.x+80,t.y-10]);
 st=(await S()).st;z=zones(st)[0];
 if(!z.done)fail('walking through should set it off and spend it');
 const f=st.fog||'',at=(c,r)=>f[r*st.cols+c];
-if(at(10,6)!=='0'||at(8,3)!=='0'||at(12,9)!=='0')fail('the room beside the zone should be revealed');
+if(at(10,6)!=='0'||at(8,3)!=='0'||at(9,5)!=='0')fail('the marked area should be revealed');
+if(at(11,6)!=='1'||at(12,9)!=='1'||at(8,7)!=='1')fail('the rest of the room should stay hidden');
 if(at(16,11)!=='1')fail('the separate patch should stay hidden');
 if(st.objects.find(o=>o.k==='torch').off)fail('the linked torch should be lit');
 if(!st.objects.find(o=>o.k==='door').lock)fail('the linked door should be locked');
@@ -72,8 +83,8 @@ const t2=st.tokens[0];await dragMap([t2.x,t2.y-10],[24,t2.y-10]);
 if((await S()).st.objects.find(o=>o.k==='door').lock)fail('a spent zone should not go off again');
 
 // Ask me first, every time
-await p.keyboard.press('o');await p.click('#o-zone');await clickMap(40,184);
-await p.fill('#zname','Bell');await p.fill('#zmsg','A bell rings.');await p.selectOption('#zrep','1');await p.check('#zask');await p.uncheck('#zrv');await p.click('#zdone');
+await p.keyboard.press('o');await p.click('#oc-interact');await p.click('#o-zone');await clickMap(40,184);
+await p.fill('#zname','Bell');await p.fill('#zmsg','A bell rings.');await p.selectOption('#zrep','1');await p.check('#zask');await p.selectOption('#zrv','0');await p.click('#zdone');
 await p.keyboard.press('v');await p.keyboard.press('Escape');
 let tk=(await S()).st.tokens[0];await dragMap([tk.x,tk.y-10],[40,190-10]);
 if(await p.isHidden('#zoneask'))fail('an Ask me first zone should ask');

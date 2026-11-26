@@ -16,7 +16,7 @@ const box=await (await p.$('#map')).boundingBox();const mid=[box.x+box.width/2,b
 const rclick=async()=>{await p.evaluate(()=>window.scrollTo(0,0));await p.mouse.click(mid[0],mid[1],{button:'right'});await p.waitForTimeout(100)};
 
 // 4 x 1 row of barrels turns into a 1 x 4 column
-await p.click('#o-barrels');await drag([1,1],[4,1]);
+await p.click('#oc-decor');await p.click('#o-barrels');await drag([1,1],[4,1]);
 if((await on())!=='1,1 2,1 3,1 4,1')fail('setup row: '+await on());
 await rclick();
 if((await on())!=='1,1 1,2 1,3 1,4')fail('right-click should turn the row into a column: '+await on());

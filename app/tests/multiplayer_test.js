@@ -87,7 +87,7 @@ try{
   await wait(600);if((await S(dm)).st.tokens.find(t=>t.id===tokId).x===40)fail('DM accepted a move from a player who does not own the token');
 
   // DM lights a stick of dynamite: players see the fuse and the blast, and get the crater with the map
-  await dm.keyboard.press('o');await dm.click('#o-dynamite');{const a=await scr(dm,320,240);await dm.mouse.click(...a)}
+  await dm.keyboard.press('o');await dm.click('#oc-interact');await dm.click('#o-dynamite');{const a=await scr(dm,320,240);await dm.mouse.click(...a)}
   await until(async()=>(await S(dm)).st.objects.some(o=>o.k==='dynamite'),'DM placed dynamite');
   await until(async()=>(await S(p1)).st.objects.some(o=>o.k==='dynamite'),'player sees the dynamite');
   await dm.keyboard.press('v');{const o=(await S(dm)).st.objects.find(o=>o.k==='dynamite'),a=await scr(dm,o.x,o.y);await dm.mouse.dblclick(...a)}

@@ -14,7 +14,7 @@ const place=async(dx=0,dy=0)=>{await p.mouse.click(mid[0]+dx,mid[1]+dy);await p.
 const gp=async()=>{if(await p.isHidden('#gridpop'))await p.click('#gridbtn')};
 
 // Random spots: 5 cacti in a 6-square-wide area
-await p.click('#o-cactus');await gp();await p.click('#pl-scat');
+await p.click('#oc-decor');await p.click('#o-cactus');await gp();await p.click('#pl-scat');
 if(!(await p.isHidden('#gridpick')))fail('grid picker should hide in Random spots');
 await p.$eval('#scount',e=>{e.value=5;e.dispatchEvent(new Event('input'))});await p.$eval('#sarea',e=>{e.value=6;e.dispatchEvent(new Event('input'))});
 if((await p.textContent('#gridbadge')).trim()!=='×5')fail('badge should read ×5');
@@ -28,7 +28,7 @@ const rad=6*16/2+2;a.forEach(o=>{const cx=a.reduce((s,q)=>s+q.x,0)/5;if(Math.abs
 await gp();await p.click('#pl-grid');if(await p.isHidden('#gridpick'))fail('grid picker should be back');await p.click('#gridbtn');
 
 // torches and a campfire
-await p.click('#o-torch');await place(-60,120);await place(-20,120);await p.click('#o-campfire');await place(-40,150);
+await p.click('#oc-light');await p.click('#o-torch');await place(-60,120);await place(-20,120);await p.click('#oc-light');await p.click('#o-campfire');await place(-40,150);
 all=await objs();if(all.filter(o=>o.k==='torch').length!==2||all.filter(o=>o.k==='campfire').length!==1)fail('fire objects not placed');
 await p.waitForTimeout(300);
 const shot=async n=>{await p.screenshot({path:path.join(OUT,n)})};
