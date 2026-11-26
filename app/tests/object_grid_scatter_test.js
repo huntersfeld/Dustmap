@@ -17,7 +17,7 @@ const box=await (await p.$('#map')).boundingBox();const mid=[box.x+box.width/2,b
 const place=async(dx=0)=>{await p.evaluate(()=>window.scrollTo(0,0));await p.mouse.click(mid[0]+dx,mid[1]);await p.waitForTimeout(200)};
 
 // drag fills a 3 x 2 block
-await p.click('#o-barrels');await drag([2,2],[4,3]);
+await p.click('#oc-decor');await p.click('#o-barrels');await drag([2,2],[4,3]);
 let s=await on();if(s.length!==6)fail('drag should fill 6 squares, got '+s);
 if((await p.textContent('#gridlbl')).trim()!=='3 × 2')fail('label should read 3 × 2');
 // a single click toggles one square on, another click toggles it off
@@ -29,7 +29,7 @@ await place();let o=await objs();if(o.length!==6)fail('expected 6 barrels placed
 await gp();await p.click('#gridreset');if((await on()).length!==1)fail('reset should leave one square');
 
 // random mix
-await gp();await p.check('#omix');await p.click('#o-rock');await p.click('#o-cactus');await p.click('#o-crates');
+await gp();await p.check('#omix');await p.click('#oc-decor');await p.click('#o-rock');await p.click('#oc-decor');await p.click('#o-cactus');await p.click('#oc-decor');await p.click('#o-crates');
 const pressed=await p.$$eval('#objs .sw[aria-pressed="true"]',els=>els.map(e=>e.id));
 if(!['o-barrels','o-rock','o-cactus','o-crates'].every(k=>pressed.includes(k)))fail('mix should hold barrels, rock, cactus, crates: '+pressed);
 await drag([1,1],[6,6]);await gp();await p.fill('#odens','100');await p.dispatchEvent('#odens','input');

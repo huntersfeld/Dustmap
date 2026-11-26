@@ -35,14 +35,14 @@ try{
   const home=await curName(dm);
   // the DM builds a 20 x 14 Cellar with a door back home in its top-right corner and a landing spot
   await dm.keyboard.press('n');await dm.waitForTimeout(200);await dm.selectOption('#newsize','20x14');await dm.fill('#newname','Cellar');await dm.press('#newname','Enter');await dm.waitForTimeout(900);
-  await dm.keyboard.press('o');await dm.click('#o-landing');await clickMap(dm,56,184);
-  await dm.click('#o-door');await clickMap(dm,296,40);await dm.selectOption('#ptto',{label:home});await dm.click('#ptdone');
+  await dm.keyboard.press('o');await dm.click('#oc-interact');await dm.click('#o-landing');await clickMap(dm,56,184);
+  await dm.click('#oc-interact');await dm.click('#o-door');await clickMap(dm,296,40);await dm.selectOption('#ptto',{label:home});await dm.click('#ptdone');
   // ...and a door at home leading to it, in the bottom-right corner
   await dm.click('#libbtn');await dm.click('.libmap:has-text("'+home+'") button:has-text("Open")');await dm.waitForTimeout(700);
   let st=(await S(dm)).st;const W=st.cols*16,H=st.rows*16,dx=Math.floor((W-24)/16)*16+8,dy=Math.floor((H-24)/16)*16+8;
-  await dm.click('#o-door');await clickMap(dm,dx,dy);await dm.selectOption('#ptto',{label:'Cellar'});await dm.click('#ptdone');
+  await dm.click('#oc-interact');await dm.click('#o-door');await clickMap(dm,dx,dy);await dm.selectOption('#ptto',{label:'Cellar'});await dm.click('#ptdone');
   // a landing spot at home, which players must never see
-  await dm.click('#o-landing');await clickMap(dm,40,40);await dm.keyboard.press('v');
+  await dm.click('#oc-interact');await dm.click('#o-landing');await clickMap(dm,40,40);await dm.keyboard.press('v');
 
   const p1=await open('u_p1');
   await dm.click('#mpbtn');await dm.click('#mpbody button:has-text("Start session")');

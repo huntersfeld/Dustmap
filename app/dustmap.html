@@ -93,6 +93,7 @@ kbd{font-family:ui-monospace,monospace;font-size:11px;background:var(--bg);borde
 .sw svg{width:22px;height:22px}
 .sw .del{position:absolute;top:-4px;right:-4px;width:16px;height:16px;border-radius:50%;background:var(--bg);border:1px solid var(--line);font-size:11px;line-height:14px;color:var(--muted);display:none}
 .sw:hover .del{display:block}
+.sw[hidden],.tsep[hidden]{display:none}
 .tsep{width:1px;height:32px;background:var(--line);margin:0 4px;flex:none}
 .seg{display:flex;gap:2px;background:var(--bg);border-radius:9px;padding:3px;flex:none}
 .seg button{height:38px;min-width:38px;padding:0 8px;border:0;border-radius:7px;display:grid;place-items:center;background:transparent;cursor:pointer;color:var(--muted);font-weight:600;font-size:12px}
@@ -1065,11 +1066,24 @@ function buildGridPick(){const gp=$('gridpick');gp.replaceChildren();
     if(objKind.startsWith('stamp:'))objKind='crates';syncUI()};
   gp.onpointercancel=()=>{drag=null;syncUI()};paintPick(objCells)}
 function paintPick(s){$('gridpick').querySelectorAll('span').forEach(el=>el.classList.toggle('on',s.has(el.dataset.c+','+el.dataset.r)))}
-function buildObjs(){$('objs').replaceChildren();buildGridPick();const box=$('objs');let g='',n=0;OBJ.forEach(o=>{if(o.g!==g){if(g)box.append(tsep());g=o.g}n++;
-  box.append(itemBtn('o-'+o.k,objSwatch(o.k),o.name,(o.sub||o.g)+'. Ctrl-click to mix.',n<=9?String(n):'',ev=>{if((ev.ctrlKey||ev.metaKey)&&!objMix){objMix=true;mixKinds.clear();if(!objKind.startsWith('stamp:'))mixKinds.add(objKind);if(objKind===o.k){objKind=o.k;syncUI();return}}if(objMix&&!objKind.startsWith('stamp:')){if(mixKinds.has(o.k))mixKinds.delete(o.k);else mixKinds.add(o.k)}objKind=o.k;syncUI()}))});
-  if(stamps.length){box.append(tsep());
+// Objects tray: Decoration / Light sources / Interaction, picked like the Tokens tray's Party / Town / Enemies.
+// Every swatch stays in the tray (hidden outside its category) so a mix can span categories.
+const OBJCATS=[['decor','Decor','Decoration'],['light','Lights','Light sources'],['interact','Interact','Interaction']];
+const LIGHTK=new Set(['torch','campfire','lantern','crystals']),INTERK=new Set(['sign','dynamite','landing','zone']);
+const objCatOf=k=>k.startsWith('stamp:')?'decor':LIGHTK.has(k)?'light':INTERK.has(k)||(OBJ.find(o=>o.k===k)||{}).g==='Doors & stairs'?'interact':'decor';
+let objCat='decor',objAuto=null;   // objAuto: what was picked before a tab switch auto-picked that tab's first object, so a Ctrl-click mix starts from it
+function showObjCat(){const box=$('objs');box.querySelectorAll('[data-cat]').forEach(el=>el.hidden=el.dataset.cat!==objCat);OBJCATS.forEach(([c])=>{const b=$('oc-'+c);if(b)b.setAttribute('aria-pressed',String(c===objCat))})}
+function buildObjs(){$('objs').replaceChildren();buildGridPick();const box=$('objs');
+  const seg=document.createElement('div');seg.className='seg col';seg.setAttribute('role','group');seg.setAttribute('aria-label','Object category');
+  OBJCATS.forEach(([c,short,full])=>{const b=document.createElement('button');b.id='oc-'+c;b.textContent=short;b.dataset.tip=full;b.setAttribute('aria-pressed',String(c===objCat));
+    b.onclick=()=>{if(objCat===c)return;objCat=c;if(!objMix){const o=OBJ.find(o=>objCatOf(o.k)===c);if(o){const prev=objAuto&&objAuto[1]===objKind?objAuto[0]:objKind;objAuto=prev.startsWith('tok:')?null:[prev,o.k];objKind=o.k}}showObjCat();syncUI()};seg.append(b)});
+  box.append(seg,tsep());
+  OBJCATS.forEach(([c])=>{let g='',n=0;OBJ.forEach(o=>{if(objCatOf(o.k)!==c)return;if(o.g!==g){if(g){const t=tsep();t.dataset.cat=c;box.append(t)}g=o.g}n++;
+  const b=itemBtn('o-'+o.k,objSwatch(o.k),o.name,(o.sub||o.g)+'. Ctrl-click to mix.',n<=9?String(n):'',ev=>{const seed=objAuto&&objAuto[1]===objKind?objAuto[0]:objKind;objAuto=null;if((ev.ctrlKey||ev.metaKey)&&!objMix){objMix=true;mixKinds.clear();if(!seed.startsWith('stamp:'))mixKinds.add(seed);if(seed===o.k){objKind=o.k;syncUI();return}}if(objMix&&!objKind.startsWith('stamp:')){if(mixKinds.has(o.k))mixKinds.delete(o.k);else mixKinds.add(o.k)}objKind=o.k;syncUI()});
+  b.dataset.cat=c;box.append(b)})});
+  if(stamps.length){const t=tsep();t.dataset.cat='decor';box.append(t);
     stamps.forEach((sp,i)=>{const b=itemBtn('o-stamp:'+i,stampCanvas(sp),sp.name,'Your stamp · '+sp.items.length+' objects','',()=>{objKind='stamp:'+i;objMix=false;stampRot=0;syncUI()});
-      const x=document.createElement('span');x.className='del';x.textContent='×';x.setAttribute('aria-label','Delete this stamp');x.onclick=e=>{e.stopPropagation();stamps.splice(i,1);saveStamps();if(objKind==='stamp:'+i)objKind='crates';buildObjs();syncUI()};b.append(x);box.append(b)})}}
+      const x=document.createElement('span');x.className='del';x.textContent='×';x.setAttribute('aria-label','Delete this stamp');x.onclick=e=>{e.stopPropagation();stamps.splice(i,1);saveStamps();if(objKind==='stamp:'+i)objKind='crates';buildObjs();syncUI()};b.append(x);b.dataset.cat='decor';box.append(b)})}showObjCat()}
 function tokSwatch(s){const c=document.createElement('canvas');c.width=c.height=32;const im=sheets[s],g=c.getContext('2d');
   const go=()=>{g.clearRect(0,0,32,32);g.drawImage(im,0,0,32,32,0,0,32,32)};if(im.complete&&im.naturalWidth)go();else im.addEventListener('load',go,{once:true});return c}
 // Tokens tray: Party / Town / Enemies, one swatch per character. Clicking a character with colour variants opens its colours
@@ -1745,7 +1759,7 @@ function syncUI(){
   TERR.forEach((t,i)=>{const b=$('p-g'+i);if(b)b.setAttribute('aria-pressed',String(paint.layer==='ground'&&paint.t===i))});
   {const ho=hSel(),sty=ho&&ho.h>0?ho.s:ho&&ho.h<0?-1:hillStyle;HSTYLE.forEach((e,i)=>{const b=$('p-hs'+i);if(b)b.setAttribute('aria-pressed',String(sty===e.s))});
    const lv=$('hlevel');if(lv){lv.hidden=$('hl-sep').hidden=!ho;if(ho){$('hl-v').textContent=ho.h>0?'+'+ho.h:ho.h<0?'−'+-ho.h:'Flat';$('hl-v').title=elevName(ho.h,ho.s);$('hl-dn').disabled=ho.h<=HMIN;$('hl-up').disabled=ho.h>=HMAX}}}
-  {const mix=objMix&&!objKind.startsWith('stamp:');OBJ.forEach(o=>$('o-'+o.k).setAttribute('aria-pressed',String(mix?mixKinds.has(o.k):objKind===o.k)))}
+  {if(!objMix&&!objKind.startsWith('tok:')&&objCatOf(objKind)!==objCat){objCat=objCatOf(objKind);showObjCat()}const mix=objMix&&!objKind.startsWith('stamp:');OBJ.forEach(o=>$('o-'+o.k).setAttribute('aria-pressed',String(mix?mixKinds.has(o.k):objKind===o.k)))}
   TOKINFO.forEach((t,s)=>{const b=$('tk-'+s);if(b)b.setAttribute('aria-pressed',String(tokMix.size?tokMix.has(s):objKind==='tok:'+s))});
   $('toks').querySelectorAll('.sw.many').forEach(b=>{const l=b.dataset.toks.split(',').map(Number);b.setAttribute('aria-pressed',String(tokMix.size?l.some(q=>tokMix.has(q)):l.includes(tokKind())))});stamps.forEach((sp,i)=>{const b=$('o-stamp:'+i);if(b)b.setAttribute('aria-pressed',String(objKind==='stamp:'+i))});
   $('pm-brush').setAttribute('aria-pressed',String(tool==='brush'||tool==='sculpt'));$('pm-draw').setAttribute('aria-pressed',String(tool==='draw'));
