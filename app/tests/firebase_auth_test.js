@@ -30,7 +30,7 @@ try{
   if((await S(dm)).role!=='dm')fail('DM tab lost DM');
   // the test player is marked by its tab, not its address: reopening Dustmap from history is always the DM
   if(/as=player/.test(tp.url()))fail('test player address should not carry as=player: '+tp.url());
-  if((await dm.locator('.mpp',{hasText:'Test player'}).getByRole('button',{name:'Make DM'}).count())>0)fail('a test player should not be offered the DM role');
+  await until(async()=>(await dm.locator('.mpp',{hasText:'Test player'}).getByRole('button',{name:'Make DM'}).count())===0,'a test player is not offered the DM role',4000);
   { const again=await open(tp.url());await until(async()=>(await S(again)).role==='dm','the test player\'s address opened fresh is the DM');await again.close() }
   // players don't get session controls: no End session, no Start my own room while a session is on
   await until(()=>tp.isVisible('.mppick'),'picker visible');
@@ -57,11 +57,21 @@ try{
   await until(()=>p2.isVisible('.mppick'),'picker for Alex');
   if(!(await p2.locator('.mppick .tokbtn').nth(12).isDisabled()))fail('a taken token should be disabled for others');
   if(await p2.locator('#mpbody button:has-text("Start my own room")').count())fail('players should not see Start my own room during a session');
-  await p2.evaluate(()=>{location.hash='room=alex'+Math.random().toString(36).slice(2,10);location.reload()});
-  await until(async()=>(await p2.evaluate(()=>location.hash))!==hash,'new room');await until(()=>p2.isVisible('#mpbtn'),'reloaded');
+  // a bare visit (no room link) opens Alex's own room, never the room they once joined as a player
+  await p2.goto(url);await until(async()=>/room=/.test(await p2.evaluate(()=>location.hash)),'bare visit picks a room');
+  if(await p2.evaluate(()=>location.hash)===hash)fail('a bare visit reopened someone else\'s room as a player');
+  await until(()=>p2.isVisible('#mpbtn'),'loaded');const alexRoom=await p2.evaluate(()=>location.hash);
+  await p2.goto(url+hash);await p2.reload();await until(async()=>(await S(p2)).role==='player','Alex back in Hunter\'s room by its link');
+  await p2.evaluate(()=>{location.hash=''});await p2.reload();await until(async()=>(await p2.evaluate(()=>location.hash))===alexRoom,'bare visit returns to Alex\'s own room');await until(()=>p2.isVisible('#mpbtn'),'reloaded');
   await p2.click('#mpbtn');await p2.click('#mpbody button:has-text("Start session")');await until(async()=>(await S(p2)).role==='dm','Alex is DM of the new room');
   if((await S(dm)).role!=='dm')fail('Hunter should still be DM of the first room');
   await ctx2.close();
+  // the DM role left with someone who's gone (here: handed to the test player, whose tab then closes): when the owner
+  // opens Dustmap again they are the DM, not a player
+  const tpId=await tp.evaluate(()=>window.__mpMe&&window.__mpMe());
+  await dm.evaluate(async([h,id])=>{const r=window.firebase.database().ref('rooms/'+h.split('=')[1]);const n=r.child('d/live/session');
+    const s=JSON.parse((await n.get()).val().j);s.dm=id;await r.child('dm').set(id);await n.set({j:JSON.stringify(s)})},[hash,tpId]);
+  await until(async()=>(await S(dm)).role==='player','owner handed DM to the test player');
   await tp.close();await dm.close();await wait(500);
   dm=await open(url);await until(async()=>(await S(dm)).role==='dm','DM again after closing and reopening',15000);
   if(await dm.evaluate(()=>location.hash)!==hash)fail('reopened a different room');
