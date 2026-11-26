@@ -71,7 +71,7 @@ try{
     await p.click('#libbtn');await p.click('.libmap:has-text("'+home+'") button:has-text("Open")');await p.waitForTimeout(700);
     // stand the first cowboy on a square centre, put a door to the Cellar two squares to its right
     const t=await p.evaluate(()=>{const d=window.__dustmap(),t=d.st.tokens.find(t=>t.s===0);t.x=Math.floor(t.x/16)*16+8;t.y=Math.floor(t.y/16)*16+8;return{x:t.x,y:t.y}});
-    await p.keyboard.press('o');await p.click('#o-door');await p.mouse.click(...await scr(p,t.x+32,t.y));await p.waitForTimeout(200);
+    await p.keyboard.press('o');await p.click('#oc-interact');await p.click('#o-door');await p.mouse.click(...await scr(p,t.x+32,t.y));await p.waitForTimeout(200);
     await p.selectOption('#ptto',{label:'Cellar'});await p.click('#ptdone');
     const door=(await S(p)).st.objects.find(o=>o.k==='door');if(!door||door.x!==t.x+32)fail('door not placed beside the token: '+JSON.stringify(door)+' '+JSON.stringify(t));
     await p.keyboard.press('v');await p.mouse.click(...await scr(p,t.x,t.y-10));await p.waitForTimeout(150);

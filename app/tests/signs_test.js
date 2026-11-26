@@ -10,7 +10,7 @@ await p.click('#more');await p.uncheck('#anim');await p.click('#clear');await p.
 const box=await (await p.$('#map')).boundingBox();const mid=[box.x+box.width/2,box.y+box.height/2];
 const objs=()=>p.evaluate(()=>window.__dustmap().st.objects);
 // place: the editor opens straight away
-await p.keyboard.press('o');await p.click('#o-sign');await p.mouse.click(mid[0],mid[1]);await p.waitForTimeout(200);
+await p.keyboard.press('o');await p.click('#oc-interact');await p.click('#o-sign');await p.mouse.click(mid[0],mid[1]);await p.waitForTimeout(200);
 if(await p.isHidden('#signedit'))fail('placing a sign should open the editor');
 await p.keyboard.type('Beware the mine. Gold inside!');await p.waitForTimeout(100);
 let o=(await objs()).find(o=>o.k==='sign');if(!o||o.txt!=='Beware the mine. Gold inside!'||o.lang!=='common')fail('sign text should save: '+JSON.stringify(o));
@@ -23,7 +23,7 @@ if(await p.isVisible('#signedit'))fail('Done should close the editor');
 await p.click('#undo');o=(await objs()).find(o=>o.k==='sign');if(!o||o.txt)fail('undo should restore the blank sign: '+JSON.stringify(o));
 await p.click('#undo');if((await objs()).some(o=>o.k==='sign'))fail('second undo should remove the sign');
 // write it again from Select: double-click opens the editor
-await p.keyboard.press('o');await p.click('#o-sign');await p.mouse.click(mid[0],mid[1]);await p.waitForTimeout(150);await p.keyboard.press('Escape');
+await p.keyboard.press('o');await p.click('#oc-interact');await p.click('#o-sign');await p.mouse.click(mid[0],mid[1]);await p.waitForTimeout(150);await p.keyboard.press('Escape');
 await p.keyboard.press('v');await p.mouse.click(mid[0]+200,mid[1]+150);await p.waitForTimeout(100);
 await p.mouse.dblclick(mid[0],mid[1]-2);await p.waitForTimeout(200);if(await p.isHidden('#signedit'))fail('double-click should open the editor');
 await p.fill('#sgtext','The old mine lies east. Dragons sleep below.');await p.selectOption('#sglang','elvish');await p.click('#sgdone');
