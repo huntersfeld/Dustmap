@@ -515,6 +515,100 @@ const OBJ=[
 // 16 px = one 5 ft square. Buildings are drawn a bit under true scale so towns read denser:
 // a shack is about 2¼×2 squares, a saloon 3¾×3¾, a hotel 5¼×4½ (still bigger than a token).
 const SIZE={torch:[6,15],campfire:[16,11],cart:[14,12],lantern:[6,7],timber:[30,10],rubble:[16,12],crystals:[12,12],cactus:[7,9],rock:[5,4],skull:[3,3],shack:[36,32],saloon:[60,60],hotel:[84,72],well:[16,16],wagon:[34,16],trough:[20,8],barrels:[10,8],crates:[11,10],boulder:[14,11],tree:[26,24]};
+// ================= more decorations =================
+// Clutter (papers, scrolls, books, potions...), dungeon and graveyard dressing, and a key. All plain props in the
+// Decor tab. Objects listed in LOOKS have named looks (v % looks.length): right-click one on the map to change its
+// look, and new ones are placed with the look picked last (objLook). Every looks list divides 12, so v stays 0-11.
+OBJ.push(
+ {k:'papers',name:'Scattered papers',sub:'Loose notes and letters on the floor',g:'Clutter'},
+ {k:'scroll',name:'Scroll',sub:'Rolled up or unrolled',g:'Clutter'},
+ {k:'books',name:'Books',sub:'A stack, or one lying open',g:'Clutter'},
+ {k:'potions',name:'Potions',sub:'Bottles and vials',g:'Clutter'},
+ {k:'sacks',name:'Sacks',sub:'Grain or loot, under a square',g:'Clutter'},
+ {k:'table',name:'Table',sub:'Plank table, about 1½ squares',g:'Clutter'},
+ {k:'bedroll',name:'Bedroll',sub:'A camp blanket, one square',g:'Clutter'},
+ {k:'haybale',name:'Hay bale',sub:'Cover, under a square',g:'Clutter'},
+ {k:'skulls',name:'Skulls',sub:'A heap of old skulls',g:'Dungeon & graveyard'},
+ {k:'cobweb',name:'Cobweb',sub:'Sits in a corner. Right-click it to turn it',g:'Dungeon & graveyard'},
+ {k:'mushrooms',name:'Mushrooms',sub:'Cave fungus',g:'Dungeon & graveyard'},
+ {k:'stalagmites',name:'Stalagmites',sub:'Rock spikes, about 1 square',g:'Dungeon & graveyard'},
+ {k:'banner',name:'Banner',sub:'A flag on a pole',g:'Dungeon & graveyard'},
+ {k:'coffin',name:'Coffin',sub:'Pine box, shut or open',g:'Dungeon & graveyard'},
+ {k:'grave',name:'Gravestone',sub:'Headstone or wooden cross',g:'Dungeon & graveyard'},
+ {k:'key',name:'Key',sub:'Brass or iron',g:'Treasure & traps'});
+Object.assign(SIZE,{papers:[14,11],scroll:[12,7],books:[12,10],potions:[11,10],sacks:[13,11],table:[22,14],bedroll:[16,9],haybale:[14,11],
+  skulls:[11,8],cobweb:[16,16],mushrooms:[11,8],stalagmites:[13,15],banner:[10,20],coffin:[10,20],grave:[9,11],key:[9,5]});
+const LOOKS={chest:['Closed','Open with gold','Iron-bound'],scroll:['Rolled','Unrolled'],books:['Stack','Open'],
+  cobweb:['Top-left corner','Top-right corner','Bottom-left corner','Bottom-right corner'],banner:['Red','Blue','Green','Black'],
+  coffin:['Shut','Open'],grave:['Headstone','Wooden cross'],key:['Brass','Iron']};
+const objLook={};   // kind -> the look last picked (from the right-click menu), used for new ones
+const lookOf=o=>LOOKS[o.k]?(o.v||0)%LOOKS[o.k].length:0;
+const lookV=(k,v)=>{const L=LOOKS[k];if(!L)return v;const n=L.length;return v-v%n+((objLook[k]||0)%n)};
+const DECORK=new Set(['papers','scroll','books','potions','sacks','table','bedroll','haybale','skulls','cobweb','mushrooms','stalagmites','banner','coffin','grave','key']);
+// draws one of the kinds above into a sprite; returns true when the sprite takes no outline or shadow (the cobweb)
+function decorSprite(k,v,put,R,E,LN,w,h){
+  const pap=[238,228,204],papd=[212,200,172],ink=[124,106,92],red=[178,52,48],redl=[214,84,70],
+    bone=[236,228,206],boned=[190,178,152],hole=[64,44,44],wd=C.wood,wdd=C.woodd,wl=mix(C.wood,LIGHT,.2),look=LOOKS[k]?v%LOOKS[k].length:0;
+  if(k==='papers'){const sheet=(x,y,ww,hh,sk,c,lines)=>{for(let j=0;j<hh;j++){const dx=Math.round(j*sk);R(x+dx,y+j,ww,1,c);
+      if(lines&&j>0&&j<hh-1&&j%2===0)for(let i=1;i<ww-1;i++)if((i+j+v)%5)put(x+dx+i,y+j,mix(c,ink,.45))}};
+    const L=[[[0,3,7,7,.3],[6,0,7,6,-.35],[5,5,8,6,.15]],[[1,0,8,6,.2],[0,4,6,7,-.2],[7,4,7,7,0]],[[2,1,9,6,-.15],[0,5,7,6,.35],[8,6,6,5,-.2]]][v%3];
+    L.forEach(([x,y,ww,hh,sk],i)=>sheet(x,y,ww,hh,sk,i===1?papd:pap,true));
+    if(v%4===1){put(L[2][0]+3,L[2][1]+3,red);put(L[2][0]+4,L[2][1]+3,redl)}}                                       // a sealed letter
+  else if(k==='scroll'){
+    if(look===0){R(1,2,10,3,pap);R(1,2,10,1,mix(pap,LIGHT,.5));R(1,4,10,1,papd);R(0,2,1,3,papd);R(11,2,1,3,papd);put(0,3,ink);put(11,3,ink);
+      R(5,1,2,5,red);put(5,1,redl);put(4,6,red);put(7,6,red)}
+    else{R(2,1,8,5,pap);for(let y=2;y<5;y++)for(let x=3;x<9;x++)if((x*3+y+v)%4)put(x,y,mix(pap,ink,.4));
+      for(const x of[0,10]){R(x,0,2,7,papd);R(x,0,2,1,pap);put(x+(x?1:0),3,mix(papd,DARK,.25))}}}
+  else if(k==='books'){const cov=[[132,52,44],[54,78,120],[60,104,64],[110,70,120],[150,104,50]],pg=[236,226,200];
+    if(look===0){for(let i=0;i<3;i++){const c=cov[(v+i*2)%cov.length],x=[1,0,2][i],y=6-i*3,ww=[10,11,8][i];
+        R(x,y,ww,3,c);R(x,y,ww,1,mix(c,LIGHT,.3));R(x+1,y+2,ww-2,1,pg);put(x+ww-1,y+2,mix(c,DARK,.3))}}
+    else{const c=cov[v%cov.length];R(0,1,12,8,c);R(0,8,12,1,mix(c,DARK,.3));R(1,1,5,7,pg);R(6,1,5,7,mix(pg,DARK,.08));R(6,1,1,7,mix(pg,DARK,.25));
+      for(let y=2;y<7;y++){for(let x=2;x<5;x++)if((x+y)%3)put(x,y,mix(pg,ink,.4));for(let x=7;x<10;x++)if((x+y+1)%3)put(x,y,mix(pg,ink,.4))}
+      R(5,0,1,2,red)}}                                                                                                  // ribbon bookmark
+  else if(k==='potions'){const P=[[200,48,60],[64,110,220],[70,180,90],[160,80,200],[236,170,40]],a=P[v%5],b=P[(v+2)%5],c=P[(v+4)%5],gls=[200,220,226],cork=[176,128,88];
+    E(3,6.5,3,3,a);put(2,5,mix(a,LIGHT,.6));R(2,2,2,2,gls);R(2,1,2,1,cork);                                           // round flask
+    R(6,2,3,7,mix(b,DARK,.1));R(6,2,1,7,mix(b,LIGHT,.35));R(7,0,1,2,gls);put(7,0,cork);                              // tall bottle
+    R(9,6,2,3,c);put(9,6,mix(c,LIGHT,.5));put(10,5,cork)}                                                             // small vial
+  else if(k==='sacks'){const s=[186,156,112],sd=[150,122,84],sl=[212,186,142];
+    const sack=(cx,cy,rx,ry)=>{E(cx,cy,rx,ry,(x,y)=>x<cx-rx/3&&y<cy?sl:x>cx+rx/3||y>cy+ry/2?sd:s);R(cx-1,cy-ry-1,2,2,sd);put(cx-1,cy-ry-2,s);put(cx,cy-ry-2,s)};
+    sack(4,6.5,4,4);sack(9.5,7,3.5,3.5);if(v%3===0){put(1,10,[230,200,110]);put(3,10,[230,200,110]);put(2,10,[210,180,90])}}
+  else if(k==='table'){const top=(x,y)=>(y%3===2)?wdd:((x+y*5+v)%9===0)?mix(wd,DARK,.15):x+y<6?wl:wd;
+    R(0,0,22,10,top);R(0,0,22,1,wl);R(0,10,22,2,wdd);R(1,12,2,2,wdd);R(19,12,2,2,wdd);
+    if(v%3===0){E(5,4,2,1.6,[220,220,214]);put(5,4,[180,170,160]);R(14,3,3,3,[150,110,70]);R(14,3,3,1,[240,236,220])}       // plate and mug
+    else if(v%3===1){for(const[x,y]of[[6,3],[9,5],[12,2]]){R(x,y,3,4,[240,236,226]);put(x+1,y+1,red)}}                      // cards
+    else{R(8,2,5,4,pap);R(8,2,5,1,mix(pap,LIGHT,.5));put(14,4,[60,60,70]);put(15,3,[60,60,70])}}                            // a map and a candle stub
+  else if(k==='bedroll'){const P=[[[150,60,50],[118,44,38]],[[70,96,70],[52,72,52]],[[86,92,130],[62,66,100]]][v%3],[c,cd]=P;
+    R(4,1,12,7,(x,y)=>((x>>1)+(y>>1))%2?c:cd);R(4,1,12,1,mix(c,LIGHT,.25));R(0,0,5,9,mix(c,LIGHT,.15));R(1,0,1,9,cd);R(3,0,1,9,cd);R(2,4,1,1,mix(c,LIGHT,.4))}
+  else if(k==='haybale'){const s=[222,190,104],sd=[188,152,74],sl=[240,214,140];
+    R(0,0,14,4,(x,y)=>(x*7+y*3+v)%5===0?sd:sl);R(0,4,14,7,(x,y)=>(x*3+y*5+v)%4===0?sd:s);R(0,4,14,1,sd);
+    for(const x of[3,10]){R(x,0,1,11,[150,104,60])}}
+  else if(k==='skulls'){const sk=(x,y)=>['.###.','#####','#o#o#','##.##','.d.d.'].forEach((r,j)=>[...r].forEach((ch,i)=>{if(ch!=='.')put(x+i,y+j,ch==='o'?hole:ch==='d'||j===3?boned:bone)}));
+    sk(0,3);sk(6,3);sk(3,0);if(v%2)LN(0,7,3,7,boned)}
+  else if(k==='cobweb'){const fx=look&1,fy=look>>1,P=(x,y,c)=>put(fx?15-x:x,fy?15-y:y,c),web=[226,224,220],webd=[184,180,178];
+    for(let a=0;a<5;a++){const an=a/4*Math.PI/2,L=a%2?13:15;for(let t=0;t<=L;t++)P(Math.cos(an)*t,Math.sin(an)*t,a%2?webd:web)}
+    for(const r of[4,8,12]){for(let a=0;a<=24;a++){const an=a/24*Math.PI/2,rr=r-1.2*Math.abs(Math.sin(an*4));if(r===12&&(a<2||a>22))continue;P(Math.cos(an)*rr,Math.sin(an)*rr,web)}}
+    return true}
+  else if(k==='mushrooms'){const P=[[[176,120,80],[214,170,120]],[[196,56,48],[240,228,214]],[[90,170,180],[176,230,232]]][v%3],[cap,dot]=P,stem=[230,220,196];
+    for(const[cx,by,r]of[[4,7,3.2],[9,7,2]]){const cy=by-r-.5;R(Math.round(cx)-1,Math.round(cy),2,by-Math.round(cy)+1,stem);E(cx,cy,r,r*.65,cap);R(cx-r+.5,cy+r*.5-.5,r*2-1,1,mix(cap,DARK,.3));put(cx-r/2,cy-.4,dot);if(r>3){put(cx+1,cy-1,dot);put(cx+2,cy+.5,dot)}}}
+  else if(k==='stalagmites'){const c=v%2?[C.wall,C.walld,C.walll]:[C.rock,C.rockd,C.rockl];
+    const spike=(cx,by,ht,hw)=>{for(let j=0;j<ht;j++){const ww=hw*(j+1)/ht;for(let x=Math.floor(cx-ww);x<=Math.ceil(cx+ww)-1;x++)put(x,by-ht+j,x<cx-ww/3?c[2]:x>=cx+ww/3?c[1]:c[0])}};
+    spike(6.5,14,14,3.2);spike(2.5,14,8,2.4);spike(10.5,14,10,2.4);R(0,13,13,2,c[1])}
+  else if(k==='banner'){const B=[[[176,48,44],[132,32,32]],[[52,86,160],[36,60,120]],[[56,124,70],[38,92,50]],[[60,54,62],[40,36,44]]][look],[c,cd]=B,gd=C.gold;
+    R(1,0,1,20,wdd);R(0,1,10,1,wd);put(0,0,gd);put(9,0,gd);
+    for(let y=2;y<15;y++){const cut=y>11?y-11:0;R(2+cut,y,7-cut*2,1,c);put(8-cut,y,cd)}
+    R(5,5,1,1,gd);R(4,6,3,1,gd);R(3,7,5,1,gd);R(4,8,3,1,gd);R(5,9,1,1,gd)}
+  else if(k==='coffin'){const pine=[196,150,100],pined=[160,116,74],pl=[218,178,130];
+    const rowW=y=>y<4?6+y:y<6?10:10-Math.round((y-5)*.35),rows=20;
+    for(let y=0;y<rows;y++){const ww=Math.min(10,rowW(y)),x0=Math.round((10-ww)/2);
+      if(look===1&&y>1&&y<rows-2){R(x0,y,1,1,pined);R(x0+ww-1,y,1,1,pined);R(x0+1,y,ww-2,1,y<4?[44,32,34]:[56,40,40])}
+      else R(x0,y,ww,1,(x)=>x===x0?pl:x===x0+ww-1?pined:pine)}
+    if(look===0){R(4,4,2,9,pined);R(2,7,6,2,pined)}else{E(5,5,1.6,1.6,bone);put(4,5,hole);put(6,5,hole);R(4,8,2,7,boned);for(let y=9;y<14;y+=2)R(3,y,4,1,boned)}}
+  else if(k==='grave'){const dirt=[150,110,84],dirtd=[122,88,66];E(4.5,9.5,4.5,1.8,(x,y)=>(x+y)%3?dirt:dirtd);
+    if(look===0){const s=C.stone,sd=C.stoned,sl=mix(C.stone,LIGHT,.3);E(4.5,2.5,3.5,2.5,s);R(1,2.5,7,6,s);R(1,2,1,7,sl);R(7,2,1,7,sd);R(3,4,3,1,sd);R(4,3,1,4,sd)}
+    else{R(4,0,2,10,wd);R(4,0,1,10,wl);R(1,2,8,2,wd);R(1,2,8,1,wl)}}
+  else if(k==='key'){const c=look?C.metall:C.gold,cd=look?C.metal:[176,132,52],cl=look?[196,192,188]:[250,224,140];
+    E(2.5,2.5,2.5,2.5,c);put(2,2,hole);put(1,1,cl);R(5,2,4,1,c);R(5,3,4,1,cd);put(7,4,cd);put(8,4,cd)}
+  return false}
 // icon: SVG path data on a 24 × 24 grid, stroked
 const ICON={select:'M6 3l13 8-6 1.5-3 6z',
  paint:'M19 3l2 2-9 9-2-2z M9 13c-3 0-4.5 2-4.5 4.5 0 1.5-1 2.5-2 2.5 3.5 1 8 .5 8.5-4.5',
@@ -537,7 +631,8 @@ const ICON={select:'M6 3l13 8-6 1.5-3 6z',
  copy:'M8 8h13v13H8z M4 16V4h12',
  trash:'M4 7h16 M10 11v6 M14 11v6 M6 7l1 13h10l1-13 M9 7V4h6v3',
  stamp:'M9 3h6v6l3 3v3H6v-3l3-3z M5 21h14',
- sheet:'M6 3h9l4 4v14H6z M14 3v5h5 M9 12h7 M9 16h7'};
+ sheet:'M6 3h9l4 4v14H6z M14 3v5h5 M9 12h7 M9 16h7',
+ look:'M4 8h14l-3-3 M20 16H6l3 3'};
 const svgI=(k,w=1.8)=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${ICON[k]}"/></svg>`;
 // the tool rail. Paint covers brush and shape drawing (tool 'brush' / 'draw'). Hills sculpts with the brush (tool 'sculpt') or a shape (tool 'draw' with a height paint).
 // Objects and Tokens are both the 'object' tool underneath (objKind 'tok:<s>' places tokens). Pan (H) has no button: drag empty ground.
@@ -771,6 +866,7 @@ function sprite(k,v){v=(v||0)%12;const key=k+':'+v;if(SPR.has(key))return SPR.ge
   else if(k==='boulder'){E(w/2,h/2,w/2,h/2,(x,y)=>x+y<h-1?C.rockl:x+y>w+2?C.rockd:C.rock);LN(5,4,8,7,C.rockd);LN(9,3,10,5,C.rockd)}
   else if(k==='tree'){const tw=[122,86,62];for(let a=0;a<7;a++){const an=a*Math.PI*2/7+.35,L=9+(a%3);const ex=13+Math.cos(an)*L,ey=12+Math.sin(an)*L;LN(13,12,ex,ey,tw);
       const mx=13+Math.cos(an)*L*.6,my=12+Math.sin(an)*L*.6;LN(mx,my,mx+Math.cos(an+.7)*4,my+Math.sin(an+.7)*4,tw)}E(13,12,2.6,2.6,[96,66,48])}
+  else if(DECORK.has(k))own=decorSprite(k,v,put,R,E,LN,w,h);
   if(!own){const ol=new Uint8Array(sw*sh);
     for(let y=0;y<sh;y++)for(let x=0;x<sw;x++){const i=y*sw+x;if(body[i])continue;
       if((x>0&&body[i-1])||(x<sw-1&&body[i+1])||(y>0&&body[i-sw])||(y<sh-1&&body[i+sw])){ol[i]=1;px.set([...C.out,255],i*4)}}
@@ -1015,14 +1111,14 @@ function placementTokens(cx,cy){const s=tokKind();if(s<0)return[];const cells=ce
 function placementItems(cx,cy){
   if(tokKind()>=0)return[];
   if(objKind.startsWith('stamp:')){const sp=stamps[+objKind.slice(6)];if(!sp)return[];return sp.items.map(it=>{const[dx,dy]=rotQ(it.dx,it.dy,stampRot);return{k:it.k,v:it.v,x:Math.round(cx+dx),y:Math.round(cy+dy)}})}
-  if(objScat){const kinds=objMix?[...mixKinds]:[objKind];if(!kinds.length)return[];return scatterSpots(kinds).map(q=>({k:q.k,v:q.v,x:Math.round(cx+q.dx),y:Math.round(cy+q.dy)}))}
+  if(objScat){const kinds=objMix?[...mixKinds]:[objKind];if(!kinds.length)return[];return scatterSpots(kinds).map(q=>({k:q.k,v:lookV(q.k,q.v),x:Math.round(cx+q.dx),y:Math.round(cy+q.dy)}))}
   const cells=cellList(),b=cellBox(cells);
   if(objMix){const kinds=[...mixKinds];if(!kinds.length)return[];
     // pitch fits the biggest object in the mix so neighbours rarely overlap
     const w=Math.max(...kinds.map(k=>SIZE[k][0])),h=Math.max(...kinds.map(k=>SIZE[k][1])),sx=w+objGap,sy=h+objGap,x0=cx-(b.c*sx-objGap)/2+w/2,y0=cy-(b.r*sy-objGap)/2+h/2;
-    return scatterPlan(cells,kinds).map(q=>({k:q.k,v:q.v,x:Math.round(x0+(q.c-b.c0)*sx+q.jx*(sx-SIZE[q.k][0]*.5)),y:Math.round(y0+(q.r-b.r0)*sy+q.jy*(sy-SIZE[q.k][1]*.5))}))}
+    return scatterPlan(cells,kinds).map(q=>({k:q.k,v:lookV(q.k,q.v),x:Math.round(x0+(q.c-b.c0)*sx+q.jx*(sx-SIZE[q.k][0]*.5)),y:Math.round(y0+(q.r-b.r0)*sy+q.jy*(sy-SIZE[q.k][1]*.5))}))}
   const[w,h]=SIZE[objKind],sx=w+objGap,sy=h+objGap,x0=cx-(b.c*sx-objGap)/2+w/2,y0=cy-(b.r*sy-objGap)/2+h/2;
-  return cells.map(([c,r])=>({k:objKind,x:Math.round(x0+(c-b.c0)*sx),y:Math.round(y0+(r-b.r0)*sy),v:Math.floor(Math.random()*12)}))}
+  return cells.map(([c,r])=>({k:objKind,x:Math.round(x0+(c-b.c0)*sx),y:Math.round(y0+(r-b.r0)*sy),v:lookV(objKind,Math.floor(Math.random()*12))}))}
 // right-click / R in the Objects tool: turn the placement a quarter turn clockwise (screen y points down, so (x,y) -> (-y,x))
 function rotQ(x,y,q){for(let i=0;i<q;i++)[x,y]=[-y,x];return[x+0,y+0]}
 function rotatePlacement(){
@@ -1886,7 +1982,10 @@ function openQuick(cx,cy,p){const m=$('qmenu'),pl=mp.role==='player';m.replaceCh
   if(!pl){const h=hit(p);
     if(h&&(h.type==='token'||h.type==='obj')){const pickIt=()=>{setTool('select');if(h.type==='token')sel={type:'token',i:h.i};else{const o=st.objects[h.i];setObjSel(o.g?st.objects.map((q,i)=>q.g===o.g?i:-1).filter(i=>i>=0):[h.i])}};
       const nm=h.type==='token'?tokLabel(st.tokens[h.i].s):OBJ.find(o=>o.k===st.objects[h.i].k).name;
-      add('copy','Duplicate '+nm,()=>{pickIt();dupSel()});add('trash','Delete '+nm,()=>{pickIt();delSel()},'danger')}
+      add('copy','Duplicate '+nm,()=>{pickIt();dupSel()});
+      // objects with looks (a chest open or shut, a banner's colour...): one item per other look; new ones then take that look
+      if(h.type==='obj'){const o=st.objects[h.i],L=LOOKS[o.k];if(L){const cur=lookOf(o);L.forEach((lk,j)=>{if(j!==cur)add('look',nm+': '+lk,()=>{push();o.v=(o.v||0)-cur+j;objLook[o.k]=j;objDirty=true;save()})})}}
+      add('trash','Delete '+nm,()=>{pickIt();delSel()},'danger')}
     const ts=tokKind()>=0?tokKind():+lastTokKind.slice(4);
     if(TOKINFO[ts]){const cvs=tokSwatch(ts);add(cvs,'Place '+tokLabel(ts),()=>{push();const sn=v=>altDown?Math.round(v):Math.round(v/8)*8;st.tokens.push({s:ts,x:Math.max(8,Math.min(W-8,sn(p[0]))),y:Math.max(30,Math.min(H-1,sn(p[1]))),o:Math.floor(Math.random()*8)});save()})}
     if(p[0]>=0&&p[1]>=0&&p[0]<W&&p[1]<H){if(fogAt(st.fog,p[0],p[1]))add('reveal','Reveal around here',()=>fogQuick(p,'0'));else add('hide','Hide around here',()=>fogQuick(p,'1'))}}
