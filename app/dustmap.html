@@ -1233,7 +1233,7 @@ function buildTools(){const box=$('tools');TOOLS.forEach(t=>{if(t.sep){const s=d
   const b=document.createElement('button');b.className='ib';b.id='t-'+t.id;b.setAttribute('aria-pressed','false');b.dataset.key=t.key;b.innerHTML=svgI(t.id);b.onclick=()=>pickRail(t.id);box.append(b)})}
 // which rail button is lit for the current tool
 function railOf(){if(tool==='draw'||tool==='brush')return paint.layer==='ground'?'paint':'height';if(tool==='sculpt')return'height';if(tool==='object')return tokKind()>=0?'token':'object';return tool}
-function pickRail(id){if(mp.role==='player'&&(TOOLS.find(t=>t.id===id)||{}).dm)return;
+function pickRail(id){const td=TOOLS.find(t=>t.id===id)||{};if(mp.role==='player'?td.dm:td.pl)return;
   if(id==='paint'||id==='height'){const g=id==='paint';paint=g?groundPaint:heightPaint;const nt=g?'ground':'height';setTool(g?paintMode:hillMode==='brush'?'sculpt':'draw');if(tab!==nt){tab=nt;buildPaints()}}
   else if(id==='object'){if(tokKind()>=0){lastTokKind=objKind;objKind=lastObjKind}setTool('object')}
   else if(id==='token'){if(tokKind()<0){lastObjKind=objKind;objKind=lastTokKind;objMix=false;buildToks()}setTool('object')}
@@ -1864,8 +1864,9 @@ function kPres(){const k=kLive();if(!k)return null;const t=st.tokens[kTok()];if(
 
 // ================= UI sync =================
 function syncUI(){
+  if(mp.role!=='player'&&tool==='attack')tool='select';
   const pl=mp.role==='player',r=railOf();document.body.classList.toggle('mp-player',pl);
-  TOOLS.forEach(t=>{if(t.sep)return;const b=$('t-'+t.id),mv=pl&&t.id==='select',nm=mv?'Move':t.name;b.setAttribute('aria-pressed',String(r===t.id));b.hidden=pl&&!!t.dm;
+  TOOLS.forEach(t=>{if(t.sep)return;const b=$('t-'+t.id),mv=pl&&t.id==='select',nm=mv?'Move':t.name;b.setAttribute('aria-pressed',String(r===t.id));b.hidden=pl?!!t.dm:!!t.pl;
     b.dataset.tip=nm;b.dataset.sub=mv?'Drag your token. Click an enemy to throw something at it. Drag empty ground to look around.':t.sub;b.setAttribute('aria-label',nm)});
   $('tools').querySelectorAll('.hsep').forEach(x=>x.hidden=pl);
   cv.classList.toggle('select',tool==='select');cv.classList.toggle('pan',tool==='pan');
@@ -1933,6 +1934,7 @@ function syncHint(){const h=$('hint');h.replaceChildren();
   else if(tool==='measure'&&measure&&measure.follow){pill('Measure');add('Click where it ends')}
   else if(tool==='fog'&&mp.role!=='player'){const once=fogMode==='hide'?'hides':'reveals',twice=fogMode==='hide'?'reveals':'hides';
     if(fogPaint)pill(fogPaint.v==='1'?'Hiding':'Revealing');else pill('Fog');add(`Click or drag ${once} · double-click and drag ${twice}`)}
+  else if(tool==='attack'){pill(aim?'Aiming':'Attack');add('Drag to aim, release to throw · click an enemy to throw straight at it')}
   else if(tool!=='select'){}
   else if(mp.role==='player'){const mine=st.tokens.filter(t=>mpMayMove(t,mp.me)).map(t=>tokName(t.s));
     if(mine.length){pill('Playing '+mine.join(' & '));add('Drag, or step with <kbd>←</kbd><kbd>↑</kbd><kbd>→</kbd><kbd>↓</kbd> / <kbd>WASD</kbd>');add('Click an enemy to throw at it')}
@@ -3077,7 +3079,7 @@ function killPoolDraw(g,k,t){const[t0,t1]=poolT(k);if(!k.blood||!(k.peer||!k.pla
 function killUnder(g,fv){const now=performance.now(),still=killStill();
   kills.forEach(k=>{if(fogAt(fv,k.x,k.y))return;const t=(now-k.t0)/1000;killPoolDraw(g,k,t);
     if(!still){killDrops(g,k,t,true);if(k.boom)killGibs(g,k,t,true)}});
-  if(!still)hits.forEach(h=>{if(!fogAt(fv,h.x,h.y))killDrops(g,h,(now-h.t0)/1000,true,10,1.6)})}
+  if(!still)hits.forEach(h=>{if(!h.miss&&!fogAt(fv,h.x,h.y))killDrops(g,h,(now-h.t0)/1000,true,10,1.6)})}
 // the token's current frame tinted with a colour, drawn where it stands
 function tokTint(g,cvs,t,col){const f=(frame+(t.o||0))%8,im=sheets[t.s];if(!im||!im.complete)return;const tg=cvs.getContext('2d');tg.globalCompositeOperation='copy';
   tg.drawImage(im,f*32,0,32,32,0,0,32,32);tg.globalCompositeOperation='source-atop';tg.fillStyle=col;tg.fillRect(0,0,32,32);g.drawImage(cvs,Math.round(t.x)-16,Math.round(t.y)-31)}
@@ -3108,7 +3110,10 @@ function killOver(g,fv){const now=performance.now(),still=killStill();
     tokTint(g,tintCv,tk,t<.08?'rgba(255,255,255,.95)':`rgba(200,24,24,${.6*(1-(t-.08)/.22)})`);
     if(!still&&t<.25){g.strokeStyle=`rgba(255,240,200,${1-t/.25})`;g.lineWidth=1;const r=3+t*24,cx=h.x,cy=h.y-14;
       for(let a=0;a<8;a++){const an=a/8*Math.PI*2;g.beginPath();g.moveTo(cx+Math.cos(an)*r*.6,cy+Math.sin(an)*r*.6);g.lineTo(cx+Math.cos(an)*r,cy+Math.sin(an)*r);g.stroke()}}});
-  if(!still)hits.forEach(h=>{if(!fogAt(fv,h.x,h.y))killDrops(g,h,(now-h.t0)/1000,false,10,1.6)});
+  if(!still)hits.forEach(h=>{if(fogAt(fv,h.x,h.y))return;const t=(now-h.t0)/1000;if(!h.miss){killDrops(g,h,t,false,10,1.6);return}
+    // a miss: a puff of dust where it lands
+    if(t<.7){const R=mulberry(h.sd+3);for(let i=0;i<7;i++){const a=R()*Math.PI*2,p=t/.7;g.fillStyle=`rgba(196,160,128,${.5*(1-p)})`;g.beginPath();g.arc(h.x+Math.cos(a)*(2+p*7),h.y+Math.sin(a)*(1+p*3)-p*3,1+p*2.5,0,7);g.fill()}}});
+  aimDraw(g);
   // DM: a red crosshair over each token marked killable (fall) or a red one with a burst (explode)
   if(mp.role!=='player')st.tokens.forEach(t=>{if(!t.kl||!killable(t))return;const x=Math.round(t.x),y=Math.round(t.y)+tokTop(t.s)-6,pl=.6+.4*Math.sin(now/220);
     g.save();g.strokeStyle=`rgba(230,40,40,${pl})`;g.lineWidth=1;g.beginPath();g.arc(x+.5,y+.5,3,0,7);g.moveTo(x+.5,y-4);g.lineTo(x+.5,y-1);g.moveTo(x+.5,y+2);g.lineTo(x+.5,y+5);
@@ -3140,9 +3145,9 @@ function throwPeer(key,th){if(!Array.isArray(th))th=[];const seen=thSeen.get(key
   if(seen===undefined)return;th.forEach(e=>{if(!e||!fin(e.n)||+e.n<=seen||typeof e.id!=='string'||![e.fx,e.fy,e.tx,e.ty].every(fin))return;
     throwStart(+e.fx,+e.fy,+e.tx,+e.ty,e.id,fin(e.sd)?Math.max(1,Math.floor(+e.sd)):1,mp.role==='dm')})}
 function throwTick(now){const done=throws.filter(p=>now-p.t0>=p.dur);if(!done.length)return;throws=throws.filter(p=>now-p.t0<p.dur);
-  done.forEach(p=>{const i=st.tokens.findIndex(t=>t.id===p.id),t=st.tokens[i],x=t?t.x:p.tx,y=t?t.y:p.ty;
+  done.forEach(p=>{const i=p.id?st.tokens.findIndex(t=>t.id===p.id):-1,t=st.tokens[i],x=t?t.x:p.tx,y=t?t.y:p.ty;
     if(p.judge&&t&&t.kl&&killable(t)){tokKill(i,klStyle(t));return}
-    hits.push({x,y,id:p.id,sd:p.sd,dir:p.tx>=p.fx?1:-1,t0:now})});
+    hits.push({x,y,id:p.id,sd:p.sd,dir:p.tx>=p.fx?1:-1,t0:now,miss:!t})});
   hits=hits.filter(h=>now-h.t0<1600)}
 // the thrown thing: an arc from the thrower's hand to the target's chest, spinning, with its shadow on the ground
 function throwDraw(g,fv,now,still){throws.forEach(p=>{const q=Math.min(1,(now-p.t0)/p.dur),gx=p.fx+(p.tx-p.fx)*q,gy=p.fy+(p.ty-p.fy)*q;if(fogAt(fv,gx,gy))return;
@@ -3167,6 +3172,39 @@ function killSelbar(bar,add){const i=killSel();if(i<0)return;const t=st.tokens[i
   tb('','Leave blood: '+(killBlood?'on':'off'),'Click to '+(killBlood?'kill without':'leave')+' blood',killBlood,()=>{killBlood=!killBlood;try{localStorage.setItem('dustmap-killblood',killBlood?'1':'0')}catch(e){}selKey='';syncUI()},'drop');
   tb('','Next hit kills: '+(t.kl?'on':'off'),t.kl?'Click so a hit no longer kills it':'The next thing a player throws at it kills it ('+(boom?'explodes':'falls over')+')',!!t.kl,()=>{
     const q=st.tokens[killSel()];if(!q)return;push();if(q.kl)delete q.kl;else q.kl=killStyle==='boom'?'x':'f';save();selKey='';syncUI()},'target')}
+// ---- the players' Attack tool (X) ----
+// Drag a line and release: your token flings something that way. The throw goes the drag's direction and length (2 to 12
+// squares) from your token, and stops at the first townsfolk or enemy token its path crosses; a throw that crosses nobody
+// lands at the end of the line in a puff of dust. A click on a townsfolk or enemy token throws straight at it, as in Move.
+// Players only (the DM has no token of their own); the throw goes out like any other (th on presence, id '' for a miss).
+const AIM_MIN=2*GRID,AIM_MAX=12*GRID;
+TOOLS.push({id:'attack',name:'Attack',key:'X',sub:'Drag to aim and release to throw. Click an enemy to throw straight at it.',pl:1});
+ICON.attack='M4 20l9-9 M13 11l2-6 4-1-1 4-6 2 M6 14l4 4 M4 20l-1 1';
+PLAYER_TOOLS.push('attack');
+let aim=null;
+const myTok=()=>mp.role==='player'&&mp.sess&&mp.sess.live?st.tokens.find(q=>mp.sess.assign[q.s]===mp.me)||null:null;
+// where a drag from a to b flings from token me: the end point, and the first token in the way (or null)
+function aimPath(me,a,b){let dx=b[0]-a[0],dy=b[1]-a[1];const L=Math.hypot(dx,dy);if(L<1)return null;const d=Math.max(AIM_MIN,Math.min(AIM_MAX,L));dx/=L;dy/=L;
+  const ex=Math.max(0,Math.min(W,me.x+dx*d)),ey=Math.max(0,Math.min(H,me.y+dy*d)),sx=me.x,sy=me.y,vx=ex-sx,vy=ey-sy,vv=vx*vx+vy*vy||1;let best=null,bs=2;
+  st.tokens.forEach(t=>{if(t===me||!killable(t)||!t.id)return;const cx=t.x,cy=t.y-6,s=Math.max(0,Math.min(1,((cx-sx)*vx+(cy-sy)*vy)/vv));
+    if(Math.hypot(sx+vx*s-cx,sy+vy*s-cy)<=10&&s<bs){bs=s;best=t}});
+  return{ex,ey,t:best}}
+function throwEmit(me,tx,ty,id){const sd=1+Math.floor(Math.random()*99999),ev={n:++thN,id,fx:Math.round(me.x),fy:Math.round(me.y),tx:Math.round(tx),ty:Math.round(ty),sd};
+  thLog.push(ev);if(thLog.length>6)thLog.shift();mp.pres.th=thLog.slice();throwStart(ev.fx,ev.fy,ev.tx,ev.ty,id,sd,false)}
+cv.addEventListener('pointerdown',e=>{if(tool!=='attack'||mp.role!=='player'||e.button!==0||spaceDown)return;e.stopImmediatePropagation();e.preventDefault();
+  const p=toMap(e);try{cv.setPointerCapture(e.pointerId)}catch(_){}aim={a:p,b:p,id:e.pointerId,sx:e.clientX,sy:e.clientY,far:false};syncUI()},true);
+cv.addEventListener('pointermove',e=>{if(!aim||e.pointerId!==aim.id)return;aim.b=toMap(e);if(Math.hypot(e.clientX-aim.sx,e.clientY-aim.sy)>6)aim.far=true;hover=aim.b},true);
+function aimEnd(e){if(!aim||e.pointerId!==aim.id)return;e.stopImmediatePropagation();const a=aim;aim=null;const me=myTok();
+  if(e.type==='pointerup'&&me){
+    if(!a.far){const h=hit(a.a);if(h&&h.type==='token')throwAt(h.i)}
+    else{const now=performance.now();if(now-thLast>=350){const r=aimPath(me,a.a,a.b);if(r){thLast=now;throwEmit(me,r.t?r.t.x:r.ex,r.t?r.t.y:r.ey,r.t?r.t.id:'')}}}}
+  syncUI()}
+cv.addEventListener('pointerup',aimEnd,true);cv.addEventListener('pointercancel',aimEnd,true);
+// the aim line on the thrower's own screen: dashed from the token to where it lands, a ring on whoever is in the way
+function aimDraw(g){if(!aim||!aim.far)return;const me=myTok();if(!me)return;const r=aimPath(me,aim.a,aim.b);if(!r)return;
+  const ex=r.t?r.t.x:r.ex,ey=r.t?r.t.y:r.ey,ln=()=>{g.beginPath();g.moveTo(me.x,me.y-12);g.lineTo(ex,ey-(r.t?12:0));g.stroke()};g.save();g.lineCap='round';g.lineWidth=2.6;g.strokeStyle='rgba(60,30,30,.55)';ln();g.setLineDash([4,3]);g.lineWidth=1.3;g.strokeStyle='rgba(255,240,210,1)';ln();g.setLineDash([]);
+  if(r.t){g.strokeStyle='rgba(230,40,40,.95)';g.lineWidth=1.5;g.beginPath();g.ellipse(r.t.x,r.t.y-1,8,4,0,0,7);g.stroke()}
+  else{g.strokeStyle='rgba(255,236,200,.95)';g.beginPath();g.moveTo(ex-3,ey-3);g.lineTo(ex+3,ey+3);g.moveTo(ex+3,ey-3);g.lineTo(ex-3,ey+3);g.stroke()}g.restore()}
 // ================= doors, stairs and entrances =================
 // A portal is an object ({k:'door'|'stairsdown'|'stairsup'|'entrance', x, y}) that also carries where it leads:
 //   id   its own id (so other doors can name it as the place to arrive)
@@ -3704,7 +3742,7 @@ $('libtour').onclick=tourOpen;$('tour').onclick=()=>{menuShow(false);tourOpen()}
 $('libcave').onclick=caveOpen;$('cave').onclick=()=>{menuShow(false);caveOpen()};
 // read-only peek for the tests
 window.__terrain=()=>({cv:tcan,L:lastR.L,W,H});
-window.__mpMe=()=>mp.me;window.__dustmap=()=>({st,fog:fogGet(),litFires:litFires(fogView()).length,role:mp.role,cam:{...cam},Z,pings:pings.map(p=>({x:p.x,y:p.y,rgb:p.rgb||null})),blasts:blasts.map(b=>({x:b.x,y:b.y,r:b.r})),fuses:fuses.length,kills:kills.length,throws:throws.length,hits:hits.length,tool,peers:mp.peers.length,busy:mp.busy,err:mp.err,again:mp.again,ks:kLive()?{n:kstep.n,path:kstep.path}:null,hist:hist.length,sel});
+window.__mpMe=()=>mp.me;window.__dustmap=()=>({st,fog:fogGet(),litFires:litFires(fogView()).length,role:mp.role,cam:{...cam},Z,pings:pings.map(p=>({x:p.x,y:p.y,rgb:p.rgb||null})),blasts:blasts.map(b=>({x:b.x,y:b.y,r:b.r})),fuses:fuses.length,kills:kills.length,throws:throws.length,hits:hits.length,th:thLog.slice(),tool,peers:mp.peers.length,busy:mp.busy,err:mp.err,again:mp.again,ks:kLive()?{n:kstep.n,path:kstep.path}:null,hist:hist.length,sel});
 libInit();mpInit();
 buildTools();buildObjs();buildToks();buildPaints();updUndo();sizeCanvas();syncUI();requestAnimationFrame(loop);
 setTimeout(buildPaints,0);

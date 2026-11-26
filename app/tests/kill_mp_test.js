@@ -1,5 +1,5 @@
 const {chromium}=require('playwright');const path=require('path');const fs=require('fs');const {pathToFileURL}=require('url');
-// Kill and throwing in a live session: a player clicks an enemy and throws at it; once the DM marks it "next hit kills"
+// Kill and throwing in a live session: a player clicks an enemy and throws at it, or drags a line with the Attack tool; once the DM marks it "next hit kills"
 // (explode), the next throw kills it on every page and the gore arrives with the map. The DM's own Kill reaches players too.
 // Players get no Kill button, K does nothing for them, and they never see the killable mark. Uses tests/mock_claude_runtime.js in place of claude.ai's db / room / user.
 const PAGE=pathToFileURL(path.resolve(__dirname,'..','dustmap.html')).href;
@@ -60,6 +60,21 @@ try{
   // clicking your own token still drags it, never throws
   const th0=(await S(p1)).throws;await clickMap(p1,mine.x,mine.y-6);if((await S(p1)).throws!==th0)fail('clicking your own token should not throw');
 
+  // the Attack tool: players have it, the DM doesn't. A drag toward the snake flings at it; a drag away lands in the dirt.
+  if(!(await p1.isVisible('#t-attack')))fail('players should have the Attack tool');if(await dm.isVisible('#t-attack'))fail('the DM should not have the Attack tool');
+  await p1.click('#t-attack');if((await S(p1)).tool!=='attack')fail('Attack tool should be picked');
+  const thrown=()=>p1.evaluate(()=>window.__dustmap().th);
+  {const a=await scr(p1,mine.x,mine.y-6),c=await scr(p1,snake.x,snake.y-6);await p1.mouse.move(...a);await p1.mouse.down();
+    for(let k=1;k<=8;k++){await p1.mouse.move(a[0]+(c[0]-a[0])*k/8,a[1]+(c[1]-a[1])*k/8);await p1.waitForTimeout(30)}
+    await wait(100);await p1.screenshot({path:path.join(OUT,'kill_mp_attack_aim.png')});await p1.mouse.up();await wait(300)}
+  let th=await thrown();
+  if(!th.length||th[th.length-1].id!==snake.id)fail('a drag toward the snake should throw at it: '+JSON.stringify(th));
+  await wait(150);await p1.screenshot({path:path.join(OUT,'kill_mp_attack_drag.png')});await wait(400);
+  await dragMap(p1,[mine.x,mine.y-6],[mine.x-60,mine.y-30]);th=await thrown();
+  if(th[th.length-1].id!==''||th[th.length-1].tx>=mine.x)fail('a drag away should miss and land to the left: '+JSON.stringify(th[th.length-1]));
+  await until(async()=>(await S(dm)).throws>0||(await S(dm)).hits>0,'the DM sees the drag throws');
+  if(!(await S(p1)).st.tokens.some(t=>t.s===44))fail('an unmarked snake should survive');
+
   // the DM marks it: explode, next hit kills (players never get the mark)
   await dm.keyboard.press('v');await clickMap(dm,snake.x,snake.y-6);
   if(!(await dm.locator('#selbar button[aria-label="Kill"]').count()))fail('the DM should get Kill on an enemy');
@@ -71,7 +86,7 @@ try{
   if((await S(p1)).st.tokens.find(t=>t.s===44).kl)fail('players should not get the killable mark');
 
   // the player throws again: the DM's page kills it, everyone sees it explode, and the gore reaches the player
-  await clickMap(p1,snake.x,snake.y-6);
+  await wait(400);await dragMap(p1,[mine.x-20,mine.y-6],[snake.x-20,snake.y-6]);   // the Attack tool, aimed from beside the token
   await until(async()=>(await S(p1)).kills>0,'player plays the death');
   await wait(200);await p1.screenshot({path:path.join(OUT,'kill_mp_explode.png')});
   await until(async()=>(await S(p1)).st.tokens.every(t=>t.s!==44),'the rattlesnake leaves the player map');
