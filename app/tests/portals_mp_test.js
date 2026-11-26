@@ -1,6 +1,6 @@
 const {chromium}=require('playwright');const path=require('path');const fs=require('fs');const {pathToFileURL}=require('url');
-// Doors in a live session: a player walks their token onto a door and everyone moves to the linked map, with the party
-// standing beside the door back; a player clicking a door beside their own token opens it too; a locked door doesn't;
+// Doors in a live session: a player walks their token onto a door and only that token goes to the linked map, beside
+// the door back; the DM follows; a player clicking a door beside their own token opens it too; a locked door doesn't;
 // landing spots never reach players. Uses tests/mock_claude_runtime.js in place of claude.ai's db / room / user.
 const PAGE=pathToFileURL(path.resolve(__dirname,'..','dustmap.html')).href;
 const OUT=path.join(__dirname,'output');fs.mkdirSync(OUT,{recursive:true});
@@ -60,12 +60,21 @@ try{
   if(!/Walk up/.test(await p1.textContent('#portmsg')))fail('a far-off click should tell the player to walk up: '+await p1.textContent('#portmsg'));
   if(await curName(dm)!==home)fail('a far-off click should not open the door');
 
-  // the player walks onto the door: everyone moves to the Cellar
+  // the player walks onto the door: only their token goes, into the Cellar; the session stays home with the rest of the party
+  const dmMap=async(p,n)=>{const l=await lib(p);return p.evaluate(id=>JSON.parse(localStorage.getItem('dustmap-map:'+id)),l.maps.find(m=>m.name===n).id)};
+  const beside=(t,c,r)=>{const q=cell(t.x,t.y);return Math.max(Math.abs(q[0]-c),Math.abs(q[1]-r))<=2&&!(q[0]===c&&q[1]===r)};
   await dragMap(p1,[mine.x,mine.y-10],[dx,dy-10]);
-  await until(async()=>await curName(dm)==='Cellar','DM page follows the door to the Cellar');
+  await until(async()=>!(await S(dm)).st.tokens.some(t=>t.s===0),'the token leaves the home map');
+  await until(async()=>{const t=(await dmMap(dm,'Cellar')).tokens.find(t=>t.s===0);return t&&beside(t,18,2)},'it waits in the Cellar beside the door');
+  if(await curName(dm)!==home)fail('one player going through should not move the session');
+  await until(async()=>!(await S(p1)).st.tokens.some(t=>t.s===0),'the player sees their token go');
+  await until(async()=>/went through the door/.test(await p1.textContent('#portmsg')),'players are told who went through');
+  if((await S(dm)).st.tokens.filter(t=>t.s>0&&t.s<4).length!==3)fail('the rest of the party should stay');
+  // the DM follows
+  await dm.click('#portmsg button:has-text("Follow")');
+  await until(async()=>await curName(dm)==='Cellar','DM follows to the Cellar');
   await until(async()=>{const s=(await S(p1)).st;return s.cols===20&&s.rows===14},'player gets the Cellar');
-  await until(async()=>{const t=(await S(p1)).st.tokens.find(t=>t.s===0);if(!t)return false;const[c,r]=cell(t.x,t.y);return Math.abs(c-18)<=2&&r<=4&&!(c===18&&r===2)},'player token stands beside the cellar door');
-  const dmT=(await S(dm)).st.tokens.filter(t=>t.s<4);if(dmT.length!==4)fail('all four party characters should come along: '+JSON.stringify(dmT));
+  await until(async()=>{const t=(await S(p1)).st.tokens.find(t=>t.s===0);return t&&beside(t,18,2)},'player token stands beside the cellar door');
   await p1.screenshot({path:path.join(OUT,'portals_mp_player_cellar.png')});
 
   // landing spots stay in the shared map data but are never drawn for players
@@ -73,22 +82,24 @@ try{
     let n=0;for(let a=0;a<24;a++){const x=(o.x+Math.cos(a/24*6.283)*7-d.cam.x)*d.Z*k,y=(o.y+Math.sin(a/24*6.283)*7-d.cam.y)*d.Z*k,q=g.getImageData(Math.round(x),Math.round(y),1,1).data;if(Math.abs(q[0]-242)<8&&Math.abs(q[1]-196)<8&&Math.abs(q[2]-159)<10)n++}return n});
   await wait(300);if(!(await ring(dm)>0))fail('DM should see the landing spot ring');if(await ring(p1)>0)fail('player should not see the landing spot ring');
 
-  // the player clicks the cellar door beside their token: back home, beside the home door
+  // the player clicks the cellar door beside their token: it goes home on its own; the DM follows
   await clickMap(p1,296,40);
-  await until(async()=>await curName(dm)===home,'clicking the door beside the token opens it');
+  await until(async()=>{const t=(await dmMap(dm,home)).tokens.find(t=>t.s===0);return t&&beside(t,...cell(dx,dy))},'clicking the door beside the token sends it home');
+  if(await curName(dm)!=='Cellar')fail('the session stays while party tokens remain in the Cellar');
+  await dm.click('#portmsg button:has-text("Follow")');
   await until(async()=>{const s=(await S(p1)).st;return s.cols===W/16},'player gets the home map back');
-  await until(async()=>{const t=(await S(p1)).st.tokens.find(t=>t.s===0);if(!t)return false;const[c,r]=cell(t.x,t.y),h=cell(dx,dy);return Math.max(Math.abs(c-h[0]),Math.abs(r-h[1]))<=2&&!(c===h[0]&&r===h[1])},'player arrives beside the home door');
+  await until(async()=>{const t=(await S(p1)).st.tokens.find(t=>t.s===0);return t&&beside(t,...cell(dx,dy))},'player arrives beside the home door');
 
   // a locked door: stepping on it or clicking it does nothing for players
   await clickMap(dm,dx,dy);await dm.keyboard.press('Enter');await dm.check('#ptlock');await dm.click('#ptdone');
   await until(async()=>(await S(p1)).st.objects.some(o=>o.k==='door'&&o.lock),'player gets the lock');
   const t2=(await S(p1)).st.tokens.find(t=>t.s===0);await dragMap(p1,[t2.x,t2.y-10],[dx,dy-10]);await wait(800);
   if(await curName(dm)!==home)fail('a locked door should not open for a player');
-  await clickMap(p1,dx,dy);await wait(600);if(await curName(dm)!==home)fail('clicking a locked door should not open it');
-  if(!/won’t open/.test(await p1.textContent('#portmsg')))fail('a locked door should say it won’t open');
+  if(!/won’t open/.test(await p1.textContent('#portmsg')))fail('stepping on a locked door should say it won’t open: '+await p1.textContent('#portmsg'));
   // ...but the DM can still send the party through
-  await clickMap(dm,dx,dy);await dm.click('#selbar [aria-label="Go through"]');
-  await until(async()=>(await S(p1)).st.cols===20,'DM Go through moves the players too');
+  await clickMap(dm,dx,dy+6);await dm.click('#selbar [aria-label="Send the party through"]');
+  await until(async()=>(await S(p1)).st.cols===20,'Send the party through moves the players too');
+  if((await S(dm)).st.tokens.filter(t=>t.s<4).length!==4)fail('the whole party should be in the Cellar');
 
   for(const p of pages)if(p.errs.length)fail(p.id+' page errors: '+p.errs.join(' | '));
   console.log('PASS: doors in a live session');
