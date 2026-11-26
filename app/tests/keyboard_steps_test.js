@@ -28,21 +28,35 @@ try{
     const x0=Math.round(t0.x/8)*8,y0=Math.round(t0.y/8)*8;
     await tap(p,'ArrowRight');await tap(p,'ArrowRight');await tap(p,'ArrowDown');
     d=await S(p);let t=d.st.tokens[i];if(t.x!==x0+32||t.y!==y0+16)fail(`arrows: expected ${x0+32},${y0+16} got ${t.x},${t.y}`);
-    if(!d.ks||d.ks.n!==3)fail('step count should be 3, got '+JSON.stringify(d.ks));
+    if(!d.ks||d.ks.n!==2)fail('right, right, down is one straight step and one diagonal (2), got '+JSON.stringify(d.ks));
     // WASD
     await tap(p,'a');await tap(p,'w');d=await S(p);t=d.st.tokens[i];if(t.x!==x0+16||t.y!==y0)fail('WASD did not step');
-    if(d.ks.n!==5)fail('count after WASD should be 5');
+    if(d.ks.n!==3)fail('count after WASD (left, then up as a diagonal) should be 3, got '+d.ks.n);
     if(d.tool!=='select')fail('D/A/W switched tools while a token was selected');
     // two keys together: one diagonal step
     await p.keyboard.down('ArrowDown');await p.keyboard.down('ArrowRight');await p.waitForTimeout(80);await p.keyboard.up('ArrowRight');await p.keyboard.up('ArrowDown');await p.waitForTimeout(80);
-    d=await S(p);t=d.st.tokens[i];if(t.x!==x0+32||t.y!==y0+16)fail(`diagonal: got ${t.x},${t.y}`);if(d.ks.n!==6)fail('a diagonal counts as one step, got '+d.ks.n);
+    d=await S(p);t=d.st.tokens[i];if(t.x!==x0+32||t.y!==y0+16)fail(`diagonal: got ${t.x},${t.y}`);if(d.ks.n!==4)fail('a diagonal counts as one step, got '+d.ks.n);
     if(!(await p.textContent('#hint')).includes('WASD'))fail('hint should mention the keys');
+    // left then up, one key after the other, is one diagonal: 5 ft, drawn through the square
+    {const c0=(await S(p)).ks.n,l0=(await S(p)).ks.path.length;await tap(p,'ArrowLeft');await tap(p,'ArrowUp');d=await S(p);
+     if(d.ks.n!==c0+1)fail('left then up should count as one diagonal step, got '+(d.ks.n-c0));
+     const pa=d.ks.path,e=pa[pa.length-1],q=pa[pa.length-2];if(pa.length!==l0+1||Math.abs(e[0]-q[0])!==16||Math.abs(e[1]-q[1])!==16)fail('the path should cut through the square: '+JSON.stringify(pa.slice(-3)));
+     // ...but only in pairs: a third step is a new square
+     await tap(p,'ArrowRight');if((await S(p)).ks.n!==c0+2)fail('the step after a diagonal counts');
+     await tap(p,'ArrowDown');if((await S(p)).ks.n!==c0+2)fail('right then down should pair up too');
+     await tap(p,'ArrowRight');await tap(p,'ArrowRight');if((await S(p)).ks.n!==c0+4)fail('straight steps each count')
+     await tap(p,'ArrowLeft');await tap(p,'ArrowLeft');await tap(p,'ArrowUp');await tap(p,'ArrowDown');}
+    d=await S(p);t=d.st.tokens[i];if(t.x!==x0+32||t.y!==y0+16)fail(`after the pairs: got ${t.x},${t.y}`);
     await until(async()=>(await S(p)).st.tokens[i].x===x0+32,'');
     {const c=await scr(p,x0+16,y0);await p.screenshot({path:path.join(OUT,'keyboard_steps.png'),clip:{x:Math.max(0,c[0]-200),y:Math.max(0,c[1]-160),width:400,height:280}})}
     // one undo takes back the whole walk
     if((await S(p)).hist!==h0+1)fail('a keyboard walk should be one undo step, got '+((await S(p)).hist-h0));
     await p.keyboard.press('Control+z');await p.waitForTimeout(200);d=await S(p);t=d.st.tokens[i];
     if(t.x!==x0||t.y!==y0)fail(`undo did not take the walk back: ${t.x},${t.y} vs ${x0},${y0}`);
+    // Enter clears the path and count, the token stays put
+    await p.mouse.click(...await scr(p,t.x,t.y-10));await p.waitForTimeout(150);await tap(p,'ArrowLeft');if(!(await S(p)).ks)fail('walk should count');
+    {const tx=(await S(p)).st.tokens[i].x;await p.keyboard.press('Enter');await p.waitForTimeout(80);d=await S(p);if(d.ks)fail('Enter should clear the count');if(d.st.tokens[i].x!==tx)fail('Enter moved the token');
+     await tap(p,'ArrowRight');if((await S(p)).ks.n!==1)fail('after Enter a new walk counts from 1');await p.keyboard.press('Enter');t=(await S(p)).st.tokens[i]}
     // Esc ends the count; a new walk starts at 0
     await p.mouse.click(...await scr(p,t.x,t.y-10));await p.waitForTimeout(150);await tap(p,'ArrowLeft');if((await S(p)).ks.n!==1)fail('new walk should count from 1');
     await p.keyboard.press('Escape');await p.waitForTimeout(100);if((await S(p)).ks)fail('Esc should end the count');
@@ -112,7 +126,7 @@ try{
   await until(async()=>{const t=(await S(dm)).st.tokens.find(t=>t.id===w0.id);return t&&t.x===wx+64&&t.y===wy+16},'DM page took every quick step');
   await until(()=>{const t=(store.get('live/tokens')||{list:[]}).list.find(t=>t.id===w0.id);return t&&t.x===wx+64&&t.y===wy+16},'shared tokens updated');
   await p1.waitForTimeout(600);pw=(await S(p1)).st.tokens.find(t=>t.id===w0.id);if(pw.x!==wx+64)fail('player token jumped back after the DM push');
-  if(((await S(p1)).ks||{}).n!==5)fail('player count should be 5, got '+JSON.stringify((await S(p1)).ks));
+  if(((await S(p1)).ks||{}).n!==4)fail('player count should be 4 (the last right + down is a diagonal), got '+JSON.stringify((await S(p1)).ks));
   // more steps after the shared doc caught up still land
   // holding a key: a step every 150 ms for 1.5 s, while the DM's pushes keep arriving late
   {const bx=(await S(p1)).st.tokens.find(t=>t.id===w0.id).x;const xs=[];for(let k=0;k<10;k++){await p1.keyboard.press('ArrowLeft');for(let j=0;j<5;j++){await p1.waitForTimeout(30);xs.push((await S(p1)).st.tokens.find(t=>t.id===w0.id).x)}}
@@ -123,7 +137,7 @@ try{
    await until(async()=>(await S(dm)).st.tokens.find(t=>t.id===w0.id).x===bx,'walk back')}
   await p1.keyboard.press('ArrowUp');await until(async()=>{const t=(await S(dm)).st.tokens.find(t=>t.id===w0.id);return t.y===wy},'later step lands');
   // the DM sees the player's count via presence
-  await until(()=>{const pr=[...pres.values()].find(q=>q.by==='u_p1');let o=pr&&pr.presence;if(typeof o==='string')o=JSON.parse(o);return o&&o.ks&&o.ks.n===26&&o.ks.id===w0.id},'count on presence');
+  const pn=((await S(p1)).ks||{}).n;await until(()=>{const pr=[...pres.values()].find(q=>q.by==='u_p1');let o=pr&&pr.presence;if(typeof o==='string')o=JSON.parse(o);return o&&o.ks&&o.ks.n===pn&&o.ks.id===w0.id},'count on presence');
   await dm.waitForTimeout(300);{const t=(await S(dm)).st.tokens.find(t=>t.id===w0.id),c=await scr(dm,t.x,t.y);await dm.screenshot({path:path.join(OUT,'keyboard_steps_dm_sees.png'),clip:{x:Math.max(0,c[0]-220),y:Math.max(0,c[1]-160),width:440,height:280}})}
   // nobody else's token moved
   for(const[id,x,y]of others){const t=(await S(dm)).st.tokens.find(t=>t.id===id);if(t&&(t.x!==x||t.y!==y))fail('another token moved: '+id)}

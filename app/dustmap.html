@@ -1684,6 +1684,7 @@ window.addEventListener('keydown',e=>{const tg=e.target;if(tg.tagName==='INPUT'&
   if(e.key==='Escape'){if(!$('qmenu').hidden){qClose();return}if(tokVarOpen){tokVarOpen=null;buildToks();syncUI();return}if(!$('gridpop').hidden){gridPop(false);return}if(!$('menu').hidden){menuShow(false);return}if(!$('modal').hidden){$('modal').hidden=true;return}sculpt=null;lift=null;draft=[];stroke=null;sel=null;measure=null;kstep=null;syncUI();return}
   if(e.key==='Shift'&&sculpt&&sculpt.phase==='paint'){toRaise();return}
   if(e.key==='Enter'&&tool==='draw'&&tg.tagName!=='BUTTON'){finish();return}
+  if(e.key==='Enter'&&tg.tagName!=='BUTTON'&&kLive()){kstep=null;e.preventDefault();return}   // done walking: clear the path and count
   if(e.key==='Backspace'||e.key==='Delete'){if(tool==='draw'&&draft.length){draft.pop();syncHint();e.preventDefault()}else if(sel){delSel();e.preventDefault()}return}
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='d'&&sel&&tool==='select'){e.preventDefault();dupSel();return}
   if(e.ctrlKey||e.metaKey||e.altKey)return;
@@ -1701,10 +1702,12 @@ window.addEventListener('keydown',e=>{const tg=e.target;if(tg.tagName==='INPUT'&
 
 // ================= keyboard steps =================
 // A selected token (DM: in Select; a player: their own token, nothing to select) moves one square per press of the arrow
-// keys or WASD, so a player can count out their move. Two keys together step diagonally (one square, 5 ft, as in 5e).
+// keys or WASD, so a player can count out their move. Two keys together step diagonally (one square, 5 ft, as in 5e),
+// and so does a step at a right angle right after a straight one (left then up): counted once, drawn through the square.
 // Holding a key keeps walking, a step every KREP ms. The steps since the move began are counted next to the token, and go
 // on presence (ks) so everyone sees the count and the path. Arrive like a dropped token: snapped, fog walk, doors.
-// A count starts over when another token is picked, the token is dragged or moved by someone else, or on Esc.
+// A count starts over when another token is picked, the token is dragged or moved by someone else, or on Esc;
+// Enter clears it (done walking).
 const KDIR={ArrowUp:[0,-1],ArrowDown:[0,1],ArrowLeft:[-1,0],ArrowRight:[1,0],w:[0,-1],s:[0,1],a:[-1,0],d:[1,0]},KREP=150,KCOMBO=45,KPATH=60,KFADE=20000;
 let kstep=null,kwait=0,klast=0;const kheld=new Set(),kpend=new Set();
 const kName=e=>e.key.length===1?e.key.toLowerCase():e.key,kKeyOf=(t,i)=>t&&(t.id||'#'+i);
@@ -1721,9 +1724,14 @@ function kStep(dx,dy){const i=kTok(),t=st.tokens[i];if(!t)return false;
   const sx=Math.round(t.x/8)*8,sy=Math.round(t.y/8)*8;let nx=sx+dx*GRID,ny=sy+dy*GRID;
   if(nx<8||nx>W-8)nx=sx;if(ny<30||ny>H-1)ny=sy;if(nx===t.x&&ny===t.y)return false;   // the map's edge blocks that way
   const key=kKeyOf(t,i),from=[t.x,t.y];kLive();
-  if(!kstep||kstep.id!==key)kstep={id:key,n:0,path:[[sx,sy]],h:-1};
+  if(!kstep||kstep.id!==key)kstep={id:key,n:0,path:[[sx,sy]],h:-1,last:null};
   if(mp.role!=='player'&&kstep.h!==hist.length){push();kstep.h=hist.length}   // one undo takes back the whole walk
-  t.x=nx;t.y=ny;kstep.n++;kstep.path.push([nx,ny]);if(kstep.path.length>KPATH)kstep.path.shift();kstep.t=performance.now();
+  t.x=nx;t.y=ny;const mx=nx-sx,my=ny-sy,L=kstep.last;
+  // a sideways step right after a straight one at a right angle (left then up) is really one diagonal: count it once,
+  // and draw the path through the square instead of around its corner
+  if(L&&!L.d&&(!L.x!==!mx)&&(!L.y!==!my)&&kstep.path.length>1){kstep.path[kstep.path.length-1]=[nx,ny];kstep.last={x:L.x+mx,y:L.y+my,d:1}}
+  else{kstep.n++;kstep.path.push([nx,ny]);kstep.last={x:mx,y:my,d:!!(mx&&my)}}
+  if(kstep.path.length>KPATH)kstep.path.shift();kstep.t=performance.now();
   if(mp.role==='player')mpMoved(t);
   else{fogWalk(t,from,[nx,ny]);zoneStep(t,[from,[nx,ny]]);portalStep(t,false,from);save()}
   syncHint();return true}
@@ -1821,7 +1829,7 @@ function syncHint(){const h=$('hint');h.replaceChildren();
     if(mine.length){pill('Playing '+mine.join(' & '));add('Drag, or step with <kbd>←</kbd><kbd>↑</kbd><kbd>→</kbd><kbd>↓</kbd> / <kbd>WASD</kbd>')}
     else{pill('Watching');add('Pick a token to join')}}
   else{if(!sel)return;
-    if(sel.type==='token'){const t=st.tokens[sel.i];pill(t?tokLabel(t.s)+' selected':'Token selected');add('Arrow keys or <kbd>WASD</kbd> step one square')}
+    if(sel.type==='token'){const t=st.tokens[sel.i];pill(t?tokLabel(t.s)+' selected':'Token selected');add('Arrow keys or <kbd>WASD</kbd> step one square · <kbd>Enter</kbd> clears the path')}
     else if(sel.type!=='op'){const l=selList();pill(l.length===1?OBJ.find(o=>o.k===st.objects[l[0]].k).name+' selected':`${l.length} objects selected`)}
     else{const op=st.ops[sel.i];pill((op.layer==='ground'?TERR[op.t].name:op.blast?'Crater':elevName(op.h,op.s))+' selected');
       add(op.layer==='height'?'Drag corners to reshape · <kbd>↑</kbd> <kbd>↓</kbd> raise or lower':'Drag corners to reshape')}}}
