@@ -1802,7 +1802,7 @@ window.addEventListener('keydown',e=>{const tg=e.target;if(tg.tagName==='INPUT'&
 // ================= keyboard steps =================
 // A selected token (DM: in Select; a player: their own token, nothing to select) moves one square per press of the arrow
 // keys or WASD, so a player can count out their move. Two keys together step diagonally (one square, 5 ft, as in 5e),
-// and so does a step at a right angle right after a straight one (left then up): counted once, drawn through the square.
+// and so does left then up; stepping back erases the path (forward then back counts 0). See kStep.
 // Holding a key keeps walking, a step every KREP ms. The steps since the move began are counted next to the token, and go
 // on presence (ks) so everyone sees the count and the path. Arrive like a dropped token: snapped, fog walk, doors.
 // A count starts over when another token is picked, the token is dragged or moved by someone else, or on Esc;
@@ -1823,14 +1823,16 @@ function kStep(dx,dy){const i=kTok(),t=st.tokens[i];if(!t)return false;
   const sx=Math.round(t.x/8)*8,sy=Math.round(t.y/8)*8;let nx=sx+dx*GRID,ny=sy+dy*GRID;
   if(nx<8||nx>W-8)nx=sx;if(ny<30||ny>H-1)ny=sy;if(nx===t.x&&ny===t.y)return false;   // the map's edge blocks that way
   const key=kKeyOf(t,i),from=[t.x,t.y];kLive();
-  if(!kstep||kstep.id!==key)kstep={id:key,n:0,path:[[sx,sy]],h:-1,last:null};
+  if(!kstep||kstep.id!==key)kstep={id:key,n:0,path:[[sx,sy]],h:-1,drop:0};
   if(mp.role!=='player'&&kstep.h!==hist.length){push();kstep.h=hist.length}   // one undo takes back the whole walk
-  t.x=nx;t.y=ny;const mx=nx-sx,my=ny-sy,L=kstep.last;
-  // a sideways step right after a straight one at a right angle (left then up) is really one diagonal: count it once,
-  // and draw the path through the square instead of around its corner
-  if(L&&!L.d&&(!L.x!==!mx)&&(!L.y!==!my)&&kstep.path.length>1){kstep.path[kstep.path.length-1]=[nx,ny];kstep.last={x:L.x+mx,y:L.y+my,d:1}}
-  else{kstep.n++;kstep.path.push([nx,ny]);kstep.last={x:mx,y:my,d:!!(mx&&my)}}
-  if(kstep.path.length>KPATH)kstep.path.shift();kstep.t=performance.now();
+  t.x=nx;t.y=ny;const P=kstep.path;
+  // the count is a loose distance from where the walk began, not every key press. If the new square is one step (or the
+  // same square) from an earlier point of the path, everything after that point goes: backing up erases the line
+  // (forward then back is 0), and left then up becomes one diagonal drawn through the square.
+  let j=P.findIndex((q,k)=>k<P.length-1&&Math.max(Math.abs(q[0]-nx),Math.abs(q[1]-ny))<=GRID);
+  if(j>=0){P.length=j+1;if(P[j][0]!==nx||P[j][1]!==ny)P.push([nx,ny])}else P.push([nx,ny]);
+  if(P.length>KPATH){P.shift();kstep.drop++}
+  kstep.n=P.length-1+kstep.drop;kstep.t=performance.now();
   if(mp.role==='player')mpMoved(t);
   else{fogWalk(t,from,[nx,ny]);zoneStep(t,[from,[nx,ny]]);portalStep(t,false,from);save()}
   syncHint();return true}
