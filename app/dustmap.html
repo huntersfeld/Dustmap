@@ -755,6 +755,7 @@ function sprite(k,v){v=(v||0)%12;const key=k+':'+v;if(SPR.has(key))return SPR.ge
     sh(6,11,6,0,2.2);sh(3,11,1,4,1.6);sh(9,11,11,5,1.6)}
   else if(k==='sign')signSprite(put,R,w,h,v);
   else if(k==='dynamite')dynSprite(put,R,LN);
+  else if(k==='blood'){own=true;bloodSprite(put,R,E,v)}
   else if(k==='zone')zoneSprite(put,R);
   else if(k==='door'||k==='stairsdown'||k==='stairsup'||k==='entrance'||k==='landing')portalSprite(k,put,R,E,LN,w,h);
   else if(k==='well'){E(8,8,8,8,(x,y)=>hash(x>>1,y>>1,3)>.5?C.stone:C.stoned);E(8,8,5,5,C.dark);E(8,8.5,3.5,3,C.water);put(7,7,C.water2);
@@ -1285,10 +1286,11 @@ function drawFires(g,ts,fv){const list=litFires(fv);if(!list.length)return;const
   list.forEach((o,i)=>{const F=FIRE[o.k],fr=flameFrames(o.k)[still?2:(Math.floor(t/105)+i*3)%8];
     g.drawImage(fr,Math.round(o.x-F.w/2),Math.round(flameTop(o)))})}
 function drawWorld(g,s,ts){ // draw terrain, objects, tokens and grid in map units (transform already set)
-  g.imageSmoothingEnabled=false;g.drawImage(tcan,0,0);g.drawImage(ocan,0,0);const fv=fogView();drawFires(g,ts===undefined?performance.now():ts,fv);if(g===ctx)drawBlasts(g,fv);
+  g.imageSmoothingEnabled=false;g.drawImage(tcan,0,0);g.drawImage(ocan,0,0);const fv=fogView();drawFires(g,ts===undefined?performance.now():ts,fv);if(g===ctx){drawBlasts(g,fv);killUnder(g,fv)}
   drawFogSolid(g,fv);
   st.tokens.filter(t=>tokShown(fv,t)).map(t=>{const gh=t.id&&mp.ghost.get(t.id);return gh?{...t,x:gh[0],y:gh[1]}:t}).sort((a,b)=>a.y-b.y).forEach(t=>{if(g===ctx)tokAura(g,t);g.drawImage(shadowImg,Math.round(t.x)-7,Math.round(t.y)-2);
     const f=(frame+(t.o||0))%8,im=sheets[t.s];if(im.complete)g.drawImage(im,f*32,0,32,32,Math.round(t.x)-16,Math.round(t.y)-31,32,32)});
+  if(g===ctx)killOver(g,fv);
   if($('grid').checked&&GRID*s>=6){g.strokeStyle='rgba(60,40,40,.18)';g.lineWidth=1/s;g.beginPath();
     for(let x=GRID;x<W;x+=GRID){g.moveTo(x,0);g.lineTo(x,H)}for(let y=GRID;y<H;y+=GRID){g.moveTo(0,y);g.lineTo(W,y)}g.stroke()}}
 // in a live session: your own token glows and has a gold ring with a marker overhead; tokens other players picked get a faint ring.
@@ -1433,7 +1435,7 @@ function toRaise(){if(!sculpt||sculpt.phase!=='paint')return;
   const base=levelUnder(sculpt.pts);
   Object.assign(sculpt,{phase:'raise',y0:sculpt.cy,base,delta:0});syncHint()}
 let last=0;const reduce=matchMedia('(prefers-reduced-motion: reduce)');
-function loop(ts){mpTick();zoneTick();if(sculpt&&sculpt.phase==='paint'&&performance.now()-sculpt.t>DWELL)toRaise();if($('anim').checked&&!reduce.matches&&ts-last>150){frame=(frame+1)%8;last=ts}blastTick();draw(ts);placeSelbar();signTick();portalTick();requestAnimationFrame(loop)}
+function loop(ts){mpTick();zoneTick();if(sculpt&&sculpt.phase==='paint'&&performance.now()-sculpt.t>DWELL)toRaise();if($('anim').checked&&!reduce.matches&&ts-last>150){frame=(frame+1)%8;last=ts}blastTick();killTick();draw(ts);placeSelbar();signTick();portalTick();requestAnimationFrame(loop)}
 
 // ================= interaction =================
 const dist=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1]);
@@ -1807,7 +1809,7 @@ function syncHint(){const h=$('hint');h.replaceChildren();
     if(mine.length){pill('Playing '+mine.join(' & '));add('Drag, or step with <kbd>←</kbd><kbd>↑</kbd><kbd>→</kbd><kbd>↓</kbd> / <kbd>WASD</kbd>')}
     else{pill('Watching');add('Pick a token to join')}}
   else{if(!sel)return;
-    if(sel.type==='token'){const t=st.tokens[sel.i];pill(t?tokLabel(t.s)+' selected':'Token selected');add('Arrow keys or <kbd>WASD</kbd> step one square')}
+    if(sel.type==='token'){const t=st.tokens[sel.i];pill(t?tokLabel(t.s)+' selected':'Token selected');add('Arrow keys or <kbd>WASD</kbd> step one square');if(killable(t)&&mp.role!=='player')add('<kbd>K</kbd> kills it')}
     else if(sel.type!=='op'){const l=selList();pill(l.length===1?OBJ.find(o=>o.k===st.objects[l[0]].k).name+' selected':`${l.length} objects selected`)}
     else{const op=st.ops[sel.i];pill((op.layer==='ground'?TERR[op.t].name:op.blast?'Crater':elevName(op.h,op.s))+' selected');
       add(op.layer==='height'?'Drag corners to reshape · <kbd>↑</kbd> <kbd>↓</kbd> raise or lower':'Drag corners to reshape')}}}
@@ -1842,6 +1844,7 @@ function buildSelbar(){const bar=$('selbar');bar.replaceChildren();const add=(ic
   if(sel.type==='token'){const t=st.tokens[sel.i];if(t)add('sheet',charFor(t.s)?'Character':'Add a character','',charFor(t.s)?'HP, AC and ability scores':'Import from D&D Beyond',()=>openChar(t.s))}
   add('copy','Duplicate','Ctrl D','A copy, one square over',dupSel);
   dynSelbar(bar,add);
+  killSelbar(bar,add);
   if(sel.type==='obj'&&isPortal(sel.i)){const i=sel.i;add('go','Go through','','Send the party to where it leads',()=>portalGo(i));add('portal','Edit door','Enter','Where it leads and where the party arrives',()=>portalEdit(i))}
   zoneSelbar(bar,add);
   if(sel.type==='obj'&&isSign(sel.i))add('sign','Edit sign','Enter','Write the message and pick its language',()=>signEdit(sel.i));
@@ -2765,6 +2768,7 @@ function blastPeer(key,bm){if(!Array.isArray(bm))bm=[];const seen=bmSeen.get(key
   if(seen===undefined)return;const now=performance.now();
   bm.forEach(e=>{if(!e||!fin(e.n)||+e.n<=seen||!fin(e.x)||!fin(e.y))return;const x=+e.x,y=+e.y;
     if(e.f===2){if(typeof e.m==='string'&&e.m)portalSay(e.m.slice(0,ZMSG_MAX));return}
+    if(e.f===3){killPeer(e);return}
     if(e.f===1)fuses.push({t0:now,x,y});else blastFx(x,y,Math.max(8,Math.min(96,fin(e.r)?+e.r:32)),fin(e.s)?+e.s:1)})}
 function blastTick(){const now=performance.now();
   const due=fuses.filter(f=>f.o&&now-f.t0>=BLAST_FUSE);fuses=fuses.filter(f=>f.o?now-f.t0<BLAST_FUSE:now-f.t0<BLAST_FUSE+1500);
@@ -2814,6 +2818,84 @@ function dynSelbar(bar,add){const l=selDyn();if(!l.length)return;const o=l[0],r=
   const set=(f,opts,cur)=>{push();const nx=opts[(opts.indexOf(cur)+1)%opts.length];selDyn().forEach(q=>q[f]=nx);save();selKey='';syncUI()};
   txt(r*2+'□','Blast width: '+r*2+' squares','Click for a bigger or smaller blast',()=>set('br',BR_OPTS,r));
   txt('−'+d,'Blast depth: '+d+' level'+(d>1?'s':''),'Click to blast deeper or shallower',()=>set('bd',BD_OPTS,d))}
+// ================= kill =================
+// The DM (or a solo editor) can kill a townsfolk or enemy token: select it, then Kill in the selection bar or K. The token
+// comes off the map at once (one undo puts it back, with its blood), and a screen-only death plays where it stood: a hit
+// flash, a spray of blood drops thrown with fake height and gravity (the same model as the dynamite dirt), a puff of red
+// mist, the body toppling over at its feet, lying a moment, then fading. When "Leave blood" is on (the default, remembered
+// per browser) a pool spreads under the body and stays as an ordinary 'blood' object ({k:'blood',x,y,v}) once the body is
+// down; it can be selected, moved or deleted like any prop, and the Objects tray has it under Props too.
+// Party characters and tokens a player plays in a session can't be killed this way (delete them instead).
+// In a session the kill goes in the DM's presence bm log ({f:3,x,y,s:sheet,d:seed,b:blood 1/0}); players' pages play the
+// same death (same seed, so the same spray), and the token removal and the pool reach them with the map. Fog hides it.
+OBJ.push({k:'blood',name:'Blood',sub:'A pool of blood, where something died',g:'Props'});SIZE.blood=[16,10];
+ICON.skull='M12 3a7 7 0 00-7 7v3l2 2v4h10v-4l2-2v-3a7 7 0 00-7-7z M9.5 11.5h.01 M14.5 11.5h.01 M10 19v-2 M14 19v-2';
+ICON.drop='M12 3c3 4.5 6 7.6 6 11a6 6 0 01-12 0c0-3.4 3-6.5 6-11z';
+const KILL_LEN=2600,KILL_HIT=.12,KILL_LAND=.5,KILL_POOL=[.42,.95];
+const BLOOD=[[150,16,22],[118,10,18],[184,32,34],[96,8,14],[134,14,20]];
+let kills=[],killBlood=true;try{killBlood=localStorage.getItem('dustmap-killblood')!=='0'}catch(e){}
+const killable=t=>!!t&&!!TOKINFO[t.s]&&TOKINFO[t.s].group!=='Party'&&!(mp.sess&&mp.sess.live&&mp.sess.assign[t.s]);
+const killStill=()=>!$('anim').checked||reduce.matches;
+const killSel=()=>tool==='select'&&mp.role!=='player'&&sel&&sel.type==='token'&&killable(st.tokens[sel.i])?sel.i:-1;
+// a pool of blood: a few overlapping blobs, a darker rim, a wet highlight, and specks around it (no outline, no shadow)
+function bloodSprite(put,R,E,v){const Rn=mulberry(v*131+7),bl=[[8,5,5.2+Rn()*1.2,2.7+Rn()*.6]];
+  for(let k=0;k<3;k++){const a=Rn()*Math.PI*2;bl.push([8+Math.cos(a)*4.2,5+Math.sin(a)*2.2,1.8+Rn()*1.6,1.2+Rn()*.9])}
+  bl.forEach(([x,y,rx,ry])=>E(x,y,rx+.8,ry+.7,BLOOD[3]));bl.forEach(([x,y,rx,ry])=>E(x,y,rx,ry,BLOOD[1]));
+  E(7.2,4.4,3.4,1.5,BLOOD[0]);put(6,3,BLOOD[2]);put(7,3,BLOOD[2]);put(5,4,[200,70,64]);
+  for(let k=0;k<5;k++){const a=Rn()*Math.PI*2,d=6.5+Rn()*1.8;put(8+Math.cos(a)*d,5+Math.sin(a)*d*.55,BLOOD[k%2?1:3])}}
+// where the pool and the body end up: beside the feet, on the side it falls to
+const killPool=k=>[Math.round(k.x+k.dir*8),Math.round(k.y-2)];
+function killStart(t,sd,blood,peer){const now=performance.now(),cv=document.createElement('canvas');cv.width=cv.height=32;
+  const f=(frame+(t.o||0))%8,im=sheets[t.s];if(im&&im.complete)cv.getContext('2d').drawImage(im,f*32,0,32,32,0,0,32,32);
+  const k={x:t.x,y:t.y,s:t.s,sd,dir:sd&1?1:-1,bv:sd%12,t0:now,blood,peer,st,cv,tint:document.createElement('canvas'),placed:peer||!blood};
+  k.tint.width=k.tint.height=32;kills.push(k);if(!peer&&blood&&killStill())killPlace(k);return k}
+function killPlace(k){k.placed=true;if(st!==k.st)return;   // undone or another map opened meanwhile
+  const[x,y]=killPool(k);st.objects.push({k:'blood',x,y,v:k.bv});objDirty=true;save()}
+function tokKill(i){if(mp.role==='player')return;const t=st.tokens[i];if(!killable(t))return;signClose();
+  push();st.tokens.splice(i,1);sel=null;const sd=1+Math.floor(Math.random()*99999);
+  killStart(t,sd,killBlood,false);save();syncUI();bmEmit({f:3,x:Math.round(t.x),y:Math.round(t.y),s:t.s,d:sd,b:killBlood?1:0})}
+function killPeer(e){const s=+e.s;if(!Number.isInteger(s)||!TOKINFO[s])return;killStart({x:+e.x,y:+e.y,s,o:0},fin(e.d)?Math.max(1,Math.floor(+e.d)):1,!!e.b,true)}
+function killTick(){const now=performance.now();kills.forEach(k=>{if(!k.placed&&now-k.t0>=KILL_POOL[1]*1000)killPlace(k)});kills=kills.filter(k=>now-k.t0<KILL_LEN)}
+// the spray: each drop leaves the chest at a fake height, flies with gravity, lands, then soaks in and fades
+function killDrops(g,k,t,landed){const R=mulberry(k.sd),G=380;
+  for(let i=0;i<48;i++){const side=R()<.72,a=side?(k.dir>0?0:Math.PI)+(R()-.5)*2.2:R()*Math.PI*2,sp=10+R()*48,vz=30+R()*110,d0=R()<.6?.03+R()*.08:.2+R()*.12,
+      z0=10+R()*6,c=BLOOD[i%BLOOD.length],sz=R()<.3?2:1,tt=t-d0;if(tt<0)continue;
+    const T=(vz+Math.sqrt(vz*vz+2*G*z0))/G,on=tt>=T;if(on!==landed)continue;const ft=Math.min(tt,T),z=Math.max(0,z0+vz*ft-.5*G*ft*ft),
+      px=k.x+Math.cos(a)*sp*ft,py=k.y+Math.sin(a)*sp*ft*.6,al=on?Math.max(0,Math.min(1,(KILL_LEN/1000-t)/.9)):1;if(al<=0)continue;
+    g.fillStyle=`rgba(${c[0]},${c[1]},${c[2]},${al})`;g.fillRect(Math.round(px),Math.round(py-z),sz,sz)}}
+// under the tokens: the pool spreading (until the real object takes over) and the drops that have landed
+function killUnder(g,fv){if(!kills.length)return;const now=performance.now(),still=killStill();
+  kills.forEach(k=>{if(fogAt(fv,k.x,k.y))return;const t=(now-k.t0)/1000;
+    if(k.blood&&(k.peer||!k.placed)&&t>KILL_POOL[0]){const p=Math.min(1,(t-KILL_POOL[0])/(KILL_POOL[1]-KILL_POOL[0])),e=1-(1-p)*(1-p),s=sprite('blood',k.bv);
+      if(!s.cv){s.cv=document.createElement('canvas');s.cv.width=s.sw;s.cv.height=s.sh;s.cv.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(s.px),s.sw,s.sh),0,0)}
+      const[px,py]=killPool(k),x0=Math.round(px-SIZE.blood[0]/2)-1,y0=Math.round(py-SIZE.blood[1]/2)-1;
+      g.save();g.beginPath();g.ellipse(px,py,1+e*10,1+e*6.5,0,0,7);g.clip();g.drawImage(s.cv,x0,y0);g.restore()}
+    if(!still)killDrops(g,k,t,true)})}
+// over the tokens: the body (flash, topple, lie still, fade), the mist and the drops still in the air
+function killOver(g,fv){if(!kills.length)return;const now=performance.now(),still=killStill();
+  kills.forEach(k=>{if(fogAt(fv,k.x,k.y))return;const t=(now-k.t0)/1000,T=KILL_LEN/1000;
+    let ang=0,sink=0,al=1,red=0;
+    if(still){al=Math.max(0,1-t/.7);red=.45}
+    else{const p=Math.max(0,Math.min(1,(t-KILL_HIT)/(KILL_LAND-KILL_HIT)));ang=p*p*Math.PI*.47;
+      if(t>KILL_LAND){const q=t-KILL_LAND;ang+=Math.sin(q*26)*Math.exp(-q*9)*.09}
+      if(t>1.3){al=Math.max(0,1-(t-1.3)/1);sink=(t-1.3)*2}
+      red=t<KILL_HIT?.8:Math.max(.25,.8-(t-KILL_HIT)*1.6)}
+    if(al<=0)return;
+    const tg=k.tint.getContext('2d');tg.globalCompositeOperation='copy';tg.drawImage(k.cv,0,0);tg.globalCompositeOperation='source-atop';
+    tg.fillStyle=!still&&t<.05?'rgba(255,240,230,.9)':`rgba(190,20,24,${red})`;tg.fillRect(0,0,32,32);
+    g.save();g.globalAlpha=al*(still?1:Math.max(0,1-ang*1.4));g.drawImage(shadowImg,Math.round(k.x)-7,Math.round(k.y)-2);g.globalAlpha=al;
+    g.translate(Math.round(k.x),Math.round(k.y+sink));g.rotate(ang*k.dir);g.drawImage(k.tint,-16,-31);g.restore();
+    if(still)return;
+    if(t<.5){const R=mulberry(k.sd+5);for(let i=0;i<6;i++){const a=R()*Math.PI*2,d=2+R()*6,p=t/.5;
+      g.fillStyle=`rgba(150,18,24,${.35*(1-p)})`;g.beginPath();g.arc(k.x+Math.cos(a)*d*(1+p)+k.dir*p*6,k.y-14+Math.sin(a)*d*.6-p*2,1.5+p*3.5,0,7);g.fill()}}
+    killDrops(g,k,t,false)})}
+window.addEventListener('keydown',e=>{if(e.key.toLowerCase()!=='k'||e.ctrlKey||e.metaKey||e.altKey||e.target!==document.body&&e.target.tagName!=='CANVAS')return;const i=killSel();if(i>=0){e.preventDefault();tokKill(i)}});
+// selection bar for a townsfolk or enemy token: Kill, and whether it leaves a pool of blood
+function killSelbar(bar,add){const i=killSel();if(i<0)return;
+  add('skull','Kill','K',killBlood?'It falls and leaves a pool of blood. Undo brings it back.':'It falls and fades away. Undo brings it back.',()=>tokKill(killSel()));
+  const b=document.createElement('button');b.className='ib';b.setAttribute('aria-pressed',killBlood?'true':'false');b.innerHTML=svgI('drop',2);b.setAttribute('aria-label',killBlood?'Leave blood: on':'Leave blood: off');
+  b.dataset.tip=killBlood?'Leave blood: on':'Leave blood: off';b.dataset.sub='Click to '+(killBlood?'kill without':'leave')+' a pool of blood';
+  b.onclick=()=>{killBlood=!killBlood;try{localStorage.setItem('dustmap-killblood',killBlood?'1':'0')}catch(e){}selKey='';syncUI()};bar.append(b)}
 // ================= doors, stairs and entrances =================
 // A portal is an object ({k:'door'|'stairsdown'|'stairsup'|'entrance', x, y}) that also carries where it leads:
 //   id   its own id (so other doors can name it as the place to arrive)
@@ -3197,7 +3279,7 @@ function tourOpen(){const s=libClean(tourMap());if(!s)return;const m=libAdd('Dus
 $('libtour').onclick=tourOpen;$('tour').onclick=()=>{menuShow(false);tourOpen()};
 // read-only peek for the tests
 window.__terrain=()=>({cv:tcan,L:lastR.L,W,H});
-window.__dustmap=()=>({st,fog:fogGet(),litFires:litFires(fogView()).length,role:mp.role,cam:{...cam},Z,pings:pings.map(p=>({x:p.x,y:p.y,rgb:p.rgb||null})),blasts:blasts.map(b=>({x:b.x,y:b.y,r:b.r})),fuses:fuses.length,tool,peers:mp.peers.length,busy:mp.busy,err:mp.err,again:mp.again,ks:kLive()?{n:kstep.n,path:kstep.path}:null,hist:hist.length,sel});
+window.__dustmap=()=>({st,fog:fogGet(),litFires:litFires(fogView()).length,role:mp.role,cam:{...cam},Z,pings:pings.map(p=>({x:p.x,y:p.y,rgb:p.rgb||null})),blasts:blasts.map(b=>({x:b.x,y:b.y,r:b.r})),fuses:fuses.length,kills:kills.length,tool,peers:mp.peers.length,busy:mp.busy,err:mp.err,again:mp.again,ks:kLive()?{n:kstep.n,path:kstep.path}:null,hist:hist.length,sel});
 libInit();mpInit();
 buildTools();buildObjs();buildToks();buildPaints();updUndo();sizeCanvas();syncUI();requestAnimationFrame(loop);
 setTimeout(buildPaints,0);
