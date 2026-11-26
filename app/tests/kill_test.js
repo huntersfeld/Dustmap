@@ -1,4 +1,4 @@
-// Kill: the DM selects an enemy token and kills it. It comes off the map at once, the death plays (flash, blood spray,
+// Kill: the DM selects an enemy token and kills it (falling over, or exploding). It comes off the map at once, the death plays (flash, blood spray,
 // topple, fade), a pool of blood is left as an object once the body is down, and one undo brings the token back without
 // the blood. Party characters can't be killed; "Leave blood" off kills without a pool. Run after `python3 app/build_dustmap.py`.
 const {chromium}=require('playwright');const path=require('path');const {pathToFileURL}=require('url');
@@ -53,4 +53,21 @@ if((await toks()).includes(8))fail('the desperado should be dead');if((await blo
 if(await p.evaluate(()=>localStorage.getItem('dustmap-killblood'))!=='0')fail('Leave blood off should be remembered');
 await p.evaluate(()=>localStorage.setItem('dustmap-killblood','1'));
 await p.keyboard.press('Control+z');await p.waitForTimeout(300);
+// explode: the style button switches it, "next hit kills" carries the style, and the kill leaves gore
+await p.mouse.click(...await scr(264,124));await p.waitForTimeout(200);
+if(!(await p.locator('#selbar button[aria-label="Death: fall over"]').count()))fail('death style should default to fall over');
+await p.locator('#selbar button[aria-label="Leave blood: off"]').click();await p.waitForTimeout(100);
+await p.locator('#selbar button[aria-label="Next hit kills: off"]').click();await p.waitForTimeout(100);
+if((await S()).st.tokens.find(t=>t.s===8).kl!=='f')fail('next hit kills should mark it (fall)');
+await p.locator('#selbar button[aria-label="Death: fall over"]').click();await p.waitForTimeout(100);
+if((await S()).st.tokens.find(t=>t.s===8).kl!=='x')fail('switching to explode should update the mark');
+await p.screenshot({path:path.join(OUT,'kill_explode_selected.png')});
+await p.locator('#selbar button[aria-label="Kill"]').click();await p.waitForTimeout(60);
+{const d=await S();if(d.kills<1||d.st.tokens.some(t=>t.s===8))fail('the desperado should be exploding: kills '+d.kills+' toks '+JSON.stringify(d.st.tokens.map(t=>t.s)))}
+await p.waitForTimeout(250);await p.screenshot({path:path.join(OUT,'kill_explode.png')});
+await p.waitForTimeout(600);
+const gore=(await S()).st.objects.filter(o=>o.k==='gore');if(gore.length!==1||(await blood()).length)fail('an explosion should leave gore, not a blood pool');
+await p.waitForTimeout(3200);if((await S()).kills!==0)fail('the explosion should be over');
+await p.keyboard.press('Control+z');await p.waitForTimeout(300);
+if(!(await toks()).includes(8)||(await S()).st.objects.some(o=>o.k==='gore'))fail('undo should bring the desperado back without the gore');
 console.log(errs.length?'FAILED\n'+errs.join('\n'):'kill_test: all checks passed');await b.close();process.exit(errs.length?1:0)})();

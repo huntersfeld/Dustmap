@@ -856,6 +856,7 @@ function sprite(k,v){v=(v||0)%12;const key=k+':'+v;if(SPR.has(key))return SPR.ge
   else if(k==='sign')signSprite(put,R,w,h,v);
   else if(k==='dynamite')dynSprite(put,R,LN);
   else if(k==='blood'){own=true;bloodSprite(put,R,E,v)}
+  else if(k==='gore'){own=true;goreSprite(put,R,E,v)}
   else if(k==='zone')zoneSprite(put,R);
   else if(k==='chest'||k==='gold'||k==='plate'||k==='bones')lootSprite(k,v,put,R,E,LN,w,h);
   else if(k==='door'||k==='stairsdown'||k==='stairsup'||k==='entrance'||k==='landing')portalSprite(k,put,R,E,LN,w,h);
@@ -1865,7 +1866,7 @@ function kPres(){const k=kLive();if(!k)return null;const t=st.tokens[kTok()];if(
 function syncUI(){
   const pl=mp.role==='player',r=railOf();document.body.classList.toggle('mp-player',pl);
   TOOLS.forEach(t=>{if(t.sep)return;const b=$('t-'+t.id),mv=pl&&t.id==='select',nm=mv?'Move':t.name;b.setAttribute('aria-pressed',String(r===t.id));b.hidden=pl&&!!t.dm;
-    b.dataset.tip=nm;b.dataset.sub=mv?'Drag your token. Drag empty ground to look around.':t.sub;b.setAttribute('aria-label',nm)});
+    b.dataset.tip=nm;b.dataset.sub=mv?'Drag your token. Click an enemy to throw something at it. Drag empty ground to look around.':t.sub;b.setAttribute('aria-label',nm)});
   $('tools').querySelectorAll('.hsep').forEach(x=>x.hidden=pl);
   cv.classList.toggle('select',tool==='select');cv.classList.toggle('pan',tool==='pan');
   {const v=st.cols+'x'+st.rows,sel2=$('msize');[...sel2.options].forEach(o=>{if(o.dataset.custom&&o.value!==v)o.remove()});
@@ -1934,7 +1935,7 @@ function syncHint(){const h=$('hint');h.replaceChildren();
     if(fogPaint)pill(fogPaint.v==='1'?'Hiding':'Revealing');else pill('Fog');add(`Click or drag ${once} · double-click and drag ${twice}`)}
   else if(tool!=='select'){}
   else if(mp.role==='player'){const mine=st.tokens.filter(t=>mpMayMove(t,mp.me)).map(t=>tokName(t.s));
-    if(mine.length){pill('Playing '+mine.join(' & '));add('Drag, or step with <kbd>←</kbd><kbd>↑</kbd><kbd>→</kbd><kbd>↓</kbd> / <kbd>WASD</kbd>')}
+    if(mine.length){pill('Playing '+mine.join(' & '));add('Drag, or step with <kbd>←</kbd><kbd>↑</kbd><kbd>→</kbd><kbd>↓</kbd> / <kbd>WASD</kbd>');add('Click an enemy to throw at it')}
     else{pill('Watching');add('Pick a token to join')}}
   else{if(!sel)return;
     if(sel.type==='token'){const t=st.tokens[sel.i];pill(t?tokLabel(t.s)+' selected':'Token selected');add('Arrow keys or <kbd>WASD</kbd> step one square · <kbd>Enter</kbd> clears the path');if(killable(t)&&mp.role!=='player')add('<kbd>K</kbd> kills it')}
@@ -2389,11 +2390,11 @@ function mpPinged(x,y){if(mp.role!=='off')mp.pres.ping={x:Math.round(x),y:Math.r
 
 // ---- presence: what I'm doing, sent as absolute state ----
 function mpTick(){if(!mp.room)return;let pr;
-  if(mp.role==='off'){if(!mp.sent)return;pr={cur:null,ptr:null,meas:null,drag:null,ping:null,mv:null,pick:null,ch:null,go:null,tp:null,ks:null}}
+  if(mp.role==='off'){if(!mp.sent)return;pr={cur:null,ptr:null,meas:null,drag:null,ping:null,mv:null,pick:null,ch:null,go:null,tp:null,ks:null,th:null}}
   else{const tk=drag&&drag.kind==='token'?st.tokens[drag.i]:null,hd=pointer&&pointer.down?pointer.trail[pointer.trail.length-1]:null;
     pr={cur:hover&&hover[0]>=0&&hover[1]>=0&&hover[0]<=W&&hover[1]<=H?[Math.round(hover[0]),Math.round(hover[1])]:null,
       ptr:hd?[Math.round(hd.x),Math.round(hd.y)]:null,meas:measure?{a:measure.a,b:measure.b}:null,
-      drag:tk&&tk.id?{id:tk.id,x:Math.round(tk.x),y:Math.round(tk.y)}:null,ping:mp.pres.ping||null,mv:mp.pres.mv||null,pick:Number.isInteger(mp.pres.pick)?mp.pres.pick:null,ch:mp.role==='player'&&myChar?{c:myChar,n:myCharN}:null,go:mp.role==='player'&&mp.pres.go||null,bm:mp.role==='dm'&&mp.pres.bm||null,tp:TESTPLAYER?1:null,ks:kPres()}}
+      drag:tk&&tk.id?{id:tk.id,x:Math.round(tk.x),y:Math.round(tk.y)}:null,ping:mp.pres.ping||null,mv:mp.pres.mv||null,pick:Number.isInteger(mp.pres.pick)?mp.pres.pick:null,ch:mp.role==='player'&&myChar?{c:myChar,n:myCharN}:null,go:mp.role==='player'&&mp.pres.go||null,bm:mp.role==='dm'&&mp.pres.bm||null,tp:TESTPLAYER?1:null,ks:kPres(),th:mp.role==='player'&&mp.pres.th||null}}
   const j=JSON.stringify(pr);if(j===mp.sent)return;mp.sent=mp.role==='off'?'':j;mp.room.presence(pr).catch(()=>{})}
 const ptOk=q=>Array.isArray(q)&&q.length===2&&fin(q[0])&&fin(q[1]);
 function mpPeers(ch){mp.peers=ch.peers;const now=performance.now(),ghost=new Map(),stepped=[];let commit=false,goDoor=-1;
@@ -2408,6 +2409,7 @@ function mpPeers(ch){mp.peers=ch.peers;const now=performance.now(),ghost=new Map
       // players reveal as they walk: follow the token while it's being dragged, not just where it lands
       if(mp.role==='dm'){if(fogWalk(t,mp.walkLast.get(t.id)||[t.x,t.y],gp))commit=true;mp.walkLast.set(t.id,gp);zonePathAdd(t,gp)}}}
     if(mp.role==='player'&&p.by&&p.by===mp.sess.dm)blastPeer(key,pr.bm);   // fuses and blasts only come from the DM
+    throwPeer(key,pr.th);
     if(mp.role==='dm'&&charTake(p,pr))commit=true;
     if(mp.role==='dm'){const mv=pr.mv;
       if(mv&&typeof mv.id==='string'&&mp.mvSeen.get(key)!==mv.n){mp.mvSeen.set(key,mv.n);const t=st.tokens.find(t=>t.id===mv.id);
@@ -2987,60 +2989,104 @@ function dynSelbar(bar,add){const l=selDyn();if(!l.length)return;const o=l[0],r=
   txt('−'+d,'Blast depth: '+d+' level'+(d>1?'s':''),'Click to blast deeper or shallower',()=>set('bd',BD_OPTS,d))}
 // ================= kill =================
 // The DM (or a solo editor) can kill a townsfolk or enemy token: select it, then Kill in the selection bar or K. The token
-// comes off the map at once (one undo puts it back, with its blood), and a screen-only death plays where it stood: a hit
-// flash, a spray of blood drops thrown with fake height and gravity (the same model as the dynamite dirt), a puff of red
-// mist, the body toppling over at its feet, lying a moment, then fading. When "Leave blood" is on (the default, remembered
-// per browser) a pool spreads under the body and stays as an ordinary 'blood' object ({k:'blood',x,y,v}) once the body is
-// down; it can be selected, moved or deleted like any prop, and the Objects tray has it under Props too.
-// Party characters and tokens a player plays in a session can't be killed this way (delete them instead).
-// In a session the kill goes in the DM's presence bm log ({f:3,x,y,s:sheet,d:seed,b:blood 1/0}); players' pages play the
-// same death (same seed, so the same spray), and the token removal and the pool reach them with the map. Fog hides it.
-OBJ.splice(OBJ.map(o=>o.g).lastIndexOf('Props')+1,0,{k:'blood',name:'Blood',sub:'A pool of blood, where something died',g:'Props'});SIZE.blood=[16,10];
+// comes off the map at once (one undo puts it back, with its blood), and a screen-only death plays where it stood, in one
+// of two styles (the selection bar's Death button, remembered per browser in dustmap-killstyle):
+//  - fall:    a hit flash, a spray of blood drops thrown with fake height and gravity (the same model as the dynamite
+//             dirt), a puff of red mist, the body toppling over at its feet, lying a moment, then fading.
+//  - explode: a red flash and ring, the body bursting into chunks of its own sprite that fly, land and lie there, a much
+//             bigger spray, a cloud of red mist and a small screen shake.
+// When "Leave blood" is on (the default, remembered per browser) a pool (fall: 'blood', explode: the bigger 'gore')
+// spreads where it died and stays as an ordinary object ({k,x,y,v}) once the body is down; it can be moved or deleted like
+// any prop, and the Objects tray has both under Props.
+// Killable: the DM can mark a token (kl: 'f' fall / 'x' explode, saved with the map, never sent to players) so the next
+// thrown hit kills it with that death. A small red crosshair over its head shows the mark on the DM's screen only.
+// Throwing: in a live session a player clicks a townsfolk or enemy token and their own token throws something at it (a
+// rock, a bottle or a knife, picked at random), auto-aimed in an arc. The hit flashes the target and draws a little
+// blood. Players' throws go on presence (th: [{n,id,fx,fy,tx,ty,sd}], the last few); every page plays them, and the DM's
+// page decides what a hit does (a killable target dies).
+// Party characters and tokens a player plays in a session can't be killed or thrown at.
+// In a session a kill goes in the DM's presence bm log ({f:3,x,y,s:sheet,d:seed,b:blood 1/0,e:explode 1/0}); players'
+// pages play the same death (same seed, so the same spray), and the token removal and the pool reach them with the map.
+// Fog hides all of it.
+{const at=OBJ.map(o=>o.g).lastIndexOf('Props')+1;
+ OBJ.splice(at,0,{k:'blood',name:'Blood',sub:'A pool of blood, where something died',g:'Props'},{k:'gore',name:'Gore',sub:'What is left when something explodes',g:'Props'})}
+SIZE.blood=[16,10];SIZE.gore=[28,18];
 ICON.skull='M12 3a7 7 0 00-7 7v3l2 2v4h10v-4l2-2v-3a7 7 0 00-7-7z M9.5 11.5h.01 M14.5 11.5h.01 M10 19v-2 M14 19v-2';
 ICON.drop='M12 3c3 4.5 6 7.6 6 11a6 6 0 01-12 0c0-3.4 3-6.5 6-11z';
-const KILL_LEN=2600,KILL_HIT=.12,KILL_LAND=.5,KILL_POOL=[.42,.95];
+ICON.target='M12 4a8 8 0 110 16 8 8 0 010-16z M12 9a3 3 0 110 6 3 3 0 010-6z M12 1v4 M12 19v4 M1 12h4 M19 12h4';
+const KILL_LEN=2600,BOOM_LEN=3800,KILL_HIT=.12,KILL_LAND=.5,KILL_POOL=[.42,.95],BOOM_POOL=[.12,.6];
 const BLOOD=[[150,16,22],[118,10,18],[184,32,34],[96,8,14],[134,14,20]];
-let kills=[],killBlood=true;try{killBlood=localStorage.getItem('dustmap-killblood')!=='0'}catch(e){}
+let kills=[],killBlood=true,killStyle='fall';
+try{killBlood=localStorage.getItem('dustmap-killblood')!=='0';killStyle=localStorage.getItem('dustmap-killstyle')==='boom'?'boom':'fall'}catch(e){}
 const killable=t=>!!t&&!!TOKINFO[t.s]&&TOKINFO[t.s].group!=='Party'&&!(mp.sess&&mp.sess.live&&mp.sess.assign[t.s]);
 const killStill=()=>!$('anim').checked||reduce.matches;
 const killSel=()=>tool==='select'&&mp.role!=='player'&&sel&&sel.type==='token'&&killable(st.tokens[sel.i])?sel.i:-1;
+const klStyle=t=>t&&t.kl==='x'?'boom':'fall';
 // a pool of blood: a few overlapping blobs, a darker rim, a wet highlight, and specks around it (no outline, no shadow)
 function bloodSprite(put,R,E,v){const Rn=mulberry(v*131+7),bl=[[8,5,5.2+Rn()*1.2,2.7+Rn()*.6]];
   for(let k=0;k<3;k++){const a=Rn()*Math.PI*2;bl.push([8+Math.cos(a)*4.2,5+Math.sin(a)*2.2,1.8+Rn()*1.6,1.2+Rn()*.9])}
   bl.forEach(([x,y,rx,ry])=>E(x,y,rx+.8,ry+.7,BLOOD[3]));bl.forEach(([x,y,rx,ry])=>E(x,y,rx,ry,BLOOD[1]));
   E(7.2,4.4,3.4,1.5,BLOOD[0]);put(6,3,BLOOD[2]);put(7,3,BLOOD[2]);put(5,4,[200,70,64]);
   for(let k=0;k<5;k++){const a=Rn()*Math.PI*2,d=6.5+Rn()*1.8;put(8+Math.cos(a)*d,5+Math.sin(a)*d*.55,BLOOD[k%2?1:3])}}
-// where the pool and the body end up: beside the feet, on the side it falls to
-const killPool=k=>[Math.round(k.x+k.dir*8),Math.round(k.y-2)];
-function killStart(t,sd,blood,peer){const now=performance.now(),cv=document.createElement('canvas');cv.width=cv.height=32;
+// what's left of something that exploded: a wide splat with streaks thrown outward, specks, and a few bits
+function goreSprite(put,R,E,v){const Rn=mulberry(v*173+11),cx=14,cy=9;
+  for(let k=0;k<9;k++){const a=k/9*Math.PI*2+Rn()*.5,L=6+Rn()*7;for(let s=0;s<L;s+=.5){const w=Math.max(.6,1.8*(1-s/L));E(cx+Math.cos(a)*s,cy+Math.sin(a)*s*.6,w,w*.8,BLOOD[s>L*.6?3:1])}}
+  E(cx,cy,7,3.6,BLOOD[3]);E(cx,cy,6.2,3,BLOOD[1]);E(cx-1,cy-1,3.6,1.5,BLOOD[0]);put(cx-3,cy-2,BLOOD[2]);put(cx-2,cy-2,[200,70,64]);
+  for(let k=0;k<14;k++){const a=Rn()*Math.PI*2,d=8+Rn()*5;put(cx+Math.cos(a)*d,cy+Math.sin(a)*d*.6,BLOOD[k%3?1:3])}
+  for(let k=0;k<4;k++){const a=Rn()*Math.PI*2,d=2+Rn()*6,x=cx+Math.cos(a)*d,y=cy+Math.sin(a)*d*.5;put(x,y,[236,224,204]);put(x+1,y,k%2?[110,30,30]:[214,198,176])}}
+// where the pool ends up: beside the feet, on the side it falls to (an explosion: right on the spot)
+const killPool=k=>k.boom?[Math.round(k.x),Math.round(k.y-1)]:[Math.round(k.x+k.dir*8),Math.round(k.y-2)];
+const poolK=k=>k.boom?'gore':'blood';
+const killLen=k=>k.boom?BOOM_LEN:KILL_LEN,poolT=k=>k.boom?BOOM_POOL:KILL_POOL;
+function killStart(t,sd,blood,peer,boom){const now=performance.now(),cv=document.createElement('canvas');cv.width=cv.height=32;
   const f=(frame+(t.o||0))%8,im=sheets[t.s];if(im&&im.complete)cv.getContext('2d').drawImage(im,f*32,0,32,32,0,0,32,32);
-  const k={x:t.x,y:t.y,s:t.s,sd,dir:sd&1?1:-1,bv:sd%12,t0:now,blood,peer,st,cv,tint:document.createElement('canvas'),placed:peer||!blood};
-  k.tint.width=k.tint.height=32;kills.push(k);if(!peer&&blood&&killStill())killPlace(k);return k}
+  const k={x:t.x,y:t.y,s:t.s,sd,dir:sd&1?1:-1,bv:sd%12,t0:now,blood,peer,boom:!!boom,st,cv,tint:document.createElement('canvas'),placed:peer||!blood};
+  k.tint.width=k.tint.height=32;
+  if(k.boom){k.gibs=[];const R=mulberry(sd+17);let d=null;try{d=cv.getContext('2d').getImageData(0,0,32,32).data}catch(e){}
+    for(let y=0;y<32;y+=4)for(let x=0;x<32;x+=4){let n=0;if(d)for(let j=0;j<4;j++)for(let i=0;i<4;i++)if(d[((y+j)*32+x+i)*4+3]>100)n++;if(n<4)continue;
+      const a=Math.atan2(y+2-18,x+2-16)+(R()-.5)*1.2;k.gibs.push({sx:x,sy:y,a,sp:24+R()*70,vz:50+R()*150,z0:31-y,rot:(R()-.5)*14})}
+    if(!killStill())shake={t0:now,a:3}}
+  kills.push(k);if(!peer&&blood&&killStill())killPlace(k);return k}
 function killPlace(k){k.placed=true;if(st!==k.st)return;   // undone or another map opened meanwhile
-  const[x,y]=killPool(k);st.objects.push({k:'blood',x,y,v:k.bv});objDirty=true;save()}
-function tokKill(i){if(mp.role==='player')return;const t=st.tokens[i];if(!killable(t))return;signClose();
-  push();st.tokens.splice(i,1);sel=null;const sd=1+Math.floor(Math.random()*99999);
-  killStart(t,sd,killBlood,false);save();syncUI();bmEmit({f:3,x:Math.round(t.x),y:Math.round(t.y),s:t.s,d:sd,b:killBlood?1:0})}
-function killPeer(e){const s=+e.s;if(!Number.isInteger(s)||!TOKINFO[s])return;killStart({x:+e.x,y:+e.y,s,o:0},fin(e.d)?Math.max(1,Math.floor(+e.d)):1,!!e.b,true)}
-function killTick(){const now=performance.now();kills.forEach(k=>{if(!k.placed&&now-k.t0>=KILL_POOL[1]*1000)killPlace(k)});kills=kills.filter(k=>now-k.t0<KILL_LEN)}
-// the spray: each drop leaves the chest at a fake height, flies with gravity, lands, then soaks in and fades
-function killDrops(g,k,t,landed){const R=mulberry(k.sd),G=380;
-  for(let i=0;i<48;i++){const side=R()<.72,a=side?(k.dir>0?0:Math.PI)+(R()-.5)*2.2:R()*Math.PI*2,sp=10+R()*48,vz=30+R()*110,d0=R()<.6?.03+R()*.08:.2+R()*.12,
-      z0=10+R()*6,c=BLOOD[i%BLOOD.length],sz=R()<.3?2:1,tt=t-d0;if(tt<0)continue;
+  const[x,y]=killPool(k);st.objects.push({k:poolK(k),x,y,v:k.bv});objDirty=true;save()}
+function tokKill(i,style){if(mp.role==='player')return;const t=st.tokens[i];if(!killable(t))return;signClose();
+  const boom=(style||killStyle)==='boom';push();st.tokens.splice(i,1);sel=null;const sd=1+Math.floor(Math.random()*99999);
+  killStart(t,sd,killBlood,false,boom);save();syncUI();bmEmit({f:3,x:Math.round(t.x),y:Math.round(t.y),s:t.s,d:sd,b:killBlood?1:0,e:boom?1:0})}
+function killPeer(e){const s=+e.s;if(!Number.isInteger(s)||!TOKINFO[s])return;killStart({x:+e.x,y:+e.y,s,o:0},fin(e.d)?Math.max(1,Math.floor(+e.d)):1,!!e.b,true,!!e.e)}
+function killTick(){const now=performance.now();kills.forEach(k=>{if(!k.placed&&now-k.t0>=poolT(k)[1]*1000)killPlace(k)});kills=kills.filter(k=>now-k.t0<killLen(k));throwTick(now)}
+// the spray: each drop leaves the body at a fake height, flies with gravity, lands, then soaks in and fades
+function killDrops(g,k,t,landed,n,end){const R=mulberry(k.sd),G=380,big=!!k.boom;n=n||(big?110:48);end=end||killLen(k)/1000;
+  for(let i=0;i<n;i++){const side=!big&&R()<.72,a=side?(k.dir>0?0:Math.PI)+(R()-.5)*2.2:R()*Math.PI*2,sp=big?14+R()*80:10+R()*48,vz=big?50+R()*150:30+R()*110,
+      d0=big?R()*.06:R()<.6?.03+R()*.08:.2+R()*.12,z0=big?6+R()*20:10+R()*6,c=BLOOD[i%BLOOD.length],sz=R()<(big?.4:.3)?2:1,tt=t-d0;if(tt<0)continue;
     const T=(vz+Math.sqrt(vz*vz+2*G*z0))/G,on=tt>=T;if(on!==landed)continue;const ft=Math.min(tt,T),z=Math.max(0,z0+vz*ft-.5*G*ft*ft),
-      px=k.x+Math.cos(a)*sp*ft,py=k.y+Math.sin(a)*sp*ft*.6,al=on?Math.max(0,Math.min(1,(KILL_LEN/1000-t)/.9)):1;if(al<=0)continue;
+      px=k.x+Math.cos(a)*sp*ft,py=k.y+Math.sin(a)*sp*ft*.6,al=on?Math.max(0,Math.min(1,(end-t)/.9)):1;if(al<=0)continue;
     g.fillStyle=`rgba(${c[0]},${c[1]},${c[2]},${al})`;g.fillRect(Math.round(px),Math.round(py-z),sz,sz)}}
-// under the tokens: the pool spreading (until the real object takes over) and the drops that have landed
-function killUnder(g,fv){if(!kills.length)return;const now=performance.now(),still=killStill();
+// the chunks of an exploded body: they fly with gravity and spin, land, bounce once, lie there, then fade
+function killGibs(g,k,t,landed){const G=420,end=BOOM_LEN/1000;
+  k.gibs.forEach(c=>{const T=(c.vz+Math.sqrt(c.vz*c.vz+2*G*c.z0))/G,on=t>=T;if(on!==landed)return;let ft=Math.min(t,T),z=Math.max(0,c.z0+c.vz*ft-.5*G*ft*ft),sl=0;
+    if(on){const b=t-T,bv=c.vz*.18,bt=2*bv/G;if(b<bt)z=bv*b-.5*G*b*b;sl=Math.min(b,.3)*.25}
+    const px=k.x-16+c.sx+2+Math.cos(c.a)*c.sp*(ft+sl),py=k.y-31+c.sy+2+c.z0+Math.sin(c.a)*c.sp*(ft+sl)*.6,al=Math.max(0,Math.min(1,(end-t)/.8));if(al<=0)return;
+    g.save();g.globalAlpha=al;g.translate(Math.round(px),Math.round(py-z));if(!on)g.rotate(c.rot*t);g.drawImage(k.cv,c.sx,c.sy,4,4,-2,-2,4,4);
+    g.globalCompositeOperation='source-atop';g.fillStyle='rgba(170,20,24,.35)';g.fillRect(-2,-2,4,4);g.restore()})}
+function killPoolDraw(g,k,t){const[t0,t1]=poolT(k);if(!k.blood||!(k.peer||!k.placed)||t<=t0)return;
+  const p=Math.min(1,(t-t0)/(t1-t0)),e=1-(1-p)*(1-p),s=sprite(poolK(k),k.bv),[w,h]=SIZE[poolK(k)];
+  if(!s.cv){s.cv=document.createElement('canvas');s.cv.width=s.sw;s.cv.height=s.sh;s.cv.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(s.px),s.sw,s.sh),0,0)}
+  const[px,py]=killPool(k),x0=Math.round(px-w/2)-1,y0=Math.round(py-h/2)-1;
+  g.save();g.beginPath();g.ellipse(px,py,1+e*(w/2+2),1+e*(h/2+2),0,0,7);g.clip();g.drawImage(s.cv,x0,y0);g.restore()}
+// under the tokens: the pool spreading (until the real object takes over), and the drops and chunks that have landed
+function killUnder(g,fv){const now=performance.now(),still=killStill();
+  kills.forEach(k=>{if(fogAt(fv,k.x,k.y))return;const t=(now-k.t0)/1000;killPoolDraw(g,k,t);
+    if(!still){killDrops(g,k,t,true);if(k.boom)killGibs(g,k,t,true)}});
+  if(!still)hits.forEach(h=>{if(!fogAt(fv,h.x,h.y))killDrops(g,h,(now-h.t0)/1000,true,10,1.6)})}
+// the token's current frame tinted with a colour, drawn where it stands
+function tokTint(g,cvs,t,col){const f=(frame+(t.o||0))%8,im=sheets[t.s];if(!im||!im.complete)return;const tg=cvs.getContext('2d');tg.globalCompositeOperation='copy';
+  tg.drawImage(im,f*32,0,32,32,0,0,32,32);tg.globalCompositeOperation='source-atop';tg.fillStyle=col;tg.fillRect(0,0,32,32);g.drawImage(cvs,Math.round(t.x)-16,Math.round(t.y)-31)}
+const tintCv=document.createElement('canvas');tintCv.width=tintCv.height=32;
+// over the tokens: the body (flash, topple, lie still, fade, or burst), the mist, the drops still in the air, throws in flight,
+// hit flashes, and (DM only) the crosshair over killable tokens
+function killOver(g,fv){const now=performance.now(),still=killStill();
   kills.forEach(k=>{if(fogAt(fv,k.x,k.y))return;const t=(now-k.t0)/1000;
-    if(k.blood&&(k.peer||!k.placed)&&t>KILL_POOL[0]){const p=Math.min(1,(t-KILL_POOL[0])/(KILL_POOL[1]-KILL_POOL[0])),e=1-(1-p)*(1-p),s=sprite('blood',k.bv);
-      if(!s.cv){s.cv=document.createElement('canvas');s.cv.width=s.sw;s.cv.height=s.sh;s.cv.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(s.px),s.sw,s.sh),0,0)}
-      const[px,py]=killPool(k),x0=Math.round(px-SIZE.blood[0]/2)-1,y0=Math.round(py-SIZE.blood[1]/2)-1;
-      g.save();g.beginPath();g.ellipse(px,py,1+e*10,1+e*6.5,0,0,7);g.clip();g.drawImage(s.cv,x0,y0);g.restore()}
-    if(!still)killDrops(g,k,t,true)})}
-// over the tokens: the body (flash, topple, lie still, fade), the mist and the drops still in the air
-function killOver(g,fv){if(!kills.length)return;const now=performance.now(),still=killStill();
-  kills.forEach(k=>{if(fogAt(fv,k.x,k.y))return;const t=(now-k.t0)/1000,T=KILL_LEN/1000;
+    if(k.boom){killBoom(g,k,t,still);return}
     let ang=0,sink=0,al=1,red=0;
     if(still){al=Math.max(0,1-t/.7);red=.45}
     else{const p=Math.max(0,Math.min(1,(t-KILL_HIT)/(KILL_LAND-KILL_HIT)));ang=p*p*Math.PI*.47;
@@ -3055,14 +3101,72 @@ function killOver(g,fv){if(!kills.length)return;const now=performance.now(),stil
     if(still)return;
     if(t<.5){const R=mulberry(k.sd+5);for(let i=0;i<6;i++){const a=R()*Math.PI*2,d=2+R()*6,p=t/.5;
       g.fillStyle=`rgba(150,18,24,${.35*(1-p)})`;g.beginPath();g.arc(k.x+Math.cos(a)*d*(1+p)+k.dir*p*6,k.y-14+Math.sin(a)*d*.6-p*2,1.5+p*3.5,0,7);g.fill()}}
-    killDrops(g,k,t,false)})}
+    killDrops(g,k,t,false)});
+  throwDraw(g,fv,now,still);
+  // a hit: the target flashes white, then red
+  hits.forEach(h=>{const t=(now-h.t0)/1000;if(t>.3||fogAt(fv,h.x,h.y))return;const tk=h.id&&st.tokens.find(q=>q.id===h.id);if(!tk)return;
+    tokTint(g,tintCv,tk,t<.08?'rgba(255,255,255,.95)':`rgba(200,24,24,${.6*(1-(t-.08)/.22)})`);
+    if(!still&&t<.25){g.strokeStyle=`rgba(255,240,200,${1-t/.25})`;g.lineWidth=1;const r=3+t*24,cx=h.x,cy=h.y-14;
+      for(let a=0;a<8;a++){const an=a/8*Math.PI*2;g.beginPath();g.moveTo(cx+Math.cos(an)*r*.6,cy+Math.sin(an)*r*.6);g.lineTo(cx+Math.cos(an)*r,cy+Math.sin(an)*r);g.stroke()}}});
+  if(!still)hits.forEach(h=>{if(!fogAt(fv,h.x,h.y))killDrops(g,h,(now-h.t0)/1000,false,10,1.6)});
+  // DM: a red crosshair over each token marked killable (fall) or a red one with a burst (explode)
+  if(mp.role!=='player')st.tokens.forEach(t=>{if(!t.kl||!killable(t))return;const x=Math.round(t.x),y=Math.round(t.y)+tokTop(t.s)-6,pl=.6+.4*Math.sin(now/220);
+    g.save();g.strokeStyle=`rgba(230,40,40,${pl})`;g.lineWidth=1;g.beginPath();g.arc(x+.5,y+.5,3,0,7);g.moveTo(x+.5,y-4);g.lineTo(x+.5,y-1);g.moveTo(x+.5,y+2);g.lineTo(x+.5,y+5);
+    g.moveTo(x-4,y+.5);g.lineTo(x-1,y+.5);g.moveTo(x+2,y+.5);g.lineTo(x+5,y+.5);g.stroke();
+    if(t.kl==='x'){g.fillStyle=`rgba(255,150,60,${pl})`;for(const[dx,dy]of[[-5,-5],[5,-5],[-5,5],[5,5]])g.fillRect(x+dx,y+dy,1,1)}g.restore()})}
+// an exploding body: a white flash on the body, then a red burst, a ring, the chunks and the spray, and red mist hanging
+function killBoom(g,k,t,still){const x=k.x,y=k.y-14;
+  if(still){if(t<.7){const a=1-t/.7,gr=g.createRadialGradient(x,y,0,x,y,26);gr.addColorStop(0,`rgba(220,40,40,${a})`);gr.addColorStop(1,'rgba(160,20,20,0)');g.fillStyle=gr;g.fillRect(x-26,y-26,52,52)}return}
+  if(t<.07){const tg=k.tint.getContext('2d');tg.globalCompositeOperation='copy';tg.drawImage(k.cv,0,0);tg.globalCompositeOperation='source-atop';
+    tg.fillStyle='rgba(255,245,235,.95)';tg.fillRect(0,0,32,32);g.drawImage(k.tint,Math.round(k.x)-16+Math.round(Math.sin(t*300)),Math.round(k.y)-31)}
+  if(t>=.05&&t<.35){const p=(t-.05)/.3,rad=8+p*22,gr=g.createRadialGradient(x,y,0,x,y,rad);
+    gr.addColorStop(0,`rgba(255,230,220,${.9*(1-p)})`);gr.addColorStop(.4,`rgba(220,40,40,${.85*(1-p)})`);gr.addColorStop(1,'rgba(120,10,10,0)');g.fillStyle=gr;g.fillRect(x-rad,y-rad,rad*2,rad*2)}
+  if(t>=.05&&t<.5){const p=(t-.05)/.45;g.strokeStyle=`rgba(230,60,50,${.7*(1-p)})`;g.lineWidth=2*(1-p)+.5;g.beginPath();g.ellipse(k.x,k.y-2,6+p*34,(6+p*34)*.6,0,0,7);g.stroke()}
+  if(t>=.05){const tt=t-.05,R=mulberry(k.sd+9);for(let i=0;i<14;i++){const a=R()*Math.PI*2,d=2+R()*10,life=1+R()*1.4,p=tt/life;if(p>1)continue;
+    g.fillStyle=`rgba(${140+R()*30|0},16,22,${.42*(1-p)*(1-p)})`;g.beginPath();g.arc(x+Math.cos(a)*d*(1+p*1.6),y+Math.sin(a)*d*.7-p*10,2+p*9,0,7);g.fill()}
+    killGibs(g,k,tt,false);killDrops(g,k,tt,false)}}
+// ---- throwing ----
+const THROW_KINDS=['rock','bottle','knife'];
+let throws=[],hits=[],thLog=[],thN=0,thLast=0;const thSeen=new Map();
+const throwDur=(fx,fy,tx,ty)=>.32+Math.hypot(tx-fx,ty-fy)/420;
+function throwStart(fx,fy,tx,ty,id,sd,judge){const now=performance.now();throws.push({fx,fy,tx,ty,id,sd,kind:THROW_KINDS[sd%3],t0:now,dur:throwDur(fx,fy,tx,ty)*1000,judge})}
+// a player clicks a townsfolk or enemy token: their own token throws at it
+function throwAt(i){if(mp.role!=='player'||!mp.sess||!mp.sess.live)return false;const t=st.tokens[i];if(!killable(t)||!t.id)return false;
+  const me=st.tokens.find(q=>mp.sess.assign[q.s]===mp.me);if(!me)return false;const now=performance.now();if(now-thLast<350)return true;thLast=now;
+  const sd=1+Math.floor(Math.random()*99999),ev={n:++thN,id:t.id,fx:Math.round(me.x),fy:Math.round(me.y),tx:Math.round(t.x),ty:Math.round(t.y),sd};
+  thLog.push(ev);if(thLog.length>6)thLog.shift();mp.pres.th=thLog.slice();throwStart(ev.fx,ev.fy,ev.tx,ev.ty,t.id,sd,false);return true}
+// any page: play the throws a peer's presence lists (new ones only); the DM's page judges what they hit
+function throwPeer(key,th){if(!Array.isArray(th))th=[];const seen=thSeen.get(key),top=Math.max(0,...th.map(e=>e&&fin(e.n)?+e.n:0));thSeen.set(key,Math.max(seen||0,top));
+  if(seen===undefined)return;th.forEach(e=>{if(!e||!fin(e.n)||+e.n<=seen||typeof e.id!=='string'||![e.fx,e.fy,e.tx,e.ty].every(fin))return;
+    throwStart(+e.fx,+e.fy,+e.tx,+e.ty,e.id,fin(e.sd)?Math.max(1,Math.floor(+e.sd)):1,mp.role==='dm')})}
+function throwTick(now){const done=throws.filter(p=>now-p.t0>=p.dur);if(!done.length)return;throws=throws.filter(p=>now-p.t0<p.dur);
+  done.forEach(p=>{const i=st.tokens.findIndex(t=>t.id===p.id),t=st.tokens[i],x=t?t.x:p.tx,y=t?t.y:p.ty;
+    if(p.judge&&t&&t.kl&&killable(t)){tokKill(i,klStyle(t));return}
+    hits.push({x,y,id:p.id,sd:p.sd,dir:p.tx>=p.fx?1:-1,t0:now})});
+  hits=hits.filter(h=>now-h.t0<1600)}
+// the thrown thing: an arc from the thrower's hand to the target's chest, spinning, with its shadow on the ground
+function throwDraw(g,fv,now,still){throws.forEach(p=>{const q=Math.min(1,(now-p.t0)/p.dur),gx=p.fx+(p.tx-p.fx)*q,gy=p.fy+(p.ty-p.fy)*q;if(fogAt(fv,gx,gy))return;
+  const hgt=Math.min(36,8+Math.hypot(p.tx-p.fx,p.ty-p.fy)*.22),z=14-2*q+(still?0:4*hgt*q*(1-q));
+  g.fillStyle='rgba(60,30,30,.28)';g.fillRect(Math.round(gx)-1,Math.round(gy)-1,3,1);
+  g.save();g.translate(Math.round(gx),Math.round(gy-z));g.rotate((p.tx>=p.fx?1:-1)*q*p.dur/1000*(p.kind==='rock'?9:16));
+  if(p.kind==='rock'){g.fillStyle='#5a4a44';g.fillRect(-2,-1,4,3);g.fillRect(-1,-2,2,1);g.fillStyle='#8c7a70';g.fillRect(-1,-1,2,1)}
+  else if(p.kind==='bottle'){g.fillStyle='#2f5a38';g.fillRect(-1,-1,3,5);g.fillRect(0,-3,1,2);g.fillStyle='#6fae7a';g.fillRect(-1,0,1,2);g.fillStyle='#c9a46a';g.fillRect(0,-4,1,1)}
+  else{g.fillStyle='#d8dde2';g.fillRect(-1,-4,1,5);g.fillStyle='#ffffff';g.fillRect(-1,-4,1,1);g.fillStyle='#6a4a34';g.fillRect(-2,1,3,1);g.fillRect(-1,2,1,2)}
+  g.restore()})}
+cv.addEventListener('pointerdown',e=>{if(e.button!==0||mp.role!=='player'||spaceDown||tool!=='select')return;const h=hit(toMap(e));
+  if(h&&h.type==='token'&&throwAt(h.i)){e.stopImmediatePropagation();e.preventDefault()}},true);
 window.addEventListener('keydown',e=>{if(e.key.toLowerCase()!=='k'||e.ctrlKey||e.metaKey||e.altKey||e.target!==document.body&&e.target.tagName!=='CANVAS')return;const i=killSel();if(i>=0){e.preventDefault();tokKill(i)}});
-// selection bar for a townsfolk or enemy token: Kill, and whether it leaves a pool of blood
-function killSelbar(bar,add){const i=killSel();if(i<0)return;
-  add('skull','Kill','K',killBlood?'It falls and leaves a pool of blood. Undo brings it back.':'It falls and fades away. Undo brings it back.',()=>tokKill(killSel()));
-  const b=document.createElement('button');b.className='ib';b.setAttribute('aria-pressed',killBlood?'true':'false');b.innerHTML=svgI('drop',2);b.setAttribute('aria-label',killBlood?'Leave blood: on':'Leave blood: off');
-  b.dataset.tip=killBlood?'Leave blood: on':'Leave blood: off';b.dataset.sub='Click to '+(killBlood?'kill without':'leave')+' a pool of blood';
-  b.onclick=()=>{killBlood=!killBlood;try{localStorage.setItem('dustmap-killblood',killBlood?'1':'0')}catch(e){}selKey='';syncUI()};bar.append(b)}
+// selection bar for a townsfolk or enemy token: Kill, how it dies, whether it leaves blood, and "next hit kills"
+function killSelbar(bar,add){const i=killSel();if(i<0)return;const t=st.tokens[i],boom=killStyle==='boom';
+  add('skull','Kill','K',(boom?'It explodes':'It falls over')+(killBlood?' and leaves '+(boom?'gore':'a pool of blood'):'')+'. Undo brings it back.',()=>tokKill(killSel()));
+  const tb=(label,name,sub,on,fn,icon)=>{const b=document.createElement('button');b.className=icon?'ib':'ib ibt';if(icon)b.innerHTML=svgI(icon,2);else b.textContent=label;
+    if(on!==null)b.setAttribute('aria-pressed',on?'true':'false');b.setAttribute('aria-label',name);b.dataset.tip=name;b.dataset.sub=sub;b.onclick=fn;bar.append(b)};
+  tb(boom?'Explode':'Fall','Death: '+(boom?'explode':'fall over'),'Click to '+(boom?'have it fall over instead':'have it explode instead'),null,()=>{
+    killStyle=boom?'fall':'boom';try{localStorage.setItem('dustmap-killstyle',killStyle)}catch(e){}
+    const q=st.tokens[killSel()];if(q&&q.kl){push();q.kl=killStyle==='boom'?'x':'f';save()}selKey='';syncUI()});
+  tb('','Leave blood: '+(killBlood?'on':'off'),'Click to '+(killBlood?'kill without':'leave')+' blood',killBlood,()=>{killBlood=!killBlood;try{localStorage.setItem('dustmap-killblood',killBlood?'1':'0')}catch(e){}selKey='';syncUI()},'drop');
+  tb('','Next hit kills: '+(t.kl?'on':'off'),t.kl?'Click so a hit no longer kills it':'The next thing a player throws at it kills it ('+(boom?'explodes':'falls over')+')',!!t.kl,()=>{
+    const q=st.tokens[killSel()];if(!q)return;push();if(q.kl)delete q.kl;else q.kl=killStyle==='boom'?'x':'f';save();selKey='';syncUI()},'target')}
 // ================= doors, stairs and entrances =================
 // A portal is an object ({k:'door'|'stairsdown'|'stairsup'|'entrance', x, y}) that also carries where it leads:
 //   id   its own id (so other doors can name it as the place to arrive)
@@ -3600,7 +3704,7 @@ $('libtour').onclick=tourOpen;$('tour').onclick=()=>{menuShow(false);tourOpen()}
 $('libcave').onclick=caveOpen;$('cave').onclick=()=>{menuShow(false);caveOpen()};
 // read-only peek for the tests
 window.__terrain=()=>({cv:tcan,L:lastR.L,W,H});
-window.__mpMe=()=>mp.me;window.__dustmap=()=>({st,fog:fogGet(),litFires:litFires(fogView()).length,role:mp.role,cam:{...cam},Z,pings:pings.map(p=>({x:p.x,y:p.y,rgb:p.rgb||null})),blasts:blasts.map(b=>({x:b.x,y:b.y,r:b.r})),fuses:fuses.length,kills:kills.length,tool,peers:mp.peers.length,busy:mp.busy,err:mp.err,again:mp.again,ks:kLive()?{n:kstep.n,path:kstep.path}:null,hist:hist.length,sel});
+window.__mpMe=()=>mp.me;window.__dustmap=()=>({st,fog:fogGet(),litFires:litFires(fogView()).length,role:mp.role,cam:{...cam},Z,pings:pings.map(p=>({x:p.x,y:p.y,rgb:p.rgb||null})),blasts:blasts.map(b=>({x:b.x,y:b.y,r:b.r})),fuses:fuses.length,kills:kills.length,throws:throws.length,hits:hits.length,tool,peers:mp.peers.length,busy:mp.busy,err:mp.err,again:mp.again,ks:kLive()?{n:kstep.n,path:kstep.path}:null,hist:hist.length,sel});
 libInit();mpInit();
 buildTools();buildObjs();buildToks();buildPaints();updUndo();sizeCanvas();syncUI();requestAnimationFrame(loop);
 setTimeout(buildPaints,0);
