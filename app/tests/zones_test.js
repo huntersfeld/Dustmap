@@ -21,16 +21,16 @@ const zones=st=>st.objects.filter(o=>o.k==='zone');
 // a fresh 20 x 14 map with a party token, dynamite, a torch and a door
 await p.keyboard.press('n');await p.waitForTimeout(200);await p.selectOption('#newsize','20x14');await p.fill('#newname','Trap room');await p.press('#newname','Enter');await p.waitForTimeout(900);
 await p.evaluate(()=>{window.__dustmap().st.tokens=[{s:0,x:24,y:104,o:0}]});
-await p.keyboard.press('o');await p.click('#o-dynamite');await clickMap(232,200);
-await p.click('#o-torch');await clickMap(168,40);
-await p.click('#o-door');await clickMap(296,40);await p.click('#ptdone');
+await p.keyboard.press('o');await p.click('#oc-interact');await p.click('#o-dynamite');await clickMap(232,200);
+await p.click('#oc-light');await p.click('#o-torch');await clickMap(168,40);
+await p.click('#oc-interact');await p.click('#o-door');await clickMap(296,40);await p.click('#ptdone');
 // put the torch out from the selection bar
 await p.keyboard.press('v');await clickMap(168,40);await p.click('#selbar [aria-label="Put it out"]');
 let st=(await S()).st;if(!st.objects.find(o=>o.k==='torch').off)fail('Put it out should mark the torch off');
 if((await S()).litFires!==0)fail('an unlit torch gives no light');
 
 // place a zone: it snaps to squares and opens its editor
-await p.keyboard.press('o');await p.click('#o-zone');await clickMap(90,90);
+await p.keyboard.press('o');await p.click('#oc-interact');await p.click('#o-zone');await clickMap(90,90);
 if(await p.isHidden('#zoneedit'))fail('placing a zone should open its editor');
 let z=zones((await S()).st)[0];
 if(!z||!z.id||z.w!==2||z.h!==2||z.x!==96||z.y!==96)fail('zone should be 2x2 on whole squares: '+JSON.stringify(z));
@@ -72,7 +72,7 @@ const t2=st.tokens[0];await dragMap([t2.x,t2.y-10],[24,t2.y-10]);
 if((await S()).st.objects.find(o=>o.k==='door').lock)fail('a spent zone should not go off again');
 
 // Ask me first, every time
-await p.keyboard.press('o');await p.click('#o-zone');await clickMap(40,184);
+await p.keyboard.press('o');await p.click('#oc-interact');await p.click('#o-zone');await clickMap(40,184);
 await p.fill('#zname','Bell');await p.fill('#zmsg','A bell rings.');await p.selectOption('#zrep','1');await p.check('#zask');await p.uncheck('#zrv');await p.click('#zdone');
 await p.keyboard.press('v');await p.keyboard.press('Escape');
 let tk=(await S()).st.tokens[0];await dragMap([tk.x,tk.y-10],[40,190-10]);
