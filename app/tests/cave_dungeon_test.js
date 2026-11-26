@@ -74,6 +74,9 @@ if(!ent||Math.hypot(t.x-ent.x,t.y-ent.y)>40)fail('the party should arrive beside
 // and back down through the tour's cave entrance
 await p.evaluate(()=>{const s=window.__dustmap().st,e=s.objects.find(o=>o.id==='tour-deep'),t=s.tokens.find(t=>t.s===0);t.x=e.x-32;t.y=e.y});
 await walk([Math.floor(ent.x/16),Math.floor(ent.y/16),1]);await p.waitForTimeout(800);
+// the tour's own party is still there, so only this token goes down; Follow takes the map after it
+l=await lib();if(l.maps.find(m=>m.id===l.cur).name!=='Dustmap tour')fail('one token going down should leave the map on the tour');
+await p.click('#portmsg button:has-text("Follow")');await p.waitForTimeout(800);
 l=await lib();if(l.maps.find(m=>m.id===l.cur).name!=='Rattlesnake Deep')fail('the tour’s cave entrance should lead to the dungeon');
 if(l.maps.filter(m=>m.name.startsWith('Rattlesnake Deep')).length!==1)fail('going back should not add a second copy');
 

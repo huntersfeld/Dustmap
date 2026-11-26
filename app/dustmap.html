@@ -383,10 +383,11 @@ a.btn{text-decoration:none;color:var(--fg)}
     <div class="row"><div class="seg" id="ptlook" role="group" aria-label="Looks like"></div></div>
     <div class="row"><label class="note" for="ptto">Leads to</label><select id="ptto"></select></div>
     <div class="row"><label class="note" for="ptat">Arrive</label><select id="ptat"></select></div>
+    <div class="row"><button class="btn sm" id="ptlink">Link…</button><span class="note">Click where it leads, here or on another map</span></div>
     <p class="note" id="ptnote"></p>
-    <label class="check note" for="ptwalk"><input type="checkbox" id="ptwalk"> Opens when a party token steps on it</label>
+    <label class="check note" for="ptwalk"><input type="checkbox" id="ptwalk"> A token that steps on it goes through</label>
     <label class="check note" for="ptlock"><input type="checkbox" id="ptlock"> Locked for players</label>
-    <div class="row"><button class="btn sm" id="ptgo">Go through now</button><button class="btn primary sm" id="ptdone" style="margin-left:auto">Done</button></div>
+    <div class="row"><button class="btn sm" id="ptgo">Send the party through</button><button class="btn primary sm" id="ptdone" style="margin-left:auto">Done</button></div>
   </div>
   <div class="float portmsg" id="portmsg" role="status" hidden></div>
   <div class="float signedit zoneedit" id="zoneedit" hidden role="dialog" aria-label="Edit trigger zone">
@@ -859,7 +860,7 @@ function sprite(k,v){v=(v||0)%12;const key=k+':'+v;if(SPR.has(key))return SPR.ge
   else if(k==='gore'){own=true;goreSprite(put,R,E,v)}
   else if(k==='zone')zoneSprite(put,R);
   else if(k==='chest'||k==='gold'||k==='plate'||k==='bones')lootSprite(k,v,put,R,E,LN,w,h);
-  else if(k==='door'||k==='stairsdown'||k==='stairsup'||k==='entrance'||k==='landing')portalSprite(k,put,R,E,LN,w,h);
+  else if(k==='door'||k==='stairsdown'||k==='stairsup'||k==='entrance'||k==='trapdoor'||k==='hole'||k==='landing')portalSprite(k,put,R,E,LN,w,h);
   else if(k==='well'){E(8,8,8,8,(x,y)=>hash(x>>1,y>>1,3)>.5?C.stone:C.stoned);E(8,8,5,5,C.dark);E(8,8.5,3.5,3,C.water);put(7,7,C.water2);
     R(1,6,14,2,C.wood);R(1,5,2,4,C.woodd);R(13,5,2,4,C.woodd);put(8,8,[110,80,60])}
   else if(k==='wagon'){for(const x of [4,20]){R(x,0,7,2,C.wheel);R(x,h-2,7,2,C.wheel)}
@@ -1974,7 +1975,7 @@ function buildSelbar(){const bar=$('selbar');bar.replaceChildren();const add=(ic
   add('copy','Duplicate','Ctrl D','A copy, one square over',dupSel);
   dynSelbar(bar,add);
   killSelbar(bar,add);
-  if(sel.type==='obj'&&isPortal(sel.i)){const i=sel.i;add('go','Go through','','Send the party to where it leads',()=>portalGo(i));add('portal','Edit door','Enter','Where it leads and where the party arrives',()=>portalEdit(i))}
+  if(sel.type==='obj'&&isPortal(sel.i)){const i=sel.i;add('go','Send the party through','','Everyone in the party goes to where it leads',()=>portalGo(i));add('portal','Edit door','Enter','Where it leads and where tokens arrive',()=>portalEdit(i));add('link','Link','','Click where it leads, here or on another map',()=>portalLinkStart(i))}
   zoneSelbar(bar,add);
   if(sel.type==='obj'&&isSign(sel.i))add('sign','Edit sign','Enter','Write the message and pick its language',()=>signEdit(sel.i));
   if(sel.type==='obj'||sel.type==='objs')add('stamp','Save as stamp','','Reuse this group from the Objects tray',saveStamp);
@@ -2397,7 +2398,7 @@ function mpTick(){if(!mp.room)return;let pr;
       drag:tk&&tk.id?{id:tk.id,x:Math.round(tk.x),y:Math.round(tk.y)}:null,ping:mp.pres.ping||null,mv:mp.pres.mv||null,pick:Number.isInteger(mp.pres.pick)?mp.pres.pick:null,ch:mp.role==='player'&&myChar?{c:myChar,n:myCharN}:null,go:mp.role==='player'&&mp.pres.go||null,bm:mp.role==='dm'&&mp.pres.bm||null,tp:TESTPLAYER?1:null,ks:kPres(),th:mp.role==='player'&&mp.pres.th||null}}
   const j=JSON.stringify(pr);if(j===mp.sent)return;mp.sent=mp.role==='off'?'':j;mp.room.presence(pr).catch(()=>{})}
 const ptOk=q=>Array.isArray(q)&&q.length===2&&fin(q[0])&&fin(q[1]);
-function mpPeers(ch){mp.peers=ch.peers;const now=performance.now(),ghost=new Map(),stepped=[];let commit=false,goDoor=-1;
+function mpPeers(ch){mp.peers=ch.peers;const now=performance.now(),ghost=new Map(),stepped=[];let commit=false,goDoor=null;
   for(const p of ch.peers){if(p.sameTab)continue;const pr=p.presence||{},key=p.peer;
     let tr=mp.trails.get(key);
     if(ptOk(pr.ptr)){if(!tr||!tr.down){tr={pts:[],down:true,end:0};mp.trails.set(key,tr)}const l=tr.pts[tr.pts.length-1];
@@ -2415,14 +2416,14 @@ function mpPeers(ch){mp.peers=ch.peers;const now=performance.now(),ghost=new Map
       if(mv&&typeof mv.id==='string'&&mp.mvSeen.get(key)!==mv.n){mp.mvSeen.set(key,mv.n);const t=st.tokens.find(t=>t.id===mv.id);
         if(t&&p.by&&p.by!==mp.me&&mpMayMove(t,p.by)&&fin(mv.x)&&fin(mv.y)&&fin(mv.base)&&+mv.base>=(mp.tokR[t.id]||0)){
           const from=mp.walkLast.get(t.id)||[t.x,t.y];t.x=Math.max(8,Math.min(W-8,+mv.x));t.y=Math.max(30,Math.min(H-1,+mv.y));fogWalk(t,from,[t.x,t.y]);mp.walkLast.delete(t.id);mp.plMv.set(t.id,[t.x,t.y]);commit=true;stepped.push([t,from,zonePaths.get(t.id)]);zonePaths.delete(t.id)}}
-      const gi=portalAsked(p,pr);if(gi>=0)goDoor=gi}}
+      const gi=portalAsked(p,pr);if(gi)goDoor=gi}}
   for(const l of ch.left){bmSeen.delete(l.peer);goSeen.delete(l.peer);mp.trails.delete(l.peer);mp.pingSeen.delete(l.peer);mp.mvSeen.delete(l.peer);mp.ksSeen.delete(l.peer);mp.pickSeen.delete(l.peer);mp.chSeen.delete(l.peer)}
   if(mp.role==='dm'&&mpPicks(ch.peers))commit=true;
   for(const id of [...mp.walkLast.keys()])if(!ghost.has(id))mp.walkLast.delete(id);
   for(const id of [...zonePaths.keys()])if(!ghost.has(id))zonePaths.delete(id);
   mp.ghost=ghost;if(commit)save();mpUI();
   // a player walked onto a door, or clicked one beside their token
-  if(goDoor>=0){const id=st.objects[goDoor].id;setTimeout(()=>{const j=st.objects.findIndex(o=>o.id===id);if(j>=0)portalGo(j)},120)}else stepped.forEach(([t,from])=>portalStep(t,true,from));stepped.forEach(([t,from,zp])=>zoneStep(t,[...(zp||[from]),[t.x,t.y]],true))}
+  if(goDoor){const{id,t}=goDoor;setTimeout(()=>{const j=st.objects.findIndex(o=>o.id===id);if(j>=0)portalGo(j,t)},120)}else stepped.forEach(([t,from])=>portalStep(t,true,from));stepped.forEach(([t,from,zp])=>zoneStep(t,[...(zp||[from]),[t.x,t.y]],true))}
 // DM: players choose their own token (one each). A new choice takes that token if nobody else has it, and puts one on
 // the map if there isn't one; a token added for a player goes away when they choose another. The DM's own assignment
 // sticks until the player chooses again.
@@ -3173,20 +3174,27 @@ function killSelbar(bar,add){const i=killSel();if(i<0)return;const t=st.tokens[i
 //   to   a library map id, or 'here' for another spot on the same map; toN = that map's name, used when the id
 //        no longer matches (maps moved between browsers get new ids)
 //   at   the id of a Landing spot or door on the destination to arrive beside; missing = automatic
-//   walk 0 = only opens from the selection bar / editor (default: a party token stepping on it opens it)
+//   walk 0 = only opens from the selection bar / editor (default: a token stepping on it goes through)
 //   lock 1 = players can't open it; the DM can still send the party through
-// A Landing spot ({k:'landing'}) marks where the party arrives. Only the DM sees it.
-// Going through: the DM's page (or the solo editor) moves the party (Party characters and tokens players play) off this map, opens the destination from the library with them standing around the arrival
-// spot, and the usual session push sends the new map and tokens to everyone.
+// A Landing spot ({k:'landing'}) marks where tokens arrive. Only the DM sees it.
+// Going through is one token at a time: the token that steps on it (or the player who clicks it beside their token) goes,
+// the rest stay. On the same map it just moves. To another map it's written into that map (the DM's page, or the solo
+// editor, edits the library copy) and the session stays where it is until the last party token has left; then the map
+// follows them. The DM can Follow sooner, or Send the party through (selection bar, editor, a trigger zone) to move
+// everyone at once. The usual session push sends the new map and tokens to everyone.
 const PORTALS=[{k:'door',name:'Door',sub:'Leads to another map, or another spot on this one'},{k:'stairsdown',name:'Stairs down',sub:'Leads to another map, or another spot on this one'},
-  {k:'stairsup',name:'Stairs up',sub:'Leads to another map, or another spot on this one'},{k:'entrance',name:'Cave entrance',sub:'Leads to another map, or another spot on this one'}];
+  {k:'stairsup',name:'Stairs up',sub:'Leads to another map, or another spot on this one'},{k:'entrance',name:'Cave entrance',sub:'Leads to another map, or another spot on this one'},
+  {k:'trapdoor',name:'Trapdoor',sub:'A hatch in the floor. Leads to another map, or another spot on this one'},{k:'hole',name:'Hole',sub:'A hole in the ground. Leads to another map, or another spot on this one'}];
+const PORTAL_VERB={door:'went through the door',stairsdown:'went down the stairs',stairsup:'went up the stairs',entrance:'went into the cave',trapdoor:'dropped through the trapdoor',hole:'dropped down the hole'};
 PORTALS.forEach(p=>{OBJ.push({...p,sub:p.sub+'. Double-click it to choose where.',g:'Doors & stairs'});SIZE[p.k]=[16,16]});
 OBJ.push({k:'landing',name:'Landing spot',sub:'Where the party arrives through a door. Only you see it.',g:'Doors & stairs'});SIZE.landing=[16,16];
 ICON.portal='M6 21V4h12v17 M3 21h18 M14 12h.5';
 ICON.go='M5 12h12 M12 6l6 6-6 6';
+ICON.link='M10 14a4 4 0 006 0l3-3a4 4 0 00-6-6l-1 1 M14 10a4 4 0 00-6 0l-3 3a4 4 0 006 6l1-1';
 const isPortalK=k=>PORTALS.some(p=>p.k===k);
 const isPortal=i=>i!=null&&i>=0&&!!st.objects[i]&&isPortalK(st.objects[i].k);
 const portalName=o=>(PORTALS.find(p=>p.k===o.k)||{name:'Door'}).name;
+const portalVerb=o=>PORTAL_VERB[o.k]||'went through';
 const objId=()=>'o'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 // who goes through: every Party character, plus any token someone plays in a live session
 const portalParty=t=>!!t&&((TOKINFO[t.s]||{}).group==='Party'||!!(mp.sess&&mp.sess.live&&mp.sess.assign[t.s]));
@@ -3202,6 +3210,10 @@ function portalSprite(k,put,R,E,LN,w,h){const st1=C.stone,st2=C.stoned,dk=C.dark
     for(let j=0;j<7;j++){const y=1+j*2,c=mix(wd,LIGHT,j*.05);R(3,y,10,2,c);R(3,y+1,10,1,mix(c,DARK,.22))}R(3,15,10,1,wdd);R(1,0,2,1,mix(wdd,LIGHT,.2));R(13,0,2,1,mix(wdd,LIGHT,.2))}
   else if(k==='entrance'){E(8,9,8,7.5,(x,y)=>x+y<12?C.rockl:x+y>20?C.rockd:C.rock);E(8,11,5,5.5,dk);R(3,11,10,5,dk);
     R(2,5,2,11,wd);R(12,5,2,11,wd);R(2,4,12,2,wdd);R(2,4,12,1,mix(wdd,LIGHT,.25));R(4,14,8,2,[38,30,30])}
+  else if(k==='trapdoor'){R(1,1,14,14,wdd);for(let j=0;j<4;j++){const y=2+j*3;R(2,y,12,3,j%2?wd:mix(wd,LIGHT,.08));R(2,y+2,12,1,mix(wd,DARK,.25))}
+    R(2,3,3,2,C.metal);R(2,10,3,2,C.metal);R(1,1,14,1,mix(wdd,LIGHT,.2));
+    E(11.5,8,2.2,2.2,C.metal);E(11.5,8,1.2,1.2,mix(wd,DARK,.15))}   // iron hinges and a ring pull
+  else if(k==='hole'){E(8,8,8,7.5,(x,y)=>x+y<12?mix(C.rockd,LIGHT,.15):C.rockd);E(8,8.5,6,5.6,[52,40,38]);E(8,9.5,4.6,4,[30,22,24]);E(8,10.5,2.8,2.4,[14,10,12])}
   else{R(4,1,1,13,wdd);R(5,1,7,4,[196,86,62]);R(5,1,7,1,[222,120,90]);E(5,14,4,1.6,[242,196,159])}}   // landing: a little flag
 // ---- where a door leads ----
 function portalDest(o){if(!o||!o.to)return null;if(o.to==='here')return{id:lib.cur,here:true};
@@ -3227,59 +3239,81 @@ function portalSpots(s,a,n,keep){const cols=s.cols,rows=s.rows,taken=new Set();
   while(out.length<n)out.push([Math.round(cols*GRID/2),Math.round(rows*GRID/2)]);return out}
 // ---- going through ----
 let portalLast=null,portalFrom=null;   // the last trip, so the DM can take it back; where the token that walked onto the door came from
-function portalGo(i,quiet){if(mp.role==='player'||!isPortal(i))return false;const o=st.objects[i];
+// write a map we're not showing back into the library
+function libStoreMap(id,s){const m=lib.maps.find(m=>m.id===id);if(!m)return false;const j=JSON.stringify(s);Object.assign(m,libMeta(s));
+  if(!(libPut(id,j)&&libStore())){libSay('Browser storage is full, so the latest change was not saved.');return false}groupSync(m,j);return true}
+// who = one token (it steps on it, or its player clicks it); no who = the whole party (Send the party through)
+function portalGo(i,who,quiet){if(mp.role==='player'||!isPortal(i))return false;const o=st.objects[i];
   // a door to a built-in map that isn't in the library yet adds it
-  if(!portalDest(o)&&o.to&&o.toN&&BUILTIN[o.toN]&&st.tokens.some(portalParty)){const m=builtinAdd(o.toN);if(m){o.to=m.id;o.toN=m.name;save()}}
+  if(!portalDest(o)&&o.to&&o.toN&&BUILTIN[o.toN]&&(who?true:st.tokens.some(portalParty))){const m=builtinAdd(o.toN);if(m){o.to=m.id;o.toN=m.name;save()}}
   const d=portalDest(o);
-  if(!d){portalSay(o.to?'The map this door led to is gone. Double-click the door to pick another.':'This door doesn’t lead anywhere yet. Double-click it to choose a map.');return false}
-  // closest spots go to the token that walked in, then tokens people play, so players land right beside the door
-  const rank=t=>portalFrom&&portalFrom.t===t?0:mp.sess&&mp.sess.live&&mp.sess.assign[t.s]?1:2,party=st.tokens.filter(portalParty).sort((a,b)=>rank(a)-rank(b));
-  if(!party.length){portalSay(mp.sess&&mp.sess.live?'Nobody is playing a token yet, so nobody went through.':'Only party tokens go through doors. Put a Party character on the map first.');return false}
-  const from=lib.cur,fromName=(libCur()||{}).name||'',before=party.map(t=>portalFrom&&portalFrom.t===t?{...t,x:portalFrom.x,y:portalFrom.y}:{...t});
-  if(d.here){push();const keep=st.tokens.filter(t=>!party.includes(t)),sp=portalSpots(st,portalAnchor(o,st,true,from,fromName),party.length,keep);
-    party.forEach((t,k)=>{[t.x,t.y]=sp[k];fogWalk(t,[t.x,t.y],[t.x,t.y])});save();portalFade();portalLook(sp);
-    portalLast=null;if(!quiet)portalSay(`The party took the ${portalName(o).toLowerCase()}.`);syncUI();return true}
+  if(!d){portalSay(o.to?'The map this door led to is gone. Double-click the door to pick another.':'This door doesn’t lead anywhere yet. Double-click it to choose where.');return false}
+  // with the whole party, the closest spots go to tokens people play, so players land right beside the door
+  const rank=t=>mp.sess&&mp.sess.live&&mp.sess.assign[t.s]?0:1;
+  const movers=who?(st.tokens.includes(who)?[who]:[]):st.tokens.filter(portalParty).sort((a,b)=>rank(a)-rank(b));
+  if(!movers.length){if(!who)portalSay(mp.sess&&mp.sess.live?'Nobody is playing a token yet, so nobody went through.':'There are no party tokens on this map to send through.');return false}
+  const nm=who?(tokName(who.s)||'A token'):'The party',verb=portalVerb(o),from=lib.cur,fromName=(libCur()||{}).name||'';
+  const before=movers.map(t=>portalFrom&&portalFrom.t===t?{...t,x:portalFrom.x,y:portalFrom.y}:{...t});
+  if(d.here){push();const keep=st.tokens.filter(t=>!movers.includes(t)),sp=portalSpots(st,portalAnchor(o,st,true,from,fromName),movers.length,keep);
+    movers.forEach((t,k)=>{[t.x,t.y]=sp[k];fogWalk(t,[t.x,t.y],[t.x,t.y])});save();if(!who)portalFade();portalLook(sp);
+    portalLast=null;if(!quiet)portalSay(`${nm} ${verb}.`);syncUI();return true}
   const s=libGet(d.id);if(!s){portalSay('That map could not be read.');return false}
   // they leave this map...
-  st.tokens=st.tokens.filter(t=>!party.includes(t));save();
-  // ...and arrive on the next one, replacing any copies of the same characters already there
-  const sheets=new Set(party.map(t=>t.s)),keep=s.tokens.filter(t=>!sheets.has(t.s)),sp=portalSpots(s,portalAnchor(o,s,false,from,fromName),party.length,keep);
-  const arrived=party.map((t,k)=>({...t,x:sp[k][0],y:sp[k][1]}));s.tokens=[...keep,...arrived];
-  portalFade();libOpen(d.id,s);st.tokens.filter(t=>arrived.some(a=>a.id?a.id===t.id:a.s===t.s)).forEach(t=>fogWalk(t,[t.x,t.y],[t.x,t.y]));
-  mp.walkLast.clear();save();portalLook(sp);
+  st.tokens=st.tokens.filter(t=>!movers.includes(t));
+  // ...and arrive on the next one beside the tokens already there, replacing any copies of the same characters
+  const sheets=new Set(movers.map(t=>t.s)),keep=s.tokens.filter(t=>!sheets.has(t.s)),sp=portalSpots(s,portalAnchor(o,s,false,from,fromName),movers.length,keep);
+  const arrived=movers.map((t,k)=>({...t,x:sp[k][0],y:sp[k][1]}));s.tokens=[...keep,...arrived];
+  const follow=!who||!st.tokens.some(portalParty);   // the whole party went, or the last of it just did: the map follows
+  if(!follow){if(!libStoreMap(d.id,s)){st.tokens.push(...movers);return false}save();
+    portalLast={from,to:d.id,before,sheets:[...sheets],t:Date.now(),split:true};
+    if(!quiet){portalSay(`${nm} ${verb} to “${d.m.name}”. The rest of the party is still here.`,true,d.id);bmEmit({f:2,x:Math.round(o.x),y:Math.round(o.y),m:`${nm} ${verb}.`})}
+    return true}
+  save();portalFade();libOpen(d.id,s);portalArrive();save();portalLook(sp);
   portalLast={from,to:d.id,before,sheets:[...sheets],t:Date.now()};
-  if(!quiet)portalSay(`The party went through the ${portalName(o).toLowerCase()} to “${d.m.name}”.`,true);return true}
-// take the last trip back: the party returns to where they stood before it
-function portalBack(){const L=portalLast;portalLast=null;if(!L||lib.cur!==L.to||mp.role==='player')return;
-  const s=libGet(L.from);if(!s)return portalSay('That map could not be read.');
-  const sheets=new Set(L.sheets);st.tokens=st.tokens.filter(t=>!sheets.has(t.s));save();
-  s.tokens=[...s.tokens.filter(t=>!sheets.has(t.s)),...L.before];portalFade();libOpen(L.from,s);mp.walkLast.clear();save();portalSay('The party is back where it was.')}
+  if(!quiet)portalSay(who?`${nm} ${verb} to “${d.m.name}”. That’s everyone, so the map follows.`:`The party ${verb} to “${d.m.name}”.`,true);return true}
+// a map just opened with the party on it: walk reveal clears around them
+function portalArrive(){st.tokens.filter(portalParty).forEach(t=>fogWalk(t,[t.x,t.y],[t.x,t.y]));mp.walkLast.clear()}
+// the DM follows the tokens that went ahead
+function portalFollow(id){const s=libGet(id);if(!s)return portalSay('That map could not be read.');portalLast=null;portalFade();libOpen(id,s);portalArrive();save();
+  const sp=s.tokens.filter(portalParty).map(t=>[t.x,t.y]);portalLook(sp);portalSay(`Now on “${(libCur()||{}).name||''}”.`)}
+// take the last trip back: they return to where they stood before it
+function portalBack(){const L=portalLast;portalLast=null;if(!L||mp.role==='player')return;const sheets=new Set(L.sheets);
+  if(L.split){if(lib.cur!==L.from)return;const s=libGet(L.to);if(s){s.tokens=s.tokens.filter(t=>!sheets.has(t.s));libStoreMap(L.to,s)}
+    st.tokens=[...st.tokens.filter(t=>!sheets.has(t.s)),...L.before];save();syncUI();return portalSay('Back where they were.')}
+  if(lib.cur!==L.to)return;const s=libGet(L.from);if(!s)return portalSay('That map could not be read.');
+  st.tokens=st.tokens.filter(t=>!sheets.has(t.s));save();
+  s.tokens=[...s.tokens.filter(t=>!sheets.has(t.s)),...L.before];portalFade();libOpen(L.from,s);mp.walkLast.clear();save();portalSay('Back where they were.')}
 // centre the view on the arrival if it's off screen
 function portalLook(sp){if(!sp.length)return;const x=sp.reduce((a,q)=>a+q[0],0)/sp.length,y=sp.reduce((a,q)=>a+q[1],0)/sp.length;
   const vx=(x-cam.x)*Z,vy=(y-cam.y)*Z;if(vx<80||vy<80||vx>viewW-80||vy>viewH-80){cam.x=x-viewW/Z/2;cam.y=y-viewH/Z/2;clampCam()}}
 function portalFade(){const f=$('travelfade');if(reduce.matches)return;f.classList.remove('out');f.classList.add('on');void f.offsetWidth;
   clearTimeout(portalFade.t);portalFade.t=setTimeout(()=>{f.classList.remove('on');f.classList.add('out')},60)}
-function portalSay(t,back){const m=$('portmsg');m.replaceChildren();if(!t){m.hidden=true;return}m.append(document.createTextNode(t));
-  if(back&&portalLast){const b=document.createElement('button');b.className='btn ghost sm';b.textContent='Take it back';b.onclick=()=>{portalSay('');portalBack()};m.append(b)}
-  m.hidden=false;clearTimeout(portalSay.t);portalSay.t=setTimeout(()=>{m.hidden=true;if(portalLast&&Date.now()-portalLast.t>5000)portalLast=null},back?7000:3500)}
+// a short message over the map; back = offer Take it back, follow = a map id to offer Follow to, sticky = stays until replaced
+function portalSay(t,back,follow,sticky){const m=$('portmsg');m.replaceChildren();clearTimeout(portalSay.t);if(!t){m.hidden=true;return}m.append(document.createTextNode(t));
+  const btn=(label,fn)=>{const b=document.createElement('button');b.className='btn ghost sm';b.textContent=label;b.onclick=fn;m.append(b);return b};
+  if(follow&&mp.role!=='player')btn('Follow',()=>{portalSay('');portalFollow(follow)});
+  if(back&&portalLast)btn('Take it back',()=>{portalSay('');portalBack()});
+  if(sticky)return m.hidden=false,btn('Cancel',sticky);
+  m.hidden=false;portalSay.t=setTimeout(()=>{m.hidden=true;if(portalLast&&Date.now()-portalLast.t>5000)portalLast=null},back||follow?9000:3500)}
 // the door a token is standing on
 const portalUnder=t=>st.objects.findIndex(o=>isPortalK(o.k)&&Math.abs(t.x-o.x)<=SIZE[o.k][0]/2&&Math.abs(t.y-o.y)<=SIZE[o.k][1]/2);
-// a party token just finished a move: if it stopped on a door that opens by walking, go through (DM / solo pages only)
-function portalStep(t,byPlayer,from){if(mp.role==='player'||!portalParty(t))return;const i=portalUnder(t);if(i<0)return;const o=st.objects[i];
-  if(o.walk===0||!o.to)return;if(o.lock){if(!byPlayer)portalSay('That door is locked for players. Select it and use Go through to send the party.');return}
-  const id=o.id;portalFrom=from?{t,x:from[0],y:from[1]}:null;setTimeout(()=>{const j=st.objects.findIndex(q=>q.id===id);if(j>=0&&!drag)portalGo(j);portalFrom=null},120)}
+// a token just finished a move: if it stopped on a door that opens by walking, that token goes through (DM / solo pages only)
+function portalStep(t,byPlayer,from){if(!t)return;
+  if(mp.role==='player'){const i=portalUnder(t),o=st.objects[i];if(o&&o.lock&&o.to&&o.walk!==0)portalSay(`The ${portalName(o).toLowerCase()} won’t open.`);return}const i=portalUnder(t);if(i<0)return;const o=st.objects[i];
+  if(o.walk===0||!o.to)return;if(o.lock){if(!byPlayer)portalSay(`That ${portalName(o).toLowerCase()} is locked for players. Select it and use Send the party through.`);return}
+  const id=o.id;setTimeout(()=>{const j=st.objects.findIndex(q=>q.id===id);if(j<0||drag||!st.tokens.includes(t)||portalUnder(t)!==j)return;portalFrom=from?{t,x:from[0],y:from[1]}:null;portalGo(j,t);portalFrom=null},120)}
 // players: clicking a door next to your own token asks the DM's page to open it
 const goSeen=new Map();let myGo=0;
 function portalNear(t,o){const[a,b]=cellOf(t.x,t.y-1),[c,d]=cellOf(o.x,o.y);return Math.max(Math.abs(a-c),Math.abs(b-d))<=1}
 function portalAsk(i){const o=st.objects[i];if(!o)return;if(o.lock)return portalSay('It won’t open.');
   const mine=st.tokens.filter(t=>mp.sess&&mp.sess.assign[t.s]===mp.me);if(!mine.some(t=>portalNear(t,o)))return portalSay(`Walk up to the ${portalName(o).toLowerCase()} first.`);
   mp.pres.go={id:o.id,n:++myGo};portalSay('Opening…')}
-// DM: a player asked to open a door; their own token has to be beside it
+// DM: a player asked to open a door; their own token has to be beside it, and that token goes through
 // (a request already there when the DM's page first sees that player is old, so it's ignored)
 function portalAsked(p,pr){const g=pr.go&&typeof pr.go.id==='string'&&fin(pr.go.n)?pr.go:null,n=g?+g.n:0,seen=goSeen.get(p.peer);goSeen.set(p.peer,n);
-  if(seen===undefined||!n||n===seen)return-1;
-  const i=st.objects.findIndex(o=>o.id===g.id&&isPortalK(o.k));if(i<0||st.objects[i].lock||!st.objects[i].to)return-1;
-  return st.tokens.some(t=>mp.sess&&mp.sess.assign[t.s]===p.by&&portalNear(t,st.objects[i]))?i:-1}
+  if(seen===undefined||!n||n===seen)return null;
+  const i=st.objects.findIndex(o=>o.id===g.id&&isPortalK(o.k));if(i<0||st.objects[i].lock||!st.objects[i].to)return null;
+  const t=st.tokens.find(t=>mp.sess&&mp.sess.assign[t.s]===p.by&&portalNear(t,st.objects[i]));return t?{id:g.id,t}:null}
 // ---- the DM's editor: what it looks like, where it leads, where the party arrives ----
 let portEd=null;
 const portalKey=o=>JSON.stringify([o.k,o.to||'',o.toN||'',o.at||'',o.walk,o.lock]);
@@ -3290,13 +3324,13 @@ function portalSync(){if(!portEd)return;const o=st.objects[portEd.i];if(!o)retur
   to.replaceChildren();const opt=(sel,v,t,on)=>{const q=document.createElement('option');q.value=v;q.textContent=t;if(on)q.selected=true;sel.append(q)};
   const d=portalDest(o);opt(to,'','Nowhere yet',!d);opt(to,'here','Another spot on this map',!!d&&d.here);
   lib.maps.filter(m=>m.id!==lib.cur).sort((a,b)=>a.name.localeCompare(b.name)).forEach(m=>opt(to,m.id,m.name,!!d&&!d.here&&d.id===m.id));
-  at.replaceChildren();at.disabled=!d;opt(at,'',d&&d.here?'Automatic: by the other door or stairs':'Automatic: by the way back',!o.at);
+  at.replaceChildren();at.disabled=!d;opt(at,'',d&&d.here?'Automatic: by the other way through':'Automatic: by the way back',!o.at);
   const s=d?(d.here?st:libGet(d.id)):null;let found=!o.at;
   if(s){let n=0;(s.objects||[]).forEach(q=>{if(q===o)return;const[c,r]=cellOf(q.x,q.y);
     if(q.k==='landing'){n++;if(!q.id)return;opt(at,q.id,`Landing spot ${n} (square ${c+1}, ${r+1})`,o.at===q.id);found=found||o.at===q.id}
     else if(isPortalK(q.k)&&q.id){opt(at,q.id,`Beside the ${portalName(q).toLowerCase()} at square ${c+1}, ${r+1}`,o.at===q.id);found=found||o.at===q.id}})}
   if(!found)opt(at,o.at,'A spot that’s no longer there',true);
-  $('ptnote').textContent=!d?'Pick the map it opens.':s&&!s.objects.some(q=>q.k==='landing'||(isPortalK(q.k)&&q!==o))?'Tip: put a Landing spot on that map to choose where the party appears.':'';
+  $('ptnote').textContent=!d?'Pick the map it opens.':s&&!s.objects.some(q=>q.k==='landing'||(isPortalK(q.k)&&q!==o))?'Tip: use Link… and click a square on that map to choose where tokens appear.':'';
   $('ptwalk').checked=o.walk!==0;$('ptlock').checked=!!o.lock;$('ptgo').disabled=!d}
 function portalApply(fn){if(!portEd||!isPortal(portEd.i))return;const o=st.objects[portEd.i];fn(o);if(o.walk!==0)delete o.walk;if(!o.lock)delete o.lock;if(!o.at)delete o.at;objDirty=true;portalSync();save()}
 function portalClose(){if(!portEd)return;const e=portEd;portEd=null;$('portedit').hidden=true;const o=st.objects[e.i];
@@ -3315,12 +3349,15 @@ function portalTick(){const card=$('portcard');portalPlace();
   const o=i>=0?st.objects[i]:null,dm=mp.role!=='player'&&!fogPreview,f=fogView();
   if(!o||(f&&fogAt(f,o.x,o.y))){card.hidden=true;portShown='';return}
   let t;if(dm){const d=portalDest(o);t=!d?(o.to&&BUILTIN[o.toN]?`${portalName(o)} to “${o.toN}” (built in: going through adds it to your maps).`:o.to?`${portalName(o)} to a map that’s gone. Double-click to fix.`:`${portalName(o)} to nowhere yet. Double-click to choose.`)
-      :`${portalName(o)} to ${d.here?'another spot on this map':'“'+d.m.name+'”'}.`+(o.lock?' Locked for players.':o.walk===0?' Opens from Go through.':' A party token stepping on it goes through.')}
+      :`${portalName(o)} to ${d.here?'another spot on this map':'“'+d.m.name+'”'}.`+(o.lock?' Locked for players.':o.walk===0?' Only Send the party through opens it.':' A token that steps on it goes through.')}
   else t=o.lock?`${portalName(o)}. It’s locked.`:!o.to?portalName(o)+'.':`${portalName(o)}. Step on it, or click it when you’re next to it, to go through.`;
   if(t!==portShown){portShown=t;card.textContent=t}card.hidden=false;
   const cw=card.offsetWidth,sx=(o.x-cam.x)*Z,sy=(o.y-8-cam.y)*Z-8;card.style.left=Math.max(cw/2+8,Math.min(viewW-cw/2-8,sx))+'px';card.style.top=Math.max(card.offsetHeight+8,sy)+'px'}
 // landing spots: a dashed ring with an arrow, DM only (they're never drawn into the map image)
 function portalDraw(){if(mp.role==='player'||fogPreview)return;
+  const sd=tool==='select'&&sel&&sel.type==='obj'&&isPortal(sel.i)?st.objects[sel.i]:portEd?st.objects[portEd.i]:null;
+  if(sd&&sd.to==='here'){const q=sd.at?st.objects.find(o=>o.id===sd.at&&o!==sd):null;
+    if(q){ctx.setLineDash([4,4]);ctx.beginPath();ctx.moveTo(sd.x*Z,sd.y*Z);ctx.lineTo(q.x*Z,q.y*Z);ctx.strokeStyle='rgba(29,27,34,.7)';ctx.lineWidth=3;ctx.stroke();ctx.strokeStyle='#f2c49f';ctx.lineWidth=1.5;ctx.stroke();ctx.setLineDash([])}}
   st.objects.forEach(o=>{if(o.k!=='landing')return;const x=o.x*Z,y=o.y*Z,r=7*Z;
     ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fillStyle='rgba(196,86,62,.28)';ctx.fill();ctx.strokeStyle='rgba(29,27,34,.75)';ctx.lineWidth=4;ctx.stroke();
     ctx.setLineDash([5,3]);ctx.strokeStyle='#f2c49f';ctx.lineWidth=2;ctx.stroke();ctx.setLineDash([]);
@@ -3333,6 +3370,7 @@ function portalDraw(){if(mp.role==='player'||fogPreview)return;
    else{o.to=v;o.toN=(lib.maps.find(m=>m.id===v)||{}).name||''}});
  $('ptat').onchange=e=>portalApply(o=>{o.at=e.target.value});
  $('ptwalk').onchange=e=>portalApply(o=>{o.walk=e.target.checked?1:0});$('ptlock').onchange=e=>portalApply(o=>{o.lock=e.target.checked?1:0});
+ $('ptlink').onclick=()=>{if(portEd)portalLinkStart(portEd.i)};
  $('ptgo').onclick=()=>{const i=portEd&&portEd.i;portalClose();if(i!=null)portalGo(i)};$('ptdone').onclick=portalClose;
  $('portedit').addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Escape'){e.preventDefault();portalClose()}});
  $('portedit').addEventListener('pointerdown',e=>e.stopPropagation());
@@ -3348,6 +3386,30 @@ function portalDraw(){if(mp.role==='player'||fogPreview)return;
  cv.addEventListener('dblclick',e=>{if(tool!=='select'||mp.role==='player')return;const p=toMap(e),i=st.objects.findIndex(o=>isPortalK(o.k)&&Math.abs(p[0]-o.x)<=9&&Math.abs(p[1]-o.y)<=9);
    if(i>=0){e.preventDefault();setObjSel([i]);portalEdit(i);syncUI()}});
  window.addEventListener('keydown',e=>{if(e.key!=='Enter'||e.target!==document.body&&e.target.tagName!=='CANVAS')return;if(tool==='select'&&sel&&sel.type==='obj'&&isPortal(sel.i)&&mp.role!=='player'){e.preventDefault();portalEdit(sel.i)}})}
+// ---- Link…: click where a door leads, like linking a trigger zone. On this map or another one: open the other map from
+// the map menu while linking and click there. A spot that's empty ground gets a Landing spot. A door or stairs that
+// doesn't lead anywhere yet is linked back the other way.
+let portLink=null;   // {map: id of the map the door is on, id: the door's id}
+const portLinkable=(o,self)=>!!o&&o!==self&&(isPortalK(o.k)||o.k==='landing');
+function portalLinkStart(i){const o=st.objects[i];if(!o||mp.role==='player')return;portalInit(o);portalClose();portLink={map:lib.cur,id:o.id};portalLinkSay()}
+function portalLinkSay(){if(!portLink)return;portalSay(`Click where the ${(portLinkDoor()||{k:'door'}).k==='door'?'door':'way through'} leads: a landing spot, another door or stairs, or any square. For another map, open it from the map menu first. Esc cancels.`,false,null,portalLinkCancel)}
+function portLinkDoor(){if(!portLink)return null;const s=portLink.map===lib.cur?st:libGet(portLink.map);return s&&s.objects.find(q=>q.id===portLink.id)}
+function portalLinkCancel(){portLink=null;portalSay('')}
+function portalLinkAt(p){const L=portLink;if(!L)return;const here=L.map===lib.cur,self=here?st.objects.find(q=>q.id===L.id):null;
+  if(here&&!self)return portalLinkCancel();
+  let q=null;for(let i=st.objects.length-1;i>=0;i--){const o=st.objects[i];if(portLinkable(o,self)&&Math.abs(p[0]-o.x)<=9&&Math.abs(p[1]-o.y)<=9){q=o;break}}
+  push();if(!q){const[c,r]=cellOf(Math.max(0,Math.min(W-1,p[0])),Math.max(0,Math.min(H-1,p[1])));q={k:'landing',x:c*GRID+GRID/2,y:r*GRID+GRID/2,v:0,id:objId()};st.objects.push(q)}
+  portalInit(q);const twoWay=isPortalK(q.k)&&!q.to;
+  if(here){self.to='here';delete self.toN;self.at=q.id;if(twoWay){q.to='here';q.at=self.id}objDirty=true;save();portLink=null;
+    const j=st.objects.indexOf(self);setObjSel([j]);syncUI();portalSay(`Linked${twoWay?' both ways':''}: the ${portalName(self).toLowerCase()} leads to ${q.k==='landing'?'that landing spot':'the '+portalName(q).toLowerCase()}.`);return}
+  const src=libGet(L.map),m=lib.maps.find(m=>m.id===L.map),door=src&&src.objects.find(o=>o.id===L.id);if(!door){hist.pop();updUndo();return portalLinkCancel()}
+  door.to=lib.cur;door.toN=(libCur()||{}).name||'';door.at=q.id;if(twoWay){q.to=L.map;q.toN=m?m.name:'';q.at=door.id}
+  objDirty=true;save();libStoreMap(L.map,src);portLink=null;
+  // back to the door that was being linked
+  const where=(libCur()||{}).name||'';libOpen(L.map,libGet(L.map));const j=st.objects.findIndex(o=>o.id===L.id);if(j>=0){setTool('select');setObjSel([j]);syncUI()}
+  portalSay(`Linked${twoWay?' both ways':''}: the ${portalName(door).toLowerCase()} leads to ${q.k==='landing'?'a landing spot':'the '+portalName(q).toLowerCase()} on “${where}”.`)}
+{cv.addEventListener('pointerdown',e=>{if(!portLink||e.button!==0||mp.role==='player')return;e.stopImmediatePropagation();e.preventDefault();portalLinkAt(toMap(e))},true);
+ window.addEventListener('keydown',e=>{if(portLink&&e.key==='Escape'){e.preventDefault();e.stopImmediatePropagation();portalLinkCancel()}},true)}
 // ================= trigger zones =================
 // A trigger zone is an invisible box of squares the DM places (Objects → Doors & stairs). When a party token stops in
 // it or walks through it, it goes off. Only the DM's page sees zones (a dashed box), and only the DM's page (or the solo
@@ -3577,7 +3639,7 @@ function tourMap(){const S=(x,y,txt,o={})=>({k:'sign',x,y,v:o.v||0,txt,lang:o.la
     // stairs down into the fogged cave and back up again, on the same map
     {k:'entrance',x:584,y:408,v:0,id:'tour-deep',to:'cave',toN:'Rattlesnake Deep',at:'cave-entry'},{k:'landing',x:104,y:328,v:0,id:'tour-deep-out'},
     {k:'stairsdown',x:280,y:264,v:0,id:'tour-down',to:'here',at:'tour-cave'},{k:'stairsup',x:280,y:328,v:0,id:'tour-up',to:'here'},{k:'landing',x:312,y:344,v:0,id:'tour-cave'},
-    S(264,204,'DOORS AND STAIRS\nObjects (O), then Doors & stairs. Double-click one to pick the map it opens and where the party arrives (a Landing spot, only you see it). A party token stepping on it takes everyone through. Try the stairs just south of here.\nA Trigger zone is an invisible box that reveals fog, lights torches, sets off dynamite or locks doors when the party walks in.',{v:2})];
+    S(264,204,'DOORS AND STAIRS\nObjects (O), then Doors & stairs: doors, stairs, cave mouths, trapdoors and holes. Select one and use Link, then click where it leads, on this map or another. A token that steps on it goes through on its own; when the whole party is through, the map follows. Try the stairs just south of here.',{v:2})];
   const tokens=[{s:0,x:56,y:232,o:0},{s:1,x:72,y:232,o:3},{s:2,x:56,y:248,o:5},{s:3,x:72,y:248,o:2},{s:4,x:344,y:392,o:1}];
   // the cave (columns 16–25, rows 18–27) starts hidden
   const cols=40,rows=28;let fog='';for(let r=0;r<rows;r++)for(let c=0;c<cols;c++)fog+=c>=16&&c<=25&&r>=18?'1':'0';

@@ -92,9 +92,12 @@ try{
     await p.keyboard.press('v');await p.mouse.click(...await scr(p,t.x,t.y-10));await p.waitForTimeout(150);
     await tap(p,'ArrowRight');await p.waitForTimeout(400);if(await curName()!==home)fail('one step short of the door should stay home');
     await tap(p,'ArrowRight');await p.waitForTimeout(600);
-    if(await curName()!=='Cellar')fail('stepping onto the door with the keys should open the Cellar, got '+await curName());
-    if((await S(p)).st.tokens.filter(t=>t.s<4).length!==4)fail('the party should arrive in the Cellar');
-    if((await S(p)).ks)fail('the step count should end on a new map');
+    // only that token goes through (the rest of the party stays, so the map does too)
+    if(await curName()!==home)fail('one token going through should keep the map open, got '+await curName());
+    if((await S(p)).st.tokens.some(q=>q.s===0))fail('the token that stepped on the door should leave');
+    {const l=await p.evaluate(()=>JSON.parse(localStorage.getItem('dustmap-library'))),c=l.maps.find(m=>m.name==='Cellar');
+     const cel=await p.evaluate(id=>JSON.parse(localStorage.getItem('dustmap-map:'+id)),c.id);if(cel.tokens.filter(q=>q.s===0).length!==1)fail('it should arrive in the Cellar')}
+    if((await S(p)).ks)fail('the step count should end when the token leaves');
     if(errs.length)fail('page errors: '+errs.join('; '));
     await ctx.close();console.log('door ok')}
 
