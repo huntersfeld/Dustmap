@@ -31,27 +31,28 @@ try{
     if(!d.ks||d.ks.n!==2)fail('right, right, down is one straight step and one diagonal (2), got '+JSON.stringify(d.ks));
     // WASD
     await tap(p,'a');await tap(p,'w');d=await S(p);t=d.st.tokens[i];if(t.x!==x0+16||t.y!==y0)fail('WASD did not step');
-    if(d.ks.n!==3)fail('count after WASD (left, then up as a diagonal) should be 3, got '+d.ks.n);
+    if(d.ks.n!==1)fail('after WASD the token is one square from the start, count should be 1, got '+d.ks.n);
     if(d.tool!=='select')fail('D/A/W switched tools while a token was selected');
     // two keys together: one diagonal step
     await p.keyboard.down('ArrowDown');await p.keyboard.down('ArrowRight');await p.waitForTimeout(80);await p.keyboard.up('ArrowRight');await p.keyboard.up('ArrowDown');await p.waitForTimeout(80);
-    d=await S(p);t=d.st.tokens[i];if(t.x!==x0+32||t.y!==y0+16)fail(`diagonal: got ${t.x},${t.y}`);if(d.ks.n!==4)fail('a diagonal counts as one step, got '+d.ks.n);
+    d=await S(p);t=d.st.tokens[i];if(t.x!==x0+32||t.y!==y0+16)fail(`diagonal: got ${t.x},${t.y}`);if(d.ks.n!==2)fail('a diagonal counts as one step, got '+d.ks.n);
     if(!(await p.textContent('#hint')).includes('WASD'))fail('hint should mention the keys');
-    // left then up, one key after the other, is one diagonal: 5 ft, drawn through the square
-    {const c0=(await S(p)).ks.n,l0=(await S(p)).ks.path.length;await tap(p,'ArrowLeft');await tap(p,'ArrowUp');d=await S(p);
-     if(d.ks.n!==c0+1)fail('left then up should count as one diagonal step, got '+(d.ks.n-c0));
-     const pa=d.ks.path,e=pa[pa.length-1],q=pa[pa.length-2];if(pa.length!==l0+1||Math.abs(e[0]-q[0])!==16||Math.abs(e[1]-q[1])!==16)fail('the path should cut through the square: '+JSON.stringify(pa.slice(-3)));
-     // ...but only in pairs: a third step is a new square
-     await tap(p,'ArrowRight');if((await S(p)).ks.n!==c0+2)fail('the step after a diagonal counts');
-     await tap(p,'ArrowDown');if((await S(p)).ks.n!==c0+2)fail('right then down should pair up too');
-     await tap(p,'ArrowRight');await tap(p,'ArrowRight');if((await S(p)).ks.n!==c0+4)fail('straight steps each count')
-     await tap(p,'ArrowLeft');await tap(p,'ArrowLeft');await tap(p,'ArrowUp');await tap(p,'ArrowDown');}
+    // a fresh walk (Enter) from here: left then up, one key after the other, is one diagonal drawn through the square
+    {await p.keyboard.press('Enter');await p.waitForTimeout(60);await tap(p,'ArrowLeft');await tap(p,'ArrowUp');d=await S(p);
+     if(d.ks.n!==1)fail('left then up should count as one diagonal step, got '+d.ks.n);
+     const pa=d.ks.path;if(pa.length!==2||Math.abs(pa[1][0]-pa[0][0])!==16||Math.abs(pa[1][1]-pa[0][1])!==16)fail('the path should cut through the square: '+JSON.stringify(pa));
+     // backing up erases the line: forward then back is 0
+     await tap(p,'ArrowRight');await tap(p,'ArrowDown');d=await S(p);if(d.ks.n!==0||d.ks.path.length!==1)fail('back at the start should count 0: '+JSON.stringify(d.ks));
+     await tap(p,'ArrowRight');await tap(p,'ArrowRight');if((await S(p)).ks.n!==2)fail('two straight steps count 2');
+     await tap(p,'ArrowLeft');if((await S(p)).ks.n!==1)fail('one step back takes one off');
+     await tap(p,'ArrowLeft');d=await S(p);if(d.ks.n!==0||d.ks.path.length!==1)fail('walking back to the start erases the whole line');
+     await tap(p,'ArrowUp');await tap(p,'ArrowDown');if((await S(p)).ks.n!==0)fail('up then down counts 0')}
     d=await S(p);t=d.st.tokens[i];if(t.x!==x0+32||t.y!==y0+16)fail(`after the pairs: got ${t.x},${t.y}`);
     await until(async()=>(await S(p)).st.tokens[i].x===x0+32,'');
     {const c=await scr(p,x0+16,y0);await p.screenshot({path:path.join(OUT,'keyboard_steps.png'),clip:{x:Math.max(0,c[0]-200),y:Math.max(0,c[1]-160),width:400,height:280}})}
     // one undo takes back the whole walk
-    if((await S(p)).hist!==h0+1)fail('a keyboard walk should be one undo step, got '+((await S(p)).hist-h0));
-    await p.keyboard.press('Control+z');await p.waitForTimeout(200);d=await S(p);t=d.st.tokens[i];
+    if((await S(p)).hist!==h0+2)fail('each keyboard walk (two here, split by Enter) should be one undo step, got '+((await S(p)).hist-h0));
+    await p.keyboard.press('Control+z');await p.waitForTimeout(100);await p.keyboard.press('Control+z');await p.waitForTimeout(200);d=await S(p);t=d.st.tokens[i];
     if(t.x!==x0||t.y!==y0)fail(`undo did not take the walk back: ${t.x},${t.y} vs ${x0},${y0}`);
     // Enter clears the path and count, the token stays put
     await p.mouse.click(...await scr(p,t.x,t.y-10));await p.waitForTimeout(150);await tap(p,'ArrowLeft');if(!(await S(p)).ks)fail('walk should count');
