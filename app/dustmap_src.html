@@ -170,7 +170,7 @@ body.notray .hint{bottom:calc(12px + env(safe-area-inset-bottom,0px))}
 .portedit #ptnote{margin:0}.portedit #ptnote:empty{display:none}
 .zoneedit #zname{flex:1;min-width:0;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:5px 8px;font:inherit}
 .zoneedit .zsize{gap:4px}.zoneedit .zsize .btn{min-width:28px;padding:0 6px}.zoneedit .zsize span[id]{min-width:16px;text-align:center}
-.zoneedit.linking>*:not(.zlinkrow){display:none}
+.zoneedit.linking>*:not(.zlinkrow){display:none}.zoneedit.marking>*:not(.zmarkrow){display:none}.zoneedit #zmarked{flex:1}.zoneedit #zmark[aria-pressed="true"]{background:var(--rust);color:#fff}
 .zoneedit p{margin:0}.zoneedit textarea{font:13px/1.35 var(--ui,inherit);min-height:44px}.zoneedit #zlinked{flex:1}.zoneedit #zlink[aria-pressed="true"]{background:var(--rust);color:#fff}
 .zoneask{position:absolute;z-index:9;left:50%;top:112px;transform:translateX(-50%);display:flex;align-items:center;gap:8px;padding:8px 10px;max-width:calc(100% - 16px)}
 .portcard{position:absolute;z-index:7;pointer-events:none;transform:translate(-50%,-100%);max-width:min(260px,calc(100% - 16px));background:var(--glass);border:1px solid var(--line);border-radius:8px;padding:6px 9px;font-size:12px;line-height:1.35;color:var(--fg);box-shadow:var(--shadow)}
@@ -394,7 +394,8 @@ a.btn{text-decoration:none;color:var(--fg)}
       <button class="btn ghost sm" id="zwm" aria-label="Narrower">−</button><span id="zw">2</span><button class="btn ghost sm" id="zwp" aria-label="Wider">+</button><span class="note">wide</span>
       <button class="btn ghost sm" id="zhm" aria-label="Shorter">−</button><span id="zh">2</span><button class="btn ghost sm" id="zhp" aria-label="Taller">+</button><span class="note">tall</span></div>
     <p class="note zhead">When a party token steps in or walks through:</p>
-    <label class="check note" for="zrv"><input type="checkbox" id="zrv"> Reveal the hidden area it touches</label>
+    <div class="row"><label class="note" for="zrv">Reveal</label><select id="zrv"><option value="2">An area I mark</option><option value="1">The whole hidden patch it touches</option><option value="0">Nothing</option></select></div>
+    <div class="row zmarkrow" id="zmarkrow"><button class="btn sm" id="zmark" aria-pressed="false">Mark area…</button><span class="note" id="zmarked"></span><button class="btn ghost sm" id="zclear">Clear</button></div>
     <div class="row zlinkrow"><button class="btn sm" id="zlink" aria-pressed="false">Link…</button><span class="note" id="zlinked"></span></div>
     <p class="note" id="zfirenote" hidden>A linked fire is already lit. Select it and use Put it out so the trigger can light it.</p>
     <div class="row" id="zdrrow" hidden><label class="note" for="zdr">Linked doors</label><select id="zdr"><option value="lock">Lock them</option><option value="unlock">Unlock them</option><option value="go">Send the party through</option></select></div>
@@ -3036,7 +3037,7 @@ function zoneSnap(o){const w=zw(o),h=zh(o);o.w=w;o.h=h;o.x=Math.round((o.x-w*GRI
   o.x=Math.max(w*GRID/2,Math.min(W-w*GRID/2,o.x));o.y=Math.max(h*GRID/2,Math.min(H-h*GRID/2,o.y))}
 function zoneSnapAll(list){let n=0;list.forEach(i=>{const o=st.objects[i];if(isZone(o)){zoneSnap(o);n++}});if(n)save()}
 function zoneInit(o){if(!isZone(o))return o;if(!o.id)o.id=objId();o.v=0;o.w=zw(o);o.h=zh(o);
-  if(!o.nm)o.nm='Trigger '+(st.objects.filter(isZone).length);if(o.rv===undefined)o.rv=1;if(!Array.isArray(o.tg))o.tg=[];zoneSnap(o);return o}
+  if(!o.nm)o.nm='Trigger '+(st.objects.filter(isZone).length);if(o.rv===undefined)o.rv=2;if(!Array.isArray(o.tg))o.tg=[];zoneSnap(o);return o}
 // the DM's page: zones are clickable, and are checked after everything else so a big one never hides what's in it
 function zoneHit(p){if(mp.role==='player'||fogPreview||!p)return-1;for(let i=st.objects.length-1;i>=0;i--)if(isZone(st.objects[i])&&zoneIn(st.objects[i],p[0],p[1]))return i;return-1}
 const zoneTargets=o=>(o.tg||[]).map(id=>st.objects.find(q=>q.id===id)).filter(zoneLinkable);
@@ -3053,7 +3054,7 @@ const zonePaths=new Map();
 function zonePathAdd(t,gp){let a=zonePaths.get(t.id);if(!a){a=[[t.x,t.y]];zonePaths.set(t.id,a)}a.push(gp);if(a.length>400)a.splice(1,a.length-400)}
 function zoneTrip(o,t){if(o.ask){zoneWait.push({id:o.id,who:tokName(t.s)||'A party token'});zoneAskShow();return}zoneFire(o)}
 function zoneFire(o,test){if(mp.role==='player'||!o||st.objects.indexOf(o)<0)return;push();const said=[];
-  if(o.rv&&zoneReveal(o))said.push('revealed the hidden area');
+  if(o.rv===2?zoneRevealAreas(o):o.rv&&zoneReveal(o))said.push(o.rv===2?'revealed the marked area':'revealed the hidden area');
   const tg=zoneTargets(o),dyn=tg.filter(isDyn),fire=tg.filter(q=>isFire(q)&&q.off),doors=tg.filter(q=>isPortalK(q.k)),dr=o.dr||'lock';
   if(fire.length){fire.forEach(q=>delete q.off);said.push(`lit ${fire.length} fire${fire.length>1?'s':''}`)}
   if(doors.length&&dr!=='go'){doors.forEach(q=>{if(dr==='lock')q.lock=1;else delete q.lock});said.push(`${dr==='lock'?'locked':'unlocked'} ${doors.length} door${doors.length>1?'s':''}`)}
@@ -3065,7 +3066,12 @@ function zoneFire(o,test){if(mp.role==='player'||!o||st.objects.indexOf(o)<0)ret
   portalSay(`“${o.nm||'Trigger zone'}” went off`+(said.length?': '+said.join(', '):'')+'.'+(msg?` Everyone sees: “${msg}”`:''));
   if(doors.length&&dr==='go'){const id=doors[0].id;setTimeout(()=>{const j=st.objects.findIndex(q=>q.id===id);if(j>=0)portalGo(j)},msg?900:150)}
   syncUI()}
-// clear the patch of fog the zone touches: hidden squares inside it, or right beside it, and everything hidden connected to them
+// rv 2: clear the squares the DM marked (ra: [[c0,r0,c1,r1],...], inclusive) and nothing else
+const zoneAreas=o=>(Array.isArray(o.ra)?o.ra:[]).filter(a=>Array.isArray(a)&&a.length===4&&a.every(Number.isInteger));
+function zoneRevealAreas(o){if(!st.fog||st.fog.length!==st.cols*st.rows)return false;const f=st.fog.split(''),C=st.cols;let ch=false;
+  zoneAreas(o).forEach(([c0,r0,c1,r1])=>{for(let r=Math.max(0,r0);r<=Math.min(st.rows-1,r1);r++)for(let c=Math.max(0,c0);c<=Math.min(C-1,c1);c++){const i=r*C+c;if(f[i]==='1'){f[i]='0';ch=true}}});
+  if(!ch)return false;st.fog=f.includes('1')?f.join(''):null;return true}
+// rv 1: clear the patch of fog the zone touches: hidden squares inside it, or right beside it, and everything hidden connected to them
 function zoneReveal(o){if(!st.fog||st.fog.length!==st.cols*st.rows)return false;const f=st.fog.split(''),C=st.cols,Rw=st.rows,b=zoneBox(o);
   const c0=Math.max(0,Math.floor(b[0]/GRID)-1),c1=Math.min(C-1,Math.ceil(b[2]/GRID)),r0=Math.max(0,Math.floor(b[1]/GRID)-1),r1=Math.min(Rw-1,Math.ceil(b[3]/GRID));
   const q=[];for(let r=r0;r<=r1;r++)for(let c=c0;c<=c1;c++){const i=r*C+c;if(f[i]==='1'){f[i]='0';q.push(i)}}
@@ -3078,26 +3084,29 @@ function zoneAskShow(){const card=$('zoneask');const w=zoneWait[0];if(!w){card.h
   $('zatext').textContent=`${w.who} stepped into “${o.nm||'Trigger zone'}”.`+(zoneWait.length>1?` (${zoneWait.length-1} more waiting)`:'');card.hidden=false}
 function zoneAnswer(go){const w=zoneWait.shift();if(w&&go){const o=st.objects.find(q=>q.id===w.id);if(o)zoneFire(o)}zoneAskShow()}
 // ---- the DM's editor ----
-let zoneEd=null,zoneLinking=false;const zoneFlash=[];
-const zoneKey=o=>JSON.stringify([o.nm,o.w,o.h,o.x,o.y,o.rv,o.tg,o.dr,o.msg,o.rep,o.ask,o.done]);
+let zoneEd=null,zoneLinking=false,zoneMarking=false,zoneMarkDrag=null;const zoneFlash=[];
+const zoneKey=o=>JSON.stringify([o.nm,o.w,o.h,o.x,o.y,o.rv,o.ra,o.tg,o.dr,o.msg,o.rep,o.ask,o.done]);
 const isZoneI=i=>i!=null&&i>=0&&isZone(st.objects[i]);
 function zoneEdit(i){if(!isZoneI(i)||mp.role==='player')return;signClose();portalClose();zoneClose();const o=zoneInit(st.objects[i]);
   zoneEd={i,before:JSON.stringify(st),start:zoneKey(o)};zoneSync();$('zoneedit').hidden=false;zonePlace()}
 function zoneSync(){if(!zoneEd)return;const o=st.objects[zoneEd.i];if(!isZone(o))return;
   if(document.activeElement!==$('zname'))$('zname').value=o.nm||'';if(document.activeElement!==$('zmsg'))$('zmsg').value=o.msg||'';
-  $('zw').textContent=zw(o);$('zh').textContent=zh(o);$('zrv').checked=!!o.rv;$('zrep').value=o.rep?'1':'0';$('zask').checked=!!o.ask;
+  $('zw').textContent=zw(o);$('zh').textContent=zh(o);$('zrv').value=String(o.rv===2?2:o.rv?1:0);$('zrep').value=o.rep?'1':'0';$('zask').checked=!!o.ask;
   const tg=zoneTargets(o),n=f=>tg.filter(f).length,parts=[],nd=n(isDyn),nf=n(isFire),np=n(q=>isPortalK(q.k));
   if(nd)parts.push(`${nd} dynamite`);if(nf)parts.push(`${nf} fire${nf>1?'s':''}`);if(np)parts.push(`${np} door${np>1?'s':''}`);
   $('zlinked').textContent=zoneLinking?'Click dynamite, doors, torches or campfires on the map to link or unlink them.':parts.length?'Linked: '+parts.join(', ')+'.':'Nothing linked yet.';
-  $('zoneedit').classList.toggle('linking',zoneLinking);
+  $('zoneedit').classList.toggle('linking',zoneLinking);$('zoneedit').classList.toggle('marking',zoneMarking);
+  const ar=zoneAreas(o),sq=ar.reduce((a,[c0,r0,c1,r1])=>a+(c1-c0+1)*(r1-r0+1),0);$('zmarkrow').hidden=o.rv!==2;$('zclear').hidden=zoneMarking||!ar.length;
+  $('zmarked').textContent=zoneMarking?'Drag over the squares it reveals. Click an area to remove it.':ar.length?`${ar.length} area${ar.length>1?'s':''}, ${sq} square${sq>1?'s':''}.`:'Nothing marked yet.';
+  $('zmark').textContent=zoneMarking?'Done marking':'Mark area…';$('zmark').setAttribute('aria-pressed',String(zoneMarking));
   $('zlink').textContent=zoneLinking?'Done linking':'Link…';$('zlink').setAttribute('aria-pressed',String(zoneLinking));
   $('zdrrow').hidden=!np;$('zdr').value=o.dr||'lock';
   $('zfirenote').hidden=!tg.some(q=>isFire(q)&&!q.off);
   $('zspent').hidden=!o.done}
 function zoneApply(fn){if(!zoneEd||!isZoneI(zoneEd.i))return;const o=st.objects[zoneEd.i];fn(o);
-  ['rv','rep','ask','done'].forEach(k=>{if(!o[k])delete o[k]});if(!o.msg)delete o.msg;if(!o.dr||o.dr==='lock')delete o.dr;
+  ['rep','ask','done'].forEach(k=>{if(!o[k])delete o[k]});if(Array.isArray(o.ra)&&!o.ra.length)delete o.ra;if(!o.msg)delete o.msg;if(!o.dr||o.dr==='lock')delete o.dr;
   objDirty=true;zoneSync();save()}
-function zoneClose(){if(!zoneEd)return;const e=zoneEd;zoneEd=null;zoneLinking=false;$('zoneedit').hidden=true;const o=st.objects[e.i];
+function zoneClose(){if(!zoneEd)return;const e=zoneEd;zoneEd=null;zoneLinking=false;zoneMarking=false;zoneMarkDrag=null;$('zoneedit').hidden=true;const o=st.objects[e.i];
   if(o&&zoneKey(o)!==e.start){hist.push(e.before);if(hist.length>80)hist.shift();updUndo()}
   if(document.activeElement&&$('zoneedit').contains(document.activeElement))document.activeElement.blur()}
 function zonePlace(){const ed=$('zoneedit');if(!zoneEd)return;if(!isZoneI(zoneEd.i)){zoneClose();return}
@@ -3109,6 +3118,19 @@ function zoneTick(){zonePlace();if(zoneEd&&!isZoneI(zoneEd.i))zoneClose();if(!$(
 function zoneSelbar(bar,add){if(sel.type!=='obj')return;const i=sel.i,o=st.objects[i];if(!o)return;
   if(isZone(o)){add('zone','Edit trigger','Enter','What it does when the party steps in',()=>zoneEdit(i));add('boom','Set it off now','','Test it: does everything it would do',()=>zoneFire(st.objects[i],true))}
   if(isFire(o))add('flame',o.off?'Light it':'Put it out','',o.off?'A trigger zone can light it too':'Starts dark; link it to a trigger zone to light it',()=>{push();if(o.off)delete o.off;else o.off=1;objDirty=true;save();selKey='';syncUI()})}
+// ---- marking the area a zone reveals: drag a box of squares; a click on a marked area removes it ----
+const zoneCell=p=>[Math.max(0,Math.min(st.cols-1,Math.floor(p[0]/GRID))),Math.max(0,Math.min(st.rows-1,Math.floor(p[1]/GRID)))];
+const zoneMarkRect=d=>[Math.min(d.a[0],d.b[0]),Math.min(d.a[1],d.b[1]),Math.max(d.a[0],d.b[0]),Math.max(d.a[1],d.b[1])];
+window.addEventListener('pointermove',e=>{if(!zoneMarkDrag)return;zoneMarkDrag.b=zoneCell(toMap(e));zoneMarkDrag.moved=zoneMarkDrag.moved||zoneMarkDrag.b.join()!==zoneMarkDrag.a.join()},true);
+window.addEventListener('pointerup',e=>{const d=zoneMarkDrag;if(!d)return;zoneMarkDrag=null;e.stopImmediatePropagation();if(!zoneEd||!isZoneI(zoneEd.i))return;
+  const o=st.objects[zoneEd.i],ar=zoneAreas(o),[c,r]=d.a,hitA=ar.findIndex(([c0,r0,c1,r1])=>c>=c0&&c<=c1&&r>=r0&&r<=r1);
+  if(!d.moved&&hitA>=0)zoneApply(q=>{q.ra=ar.filter((_,k)=>k!==hitA)});else zoneApply(q=>{q.ra=[...ar,zoneMarkRect(d)]})},true);
+function zoneAreaDraw(o,live){const list=zoneAreas(o).map(a=>[a,false]);if(live)list.push([zoneMarkRect(live),true]);
+  list.forEach(([[c0,r0,c1,r1],nw],k)=>{const x=c0*GRID*Z,y=r0*GRID*Z,w=(c1-c0+1)*GRID*Z,h=(r1-r0+1)*GRID*Z;
+    ctx.fillStyle=nw?'rgba(255,196,90,.30)':'rgba(255,196,90,.16)';ctx.fillRect(x,y,w,h);
+    ctx.setLineDash([5,4]);ctx.strokeStyle='rgba(29,27,34,.7)';ctx.lineWidth=3.5;ctx.strokeRect(x,y,w,h);ctx.strokeStyle='#ffc45a';ctx.lineWidth=1.5;ctx.strokeRect(x,y,w,h);ctx.setLineDash([]);
+    if(k===0&&!nw){ctx.font='600 11px "Work Sans", system-ui, sans-serif';const t='Revealed by '+(o.nm||'trigger'),tw=ctx.measureText(t).width+10;
+      ctx.fillStyle='rgba(29,27,34,.85)';ctx.beginPath();ctx.roundRect(x+3,y+3,tw,16,4);ctx.fill();ctx.fillStyle='#ffe2a8';ctx.fillText(t,x+8,y+15)}})}
 // ---- drawing (DM only, screen space like the landing spots; never in the map image, snapshots or players' pages) ----
 function zoneDraw(){if(mp.role==='player'||fogPreview)return;const now=performance.now();
   const ed=zoneEd&&isZoneI(zoneEd.i)?st.objects[zoneEd.i]:null,sl=sel&&sel.type==='obj'&&isZoneI(sel.i)?st.objects[sel.i]:null;
@@ -3123,24 +3145,27 @@ function zoneDraw(){if(mp.role==='player'||fogPreview)return;const now=performan
     ctx.fillText('⚡',x+6,y+15);ctx.fillText(t,x+18,y+15);ctx.restore()});
   zoneFlash.splice(0,zoneFlash.length,...zoneFlash.filter(f=>now-f.t0<900));
   // links of the selected (or open) zone
-  const z=ed||sl;if(!z)return;const cx=z.x*Z,cy=z.y*Z;
+  const z=ed||sl;if(!z)return;const cx=z.x*Z,cy=z.y*Z;if(z.rv===2)zoneAreaDraw(z,z===ed&&zoneMarking?zoneMarkDrag:null);
   zoneTargets(z).forEach(q=>{const qx=q.x*Z,qy=q.y*Z;ctx.setLineDash([4,4]);ctx.strokeStyle='rgba(29,27,34,.7)';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(qx,qy);ctx.stroke();
     ctx.strokeStyle='#c8b4ff';ctx.lineWidth=1.5;ctx.stroke();ctx.setLineDash([]);const[w,h]=SIZE[q.k];ctx.strokeStyle='#c8b4ff';ctx.lineWidth=2;ctx.strokeRect((q.x-w/2-2)*Z,(q.y-h/2-2)*Z,(w+4)*Z,(h+4)*Z)})}
 {$('zname').oninput=e=>zoneApply(o=>{o.nm=e.target.value.slice(0,40)});
  $('zmsg').oninput=e=>zoneApply(o=>{o.msg=e.target.value.slice(0,ZMSG_MAX)});
- $('zrv').onchange=e=>zoneApply(o=>{o.rv=e.target.checked?1:0});
+ $('zrv').onchange=e=>{zoneApply(o=>{o.rv=+e.target.value});const o=zoneEd&&st.objects[zoneEd.i];if(o&&o.rv===2&&!zoneAreas(o).length){zoneMarking=true;zoneLinking=false;zoneSync()}};
+ $('zmark').onclick=()=>{zoneMarking=!zoneMarking;zoneLinking=false;zoneMarkDrag=null;zoneSync()};
+ $('zclear').onclick=()=>zoneApply(o=>{o.ra=[]});
  $('zrep').onchange=e=>zoneApply(o=>{o.rep=e.target.value==='1'?1:0;if(o.rep)o.done=0});
  $('zask').onchange=e=>zoneApply(o=>{o.ask=e.target.checked?1:0});
  $('zdr').onchange=e=>zoneApply(o=>{o.dr=e.target.value});
  $('zwm').onclick=()=>zoneResize(-1,0);$('zwp').onclick=()=>zoneResize(1,0);$('zhm').onclick=()=>zoneResize(0,-1);$('zhp').onclick=()=>zoneResize(0,1);
- $('zlink').onclick=()=>{zoneLinking=!zoneLinking;zoneSync()};
+ $('zlink').onclick=()=>{zoneLinking=!zoneLinking;zoneMarking=false;zoneSync()};
  $('zrearm').onclick=()=>zoneApply(o=>{o.done=0});
  $('ztest').onclick=()=>{if(zoneEd)zoneFire(st.objects[zoneEd.i],true)};$('zdone').onclick=zoneClose;
  $('zafire').onclick=()=>zoneAnswer(true);$('zaskip').onclick=()=>zoneAnswer(false);
- $('zoneedit').addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Escape'){e.preventDefault();if(zoneLinking){zoneLinking=false;zoneSync()}else zoneClose()}});
+ $('zoneedit').addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Escape'){e.preventDefault();if(zoneLinking||zoneMarking){zoneLinking=zoneMarking=false;zoneMarkDrag=null;zoneSync()}else zoneClose()}});
  $('zoneedit').addEventListener('pointerdown',e=>e.stopPropagation());
  // linking: clicks on the map pick objects instead of doing what the tool does
  cv.addEventListener('pointerdown',e=>{if(!zoneEd)return;
+   if(zoneMarking&&e.button===0){e.stopImmediatePropagation();e.preventDefault();const p=toMap(e),c=zoneCell(p);zoneMarkDrag={a:c,b:c};return}
    if(!zoneLinking||e.button!==0){if(e.button===0)zoneClose();return}
    e.stopImmediatePropagation();e.preventDefault();const p=toMap(e);let j=-1;
    for(let i=st.objects.length-1;i>=0;i--){const q=st.objects[i];if(!zoneLinkable(q))continue;const[w,h]=SIZE[q.k];if(Math.abs(p[0]-q.x)<=w/2+3&&Math.abs(p[1]-q.y)<=h/2+3){j=i;break}}
