@@ -315,7 +315,7 @@ body.mp-player .dmonly{display:none!important}
 .rl .who{font-size:11.5px;color:var(--muted)}.rl .who b{color:var(--accent);font-weight:600}
 .rl .what{font-size:13px}
 .rl .res{display:flex;align-items:baseline;gap:8px}
-.rl .tot{font:700 22px var(--display);color:var(--fg)}
+.rl .tot{font:700 22px var(--ui);color:var(--fg)}
 .rl.n20 .tot{color:var(--live)}.rl.n1 .tot{color:#e0705a}
 .rl .brk{font-size:11.5px;color:var(--muted);overflow-wrap:anywhere}
 .rl .res{align-items:center;gap:10px}
@@ -324,23 +324,23 @@ body.mp-player .dmonly{display:none!important}
 .die svg{width:52px;height:52px;overflow:visible}
 .die .f{fill:#3a3442;stroke:var(--accent);stroke-width:1.6;stroke-linejoin:round}
 .die .ln{fill:none;stroke:var(--accent);stroke-width:.8;opacity:.35;stroke-linejoin:round}
-.die text{font:700 15px var(--display);fill:var(--fg)}
+.die text{font:700 15px var(--ui);fill:var(--fg)}
 .die[data-d="100"] text{font-size:12px}
 .die .dl{font-size:10px;color:var(--muted);line-height:1;margin-top:-1px}
 .die.set{animation:diepop .28s ease-out}
 .die.drop{opacity:.38}.die.drop .f{stroke:var(--muted)}
 .die.n20 .f{fill:#2f5a38;stroke:var(--live)}.die.n20 .ln{stroke:var(--live)}
 .die.n1 .f{fill:#6a2a24;stroke:#e0705a}.die.n1 .ln{stroke:#e0705a}
-.dicerow.sm{gap:3px}.dicerow.sm .die{width:26px;height:28px}.dicerow.sm .die svg{width:26px;height:26px}.dicerow.sm .die .dl{display:none}
-.dicerow.sm .die .f{stroke-width:2.2}.dicerow.sm .die text{font-size:16px}
-.dmod{font:700 15px var(--display);color:var(--accent);background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:3px 9px;white-space:nowrap}
+.dicerow.sm{gap:3px}.dicerow.sm .die{width:30px;height:30px}.dicerow.sm .die svg{width:30px;height:30px}.dicerow.sm .die .dl{display:none}
+.dicerow.sm .die .f{stroke-width:2}.dicerow.sm .die text{font-size:17px}
+.dmod{font:700 15px var(--ui);color:var(--accent);background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:3px 9px;white-space:nowrap}
 .dicerow.sm .dmod{font-size:12px;padding:1px 6px}
 .rollstage{position:absolute;z-index:8;left:50%;transform:translateX(-50%);bottom:calc(150px + env(safe-area-inset-bottom,0px));max-width:min(640px,calc(100% - 24px));
   background:var(--glass);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:10px 14px 8px;display:flex;flex-direction:column;gap:6px;animation:stagein .22s ease-out;pointer-events:none}
 .rollstage .who{font-size:12px;color:var(--muted)}.rollstage .who b{color:var(--accent);font-weight:600}.rollstage .what{color:var(--fg);margin-left:8px}
 .rollstage .sline{display:flex;align-items:center;gap:10px}
 .rollstage .eq{font:700 20px var(--display);color:var(--muted);opacity:0}
-.rollstage .stot{font:700 36px var(--display);color:var(--fg);min-width:44px;text-align:center;opacity:0;transform:scale(.6)}
+.rollstage .stot{font:700 34px var(--ui);color:var(--fg);min-width:44px;text-align:center;opacity:0;transform:scale(.6)}
 .rollstage.done .eq{opacity:1;transition:opacity .2s}
 .rollstage.done .stot{opacity:1;transform:scale(1);transition:transform .3s cubic-bezier(.3,1.6,.5,1),opacity .15s}
 .rollstage.n20{border-color:var(--live);box-shadow:0 0 0 1px var(--live),0 0 26px rgba(127,208,122,.35),var(--shadow)}.rollstage.n20 .stot{color:var(--live)}
@@ -831,6 +831,7 @@ const setObjSel=list=>{sel=!list.length?null:list.length===1?{type:'obj',i:list[
 let pointer=null,draft=[],stroke=null,hover=null,sel=null,drag=null,hist=[],frame=0,armedClear=false,measure=null,pings=[];
 let dirty=true,objDirty=true,lastR=null,lastGen=[],sculpt=null,lift=null;
 const $=id=>document.getElementById(id);
+let clockOff=0;const netNow=()=>Date.now()+clockOff;   // Firebase's server clock offset, when there is one (dice land in step)
 function push(){hist.push(JSON.stringify(st));if(hist.length>80)hist.shift();updUndo()}
 function undo(){if(!hist.length||mp.role==='player')return;signClose();const old=st;st=JSON.parse(hist.pop());redrawChanged(old);
   sel=null;draft=[];save();syncUI();updUndo()}
@@ -2397,6 +2398,7 @@ async function fbRuntime(cfg){
     onSnapshot:(next,onErr)=>{const cb=s=>{const docs=[];s.forEach(ch=>{docs.push(snapOf(ch.key,ch.val()))});next({docs,size:docs.length,empty:!docs.length,docChanges:()=>[],metadata:{fromCache:false,hasPendingWrites:false}})};
       colNode(p).on('value',cb,e=>onErr&&onErr(err(e)));return()=>colNode(p).off('value',cb)}});
   // presence: one node per open tab, removed by the server when the tab goes away
+  try{fdb.ref('.info/serverTimeOffset').on('value',s=>{const v=+s.val();if(Number.isFinite(v))clockOff=v})}catch(e){}   // so dice land at the same moment on every screen
   const tab=me+'_'+Math.random().toString(36).slice(2,8),P=R.child('presence/'+tab);P.onDisconnect().remove();
   let mine=TESTPLAYER?{tp:1}:{},ptimer=0,peers=Object.freeze([]);const peerL=[];
   const flush=()=>{ptimer=0;P.set({by:me,p:JSON.stringify(mine)}).catch(()=>{})};
@@ -3001,7 +3003,7 @@ function rollDo(c,s,what,e,kind,key,ev){if(!c)return;let adv=sh.adv;if(ev&&ev.sh
   const r=diceRoll(e,{adv:d20?adv:'',crit});if(!r)return;
   let nat=0;if(d20&&r.dice[0]&&r.dice[0][0]===20)nat=r.dice[0][1]===20?20:r.dice[0][1]===1?1:0;
   if(kind==='hit')rlCrit=nat===20?{key,t:now}:null;if(crit)rlCrit=null;
-  rollPost({w:c.name,l:what+(crit?' (critical)':''),e,d:r.dice,t:r.total,a:d20?adv:'',nat,s:tokOf(s)})}
+  rollPost({w:c.name,l:what+(crit?' (critical)':''),e,d:r.dice,t:r.total,a:d20?adv:'',nat,s:tokOf(s),ts:netNow(),sd:rnd(99999)})}
 // a line for the table without dice: a save the targets must make, a spell cast
 function rollNote(c,s,what){if(c)rollPost({w:c.name,l:what,e:'',d:[],t:null,a:'',nat:0,s:tokOf(s)})}
 function rollPost(r){r.n=++rlN;r.me=1;r.priv=rlPriv()?1:0;r.p=mp.role!=='off'?mpName(mp.me):'';
@@ -3014,7 +3016,7 @@ function rollPeer(key,rl,by){if(!Array.isArray(rl))rl=[];const seen=rlSeen.get(k
   for(const e of rl){if(!e||typeof e!=='object'||!fin(e.n)||+e.n<=seen)continue;
     const s=v=>typeof v==='string'?v.slice(0,60):'',dice=Array.isArray(e.d)?e.d.slice(0,50).filter(x=>Array.isArray(x)&&x.length>=2&&x.length<=3&&x.every(fin)).map(x=>x.map(Number)):[];
     const sh2=Number.isInteger(e.s)&&e.s>=0&&e.s<SHEETS.length?e.s:null;
-    rollAdd({w:s(e.w)||'Someone',l:s(e.l),e:typeof e.e==='string'&&diceParse(e.e)?e.e:'',d:dice,t:fin(e.t)?Math.round(+e.t):null,a:e.a==='a'||e.a==='d'?e.a:'',nat:e.nat===20||e.nat===1?e.nat:0,s:sh2,p:mpName(by)},false)}}
+    rollAdd({w:s(e.w)||'Someone',l:s(e.l),e:typeof e.e==='string'&&diceParse(e.e)?e.e:'',d:dice,t:fin(e.t)?Math.round(+e.t):null,a:e.a==='a'||e.a==='d'?e.a:'',nat:e.nat===20||e.nat===1?e.nat:0,s:sh2,p:mpName(by),ts:fin(e.ts)?+e.ts:0,sd:fin(e.sd)?Math.floor(+e.sd)%99999:1},false)}}
 function rlRender(){const box=$('rollfeed'),now=performance.now();box.replaceChildren();
   const list=(rlOpen?rolls.slice(-30):rolls.filter(r=>now-r.at<16000).slice(-4)).filter(r=>r.ready);
   if(rolls.length){const h=el('button','rlhead',rlOpen?'Hide roll history':'Rolls ('+rolls.length+')');h.setAttribute('aria-expanded',String(rlOpen));h.onclick=()=>{rlOpen=!rlOpen;rlRender()};box.append(h)}
@@ -3023,7 +3025,7 @@ function rlRender(){const box=$('rollfeed'),now=performance.now();box.replaceChi
     const top=el('div','who');top.append(el('b',null,r.w));if(r.p&&!r.me)top.append(el('span',null,' · '+r.p));if(r.priv)top.append(el('span',null,' · only you'));
     card.append(top,el('div','what',r.l));
     if(r.t!==null){const row=el('div','res');row.append(el('span','tot',String(r.t)),rlDiceRow(r,true));card.append(row);
-      const extra=[r.e?tidy(r.e):'',r.a==='a'?'advantage':r.a==='d'?'disadvantage':'',r.nat===20?'natural 20':r.nat===1?'natural 1':''].filter(Boolean).join(' · ');if(extra)card.append(el('div','brk',extra))}
+      const extra=[rlList(r),r.a==='a'?'advantage':r.a==='d'?'disadvantage':'',r.nat===20?'natural 20':r.nat===1?'natural 1':''].filter(Boolean).join(' · ');if(extra)card.append(el('div','brk',extra))}
     box.append(card)}
   box.hidden=!rolls.length;if(!rlOpen&&rolls.length&&!list.length)box.querySelector('.rlhead').classList.add('quiet');
   clearTimeout(rlRender.t);if(!rlOpen&&list.length)rlRender.t=setTimeout(rlRender,16100-(now-list[0].at))}
@@ -3050,28 +3052,37 @@ function dieEl(d,v,cls){const[f,ln,ty]=dieF(d),w=el('div','die '+(cls||''));w.da
 function rlParts(r){const k=diceParse(r.e),mod=k?k.filter(p=>p.k!==undefined).reduce((q,p)=>q+p.sg*p.k,0):0,dice=[];
   r.d.forEach(x=>{const nat=x[0]===20&&(x[1]===20||x[1]===1)?x[1]:0;dice.push({d:x[0],v:x[1],nat});if(x.length===3)dice.push({d:x[0],v:x[2],drop:1})});
   return{dice,mod}}
-function rlDiceRow(r,small){const{dice,mod}=rlParts(r),row=el('div','dicerow'+(small||dice.length>8?' sm':''));
-  dice.forEach(q=>row.append(dieEl(q.d,q.v,(q.drop?'drop':'')+(q.nat===20?' n20':q.nat===1?' n1':''))));
+const dieCls=q=>(q.drop?'drop':'')+(q.nat===20?' n20':q.nat===1?' n1':'');
+function rlDiceRow(r,small,later){const{dice,mod}=rlParts(r),row=el('div','dicerow'+(small||dice.length>8?' sm':''));
+  dice.forEach(q=>row.append(dieEl(q.d,q.v,later?'':dieCls(q))));
   if(mod)row.append(el('span','dmod',(mod>0?'+ ':'− ')+Math.abs(mod)));return row}
+// "6d20: 20, 1, 14 (dropped 3)" so anyone, the DM above all, can check every die
+function rlList(r){const{dice}=rlParts(r),g=new Map();dice.forEach(q=>{if(!g.has(q.d))g.set(q.d,[]);g.get(q.d).push(q.drop?`(${q.v} dropped)`:String(q.v))});
+  return[...g].map(([d,l])=>`${l.filter(x=>x[0]!=='(').length}d${d}: ${l.join(', ')}`).join(' · ')}
 const rlCalm=()=>!$('anim').checked||matchMedia('(prefers-reduced-motion: reduce)').matches;
 // the stage: the newest roll, big, near the bottom of the screen; when the last die lands, the total pops and the roll goes to the feed
-let rlStageT=0,rlStageRaf=0;
+let rlStageT=0,rlStageRaf=0;const RL_LEAD=350;
 function rlStage(r){const box=$('rollstage');cancelAnimationFrame(rlStageRaf);clearTimeout(rlStageT);
   rolls.forEach(q=>{if(q!==r)q.ready=1});box.replaceChildren();box.className='rollstage';box.hidden=false;
   const top=el('div','who');top.append(el('b',null,r.w));if(r.p&&!r.me)top.append(el('span',null,' · '+r.p));if(r.priv)top.append(el('span',null,' · only you'));top.append(el('span','what',r.l));
-  const row=rlDiceRow(r),tot=el('div','stot',String(r.t));tot.setAttribute('aria-label','Total '+r.t);
+  const row=rlDiceRow(r,false,true),tot=el('div','stot',String(r.t));tot.setAttribute('aria-label','Total '+r.t);
   const line=el('div','sline');line.append(row,el('span','eq','='),tot);box.append(top,line);
   const ds=[...row.querySelectorAll('.die')],{dice}=rlParts(r),n=ds.length,t0=performance.now(),calm=rlCalm();
-  const dz=ds.map((e,i)=>({e,tx:e.querySelector('text'),d:dice[i].d,v:dice[i].v,end:calm?0:900+i*Math.min(220,1100/Math.max(1,n))+Math.random()*120,next:0,cur:dice[i].v}));
+  // Every page lands each die at the same moment: the roll carries when it was rolled (ts, on the shared clock) and a seed
+  // for the stagger, and the dice land RL_LEAD ms later than they would locally so the roll has time to reach the others.
+  // A page that hears late (or whose clock is off) still gets at least a short spin.
+  const R=mulberry((r.sd||1)*7+n),age=r.ts?netNow()-r.ts:0,start=age>0&&age<15000?-age:0;
+  const dz=ds.map((e,i)=>({e,tx:e.querySelector('text'),d:dice[i].d,v:dice[i].v,cls:dieCls(dice[i]),end:calm?0:start+RL_LEAD+1000+i*Math.min(220,1100/Math.max(1,n))+R()*120,next:0,cur:dice[i].v}));
+  if(!calm){const last=Math.max(...dz.map(q=>q.end));if(last<700)dz.forEach(q=>{q.end+=700-last})}
   const land=()=>{box.classList.add('done');if(r.nat)box.classList.add(r.nat===20?'n20':'n1');r.ready=1;
     if(Number.isInteger(r.s))rlBubbles.push({s:r.s,t0:performance.now(),txt:String(r.t),nat:r.nat});rlBubbles=rlBubbles.slice(-6);rlRender();
     rlStageT=setTimeout(()=>{box.classList.add('out');rlStageT=setTimeout(()=>{box.hidden=true},380)},2600)};
-  if(calm){land();return}
-  let landed=false;const once=()=>{if(landed)return;landed=true;cancelAnimationFrame(rlStageRaf);dz.forEach(q=>{q.tx.textContent=String(q.v);q.e.style.transform='';q.e.classList.add('set')});land()};
+  if(calm){dz.forEach(q=>{q.e.className='die '+q.cls});land();return}
+  let landed=false;const once=()=>{if(landed)return;landed=true;cancelAnimationFrame(rlStageRaf);dz.forEach(q=>{if(q.done)return;q.done=1;q.tx.textContent=String(q.v);q.e.style.transform='';q.e.className='die set '+q.cls});land()};
   rlStageT=setTimeout(once,Math.max(...dz.map(q=>q.end))+400);   // a hidden tab gets no animation frames
   const tick=now=>{let left=0;
     for(const q of dz){const el2=q.e,dt=now-t0;if(q.done)continue;
-      if(dt>=q.end){q.done=1;q.tx.textContent=String(q.v);el2.style.transform='';el2.classList.add('set');continue}left++;
+      if(dt>=q.end){q.done=1;q.tx.textContent=String(q.v);el2.style.transform='';el2.className='die set '+q.cls;continue}left++;
       if(dt>=q.next){const p=dt/q.end;let v;do v=1+Math.floor(Math.random()*q.d);while(v===q.cur&&q.d>1);q.cur=v;q.tx.textContent=String(v);q.next=dt+40+320*p*p}
       const p=dt/q.end;el2.style.transform=`rotate(${Math.sin(dt/38+q.end)*16*(1-p)}deg) translateY(${-Math.abs(Math.sin(dt/90))*6*(1-p)}px)`}
     if(left)rlStageRaf=requestAnimationFrame(tick);else{clearTimeout(rlStageT);once()}};
@@ -3080,7 +3091,7 @@ function rlStage(r){const box=$('rollstage');cancelAnimationFrame(rlStageRaf);cl
 // over the token: the total, rising and fading
 function drawRolls(){const now=performance.now(),fv=fogView();rlBubbles=rlBubbles.filter(b=>now-b.t0<3200);
   for(const b of rlBubbles){const t=st.tokens.find(t=>t.s===b.s);if(!t||!tokShown(fv,t))continue;const q=(now-b.t0)/3200,x=t.x*Z,y=(t.y-30)*Z-10-q*16;
-    ctx.globalAlpha=q<.75?1:(1-q)/.25;ctx.font='700 15px "Pixelify Sans", monospace';const w=Math.max(26,ctx.measureText(b.txt).width+14);
+    ctx.globalAlpha=q<.75?1:(1-q)/.25;ctx.font='700 14px "Work Sans", system-ui, sans-serif';const w=Math.max(26,ctx.measureText(b.txt).width+14);
     ctx.fillStyle=b.nat===20?'#2f5a38':b.nat===1?'#6a2a24':'rgba(29,27,34,.94)';ctx.beginPath();ctx.roundRect(x-w/2,y-20,w,22,6);ctx.fill();
     ctx.strokeStyle=b.nat===20?'#7fd07a':b.nat===1?'#e0705a':'#f2c49f';ctx.lineWidth=1.5;ctx.stroke();
     ctx.fillStyle='#efe9e4';ctx.textAlign='center';ctx.fillText(b.txt,x,y-4);ctx.textAlign='left';ctx.globalAlpha=1}}
