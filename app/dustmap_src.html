@@ -249,6 +249,78 @@ body.mp-player .dmonly{display:none!important}
 .mppick .tokbtn canvas{width:32px;height:32px;image-rendering:pixelated}
 .mppick .tokbtn[aria-pressed="true"]{border-color:var(--accent);background:var(--raised)}
 .mppick .tokbtn:disabled{opacity:.3;cursor:default}
+.sheet{right:var(--gapr);top:calc(max(10px,env(safe-area-inset-top,0px)) + 56px);bottom:calc(150px + env(safe-area-inset-bottom,0px));width:min(360px,calc(100% - 2*var(--gapr)));display:flex;flex-direction:column;overflow:hidden;z-index:9}
+.shhead{display:flex;align-items:center;gap:10px;padding:10px 10px 6px 12px}
+.shhead img{width:40px;height:40px;border-radius:7px;object-fit:cover;flex:none;background:var(--bg)}
+.shhead .nm{display:flex;flex-direction:column;min-width:0;flex:1}
+.shhead .nm b{font-family:var(--display);font-size:18px;color:var(--accent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.shhead .nm span{color:var(--muted);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.shhead .ib{font-size:20px;width:30px;height:30px;flex:none}
+.shstats{display:flex;gap:5px;padding:0 10px 8px}
+.shstat{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:1px;background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:4px 2px;color:var(--fg);font:inherit}
+.shstat.hp{flex:1.7;box-shadow:inset 0 -3px 0 var(--hpc)}
+.shstat.roll{cursor:pointer}.shstat.roll:hover{border-color:var(--accent)}
+.shstat .lbl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.shstat b{font-size:15px;white-space:nowrap}
+.shbar{display:flex;align-items:center;gap:8px;padding:0 10px 8px;flex-wrap:wrap}
+.shbar .seg button{font-size:12px;padding:4px 8px}
+.shtabs{display:flex;gap:2px;padding:0 10px;border-bottom:1px solid var(--line)}
+.shtabs button{background:none;border:0;border-bottom:2px solid transparent;color:var(--muted);padding:6px 9px;font:500 13px var(--ui);cursor:pointer}
+.shtabs button[aria-selected="true"]{color:var(--fg);border-bottom-color:var(--accent)}
+.shbody{flex:1;overflow-y:auto;padding:4px 10px 12px;display:flex;flex-direction:column;gap:6px;overscroll-behavior:contain}
+.shbody h4{margin:8px 0 0;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--accent);font-weight:600}
+.shbody h4 .note{text-transform:none;letter-spacing:0;font-weight:400;margin-left:6px;color:var(--muted);font-size:12px}
+.shrow{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:7px 8px;display:flex;flex-direction:column;gap:6px}
+.shrow .t{display:flex;flex-direction:column;gap:2px;min-width:0}
+.shrow .t b{font-size:13.5px}
+.shrow .meta{font-size:11.5px;color:var(--muted)}
+.shrow .desc{font-size:12px;color:var(--muted);line-height:1.35}
+.shrow .b{display:flex;flex-wrap:wrap;gap:5px;align-items:center}
+.shrow select{padding:3px 6px;font-size:12px}
+.btn.dice{padding:4px 9px;font-weight:600;font-variant-numeric:tabular-nums;background:var(--raised)}
+.btn.dice:hover{border-color:var(--accent)}
+.btn.dice.dmg{color:var(--accent)}
+.btn.dice.prof{border-color:var(--accent)}
+.btn.cast{padding:4px 10px}
+.pips{display:flex;gap:4px;align-items:center;flex-wrap:wrap}
+.pip{width:14px;height:14px;border-radius:50%;border:1.5px solid var(--accent);background:var(--accent);cursor:pointer;padding:0}
+.pip.used{background:transparent;border-color:var(--line)}
+.shcast{display:flex;flex-direction:column;gap:2px;font-size:12px;color:var(--muted);padding-top:6px}
+.shslots{display:flex;flex-direction:column;gap:5px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:7px 9px}
+.shslots .slot{display:flex;align-items:center;gap:8px}
+.shslots .lbl{width:64px;font-size:12px;color:var(--muted);flex:none}
+.shslots .left{margin-left:auto;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.shrest{justify-content:flex-end;margin-top:6px}
+.shabs{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.shab{display:grid;grid-template-columns:1fr 1fr;gap:4px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:6px}
+.shab .lbl{font-size:11px;font-weight:600;letter-spacing:.05em}.shab .sc{font-size:11px;color:var(--muted);text-align:right}
+.shab .btn{justify-content:center;padding:4px 2px;font-size:12px}
+.shab .btn:first-of-type{grid-column:1/-1;font-size:14px}
+.shskills{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+.shskill{display:flex;align-items:center;gap:5px;background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:4px 7px;color:var(--fg);font:inherit;font-size:12.5px;cursor:pointer;text-align:left;min-width:0}
+.shskill:hover{border-color:var(--accent)}
+.shskill .dot{color:var(--accent);font-size:10px;width:10px}
+.shskill .n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.shskill .ab{font-size:10px;color:var(--muted)}
+.shskill b{font-variant-numeric:tabular-nums;min-width:24px;text-align:right}
+.shdice{display:flex;flex-wrap:wrap;gap:6px;padding-top:8px}
+.shdice .btn{min-width:52px;justify-content:center;padding:8px 10px;font-size:14px}
+.rollfeed{position:absolute;left:calc(var(--gap) + 64px);bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:6;width:min(270px,calc(100% - 2*var(--gap)));display:flex;flex-direction:column;gap:6px;max-height:calc(100% - 120px)}
+.rollfeed.open{overflow-y:auto;background:var(--glass);border:1px solid var(--line);border-radius:12px;padding:8px;box-shadow:var(--shadow)}
+.rlhead{align-self:flex-start;background:var(--glass);border:1px solid var(--line);border-radius:999px;color:var(--muted);font:500 12px var(--ui);padding:3px 10px;cursor:pointer;order:9}
+.rollfeed.open .rlhead{order:-1}
+.rl{background:var(--glass);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:8px;padding:6px 9px;box-shadow:var(--shadow)}
+.rl.new{animation:rlin .25s ease-out}
+.rl.n20{border-left-color:var(--live)}.rl.n1{border-left-color:#e0705a}.rl.priv{opacity:.85;border-style:dashed}
+.rl .who{font-size:11.5px;color:var(--muted)}.rl .who b{color:var(--accent);font-weight:600}
+.rl .what{font-size:13px}
+.rl .res{display:flex;align-items:baseline;gap:8px}
+.rl .tot{font:700 22px var(--display);color:var(--fg)}
+.rl.n20 .tot{color:var(--live)}.rl.n1 .tot{color:#e0705a}
+.rl .brk{font-size:11.5px;color:var(--muted);overflow-wrap:anywhere}
+@keyframes rlin{from{transform:translateY(6px);opacity:0}}
+@media (prefers-reduced-motion:reduce){.rl{animation:none}}
+@media (max-width:640px){.rollfeed{left:var(--gap)}.sheet{top:auto;bottom:calc(150px + env(safe-area-inset-bottom,0px));height:min(calc(100% - 230px),520px);width:auto;left:var(--gapr)}}
 .chcard{width:min(520px,100%)}
 .chtop{display:flex;align-items:center;gap:12px}
 .chtop img{width:56px;height:56px;border-radius:8px;object-fit:cover;background:var(--bg);image-rendering:auto;flex:none}
@@ -381,6 +453,8 @@ a.btn{text-decoration:none;color:var(--fg)}
 
   <div class="pop atkpop" id="atkpop" role="group" aria-label="What your attack looks like" hidden></div>
   <div class="hint" id="hint" role="status"></div>
+  <div class="float sheet" id="sheet" role="complementary" aria-label="Character sheet" hidden></div>
+  <div class="rollfeed" id="rollfeed" aria-live="polite" hidden></div>
   <div class="float selbar" id="selbar" hidden></div>
   <div class="float qmenu" id="qmenu" role="menu" hidden></div>
   <div class="signcard" id="signcard" hidden><div class="sgtr" id="sgtrn" hidden></div><div class="plank" id="sgplank"></div></div>
@@ -649,6 +723,7 @@ const ICON={select:'M6 3l13 8-6 1.5-3 6z',
  trash:'M4 7h16 M10 11v6 M14 11v6 M6 7l1 13h10l1-13 M9 7V4h6v3',
  stamp:'M9 3h6v6l3 3v3H6v-3l3-3z M5 21h14',
  sheet:'M6 3h9l4 4v14H6z M14 3v5h5 M9 12h7 M9 16h7',
+ dice:'M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z M8 8h.01 M16 8h.01 M12 12h.01 M8 16h.01 M16 16h.01',
  look:'M4 8h14l-3-3 M20 16H6l3 3'};
 const svgI=(k,w=1.8)=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${ICON[k]}"/></svg>`;
 // the tool rail. Paint covers brush and shape drawing (tool 'brush' / 'draw'). Hills sculpts with the brush (tool 'sculpt') or a shape (tool 'draw' with a height paint).
@@ -1540,7 +1615,7 @@ function draw(ts){
   // pointer with a fading tail
   if(pointer){const now2=performance.now();
     if(!pointer.down&&now2-pointer.end>TAIL)pointer=null;else drawTrail(pointer.trail,pointer.down,'242,196,159',now2)}
-  drawChars();mpDraw();
+  drawChars();drawRolls();mpDraw();
   // pings
   const now=performance.now();pings=pings.filter(p=>now-p.t0<1600);
   pings.forEach(p=>{const t=(now-p.t0)/1600,rgb=p.rgb||'242,196,159';for(let k=0;k<2;k++){const tt=(t+k*.25)%1;ctx.beginPath();ctx.arc(p.x*Z,p.y*Z,8+tt*46,0,7);ctx.strokeStyle=`rgba(${rgb},${(1-tt)*(1-t*.6)})`;ctx.lineWidth=4;ctx.stroke()}
@@ -1929,7 +2004,8 @@ let mineKey='';
 function buildMine(){const box=$('pane-mine'),mine=st.tokens.filter(t=>mpMayMove(t,mp.me)),k=mine.map(t=>t.s).join()+'|'+(myChar?myChar.name:'');if(k===mineKey&&box.childElementCount)return;mineKey=k;box.replaceChildren();
   if(!mine.length){const b=document.createElement('button');b.className='btn primary';b.textContent='Pick a token';b.onclick=()=>$('mpbtn').click();box.append(b);return}
   mine.forEach(t=>{const b=itemBtn('me-'+t.s,tokSwatch(t.s),tokLabel(t.s),'Your token. Click to find it on the map.','',()=>{const q=st.tokens.find(q=>q.s===t.s);if(q){cam.x=q.x-viewW/Z/2;cam.y=q.y-viewH/Z/2;clampCam()}});b.classList.add('tok');box.append(b)});
-  const c=myChar,cb=document.createElement('button');cb.className='btn';cb.id='mychar';cb.textContent=c?c.name:'Add your character';cb.dataset.tip=c?'Your character':'Add your character';cb.dataset.sub=c?'HP, AC and ability scores':'Import from D&D Beyond';cb.onclick=()=>openChar('me');box.append(cb)}
+  const c=myChar,cb=document.createElement('button');cb.className='btn';cb.id='mychar';cb.textContent=c?c.name:'Add your character';cb.dataset.tip=c?'Your character':'Add your character';cb.dataset.sub=c?'HP, AC and ability scores':'Import from D&D Beyond';cb.onclick=()=>openChar('me');box.append(cb);
+  if(c){const sb=document.createElement('button');sb.className='btn primary';sb.id='mysheet';sb.textContent='Sheet & dice';sb.dataset.tip='Your play sheet';sb.dataset.sub='Attacks, spells and checks, ready to roll';sb.onclick=()=>$('sheet').hidden?shOpen('me'):shClose();box.append(sb)}}
 function paintName(){return paint.layer==='ground'?TERR[paint.t].name:HSTYLE[hillStyle].name}
 function syncHint(){const h=$('hint');h.replaceChildren();
   const add=html=>{const s=document.createElement('span');s.innerHTML=html;h.append(s)};
@@ -1987,7 +2063,7 @@ function selBox(){if(!sel)return null;if(sel.type==='token'){const t=st.tokens[s
 let selKey='';
 function buildSelbar(){const bar=$('selbar');bar.replaceChildren();const add=(icon,name,key,sub,fn,cls)=>{const b=document.createElement('button');b.className='ib'+(cls?' '+cls:'');b.innerHTML=svgI(icon,2);
     b.setAttribute('aria-label',name);b.dataset.tip=name;if(key)b.dataset.key=key;if(sub)b.dataset.sub=sub;b.onclick=fn;bar.append(b)};
-  if(sel.type==='token'){const t=st.tokens[sel.i];if(t)add('sheet',charFor(t.s)?'Character':'Add a character','',charFor(t.s)?'HP, AC and ability scores':'Import from D&D Beyond',()=>openChar(t.s))}
+  if(sel.type==='token'){const t=st.tokens[sel.i];if(t)add('sheet',charFor(t.s)?'Character':'Add a character','',charFor(t.s)?'HP, AC and ability scores':'Import from D&D Beyond',()=>openChar(t.s));if(t&&charFor(t.s))add('dice','Play sheet','','Attacks, spells and checks, ready to roll',()=>shOpen(t.s))}
   add('copy','Duplicate','Ctrl D','A copy, one square over',dupSel);
   dynSelbar(bar,add);
   killSelbar(bar,add);
@@ -2407,11 +2483,11 @@ function mpPinged(x,y){if(mp.role!=='off')mp.pres.ping={x:Math.round(x),y:Math.r
 
 // ---- presence: what I'm doing, sent as absolute state ----
 function mpTick(){if(!mp.room)return;let pr;
-  if(mp.role==='off'){if(!mp.sent)return;pr={cur:null,ptr:null,meas:null,drag:null,ping:null,mv:null,pick:null,ch:null,go:null,tp:null,ks:null,th:null}}
+  if(mp.role==='off'){if(!mp.sent)return;pr={cur:null,ptr:null,meas:null,drag:null,ping:null,mv:null,pick:null,ch:null,go:null,tp:null,ks:null,th:null,rl:null}}
   else{const tk=drag&&drag.kind==='token'?st.tokens[drag.i]:null,hd=pointer&&pointer.down?pointer.trail[pointer.trail.length-1]:null;
     pr={cur:hover&&hover[0]>=0&&hover[1]>=0&&hover[0]<=W&&hover[1]<=H?[Math.round(hover[0]),Math.round(hover[1])]:null,
       ptr:hd?[Math.round(hd.x),Math.round(hd.y)]:null,meas:measure?{a:measure.a,b:measure.b}:null,
-      drag:tk&&tk.id?{id:tk.id,x:Math.round(tk.x),y:Math.round(tk.y)}:null,ping:mp.pres.ping||null,mv:mp.pres.mv||null,pick:Number.isInteger(mp.pres.pick)?mp.pres.pick:null,ch:mp.role==='player'&&myChar?{c:myChar,n:myCharN}:null,go:mp.role==='player'&&mp.pres.go||null,bm:mp.role==='dm'&&mp.pres.bm||null,tp:TESTPLAYER?1:null,ks:kPres(),th:mp.role==='player'&&mp.pres.th||null}}
+      drag:tk&&tk.id?{id:tk.id,x:Math.round(tk.x),y:Math.round(tk.y)}:null,ping:mp.pres.ping||null,mv:mp.pres.mv||null,pick:Number.isInteger(mp.pres.pick)?mp.pres.pick:null,ch:mp.role==='player'&&myChar?{c:myChar,n:myCharN}:null,go:mp.role==='player'&&mp.pres.go||null,bm:mp.role==='dm'&&mp.pres.bm||null,tp:TESTPLAYER?1:null,ks:kPres(),th:mp.role==='player'&&mp.pres.th||null,rl:mp.pres.rl||null}}
   const j=JSON.stringify(pr);if(j===mp.sent)return;mp.sent=mp.role==='off'?'':j;mp.room.presence(pr).catch(()=>{})}
 const ptOk=q=>Array.isArray(q)&&q.length===2&&fin(q[0])&&fin(q[1]);
 function mpPeers(ch){mp.peers=ch.peers;const now=performance.now(),ghost=new Map(),stepped=[];let commit=false,goDoor=null;
@@ -2427,6 +2503,7 @@ function mpPeers(ch){mp.peers=ch.peers;const now=performance.now(),ghost=new Map
       if(mp.role==='dm'){if(fogWalk(t,mp.walkLast.get(t.id)||[t.x,t.y],gp))commit=true;mp.walkLast.set(t.id,gp);zonePathAdd(t,gp)}}}
     if(mp.role==='player'&&p.by&&p.by===mp.sess.dm)blastPeer(key,pr.bm);   // fuses and blasts only come from the DM
     throwPeer(key,pr.th);
+    rollPeer(key,pr.rl,p.by);
     if(mp.role==='dm'&&charTake(p,pr))commit=true;
     if(mp.role==='dm'){const mv=pr.mv;
       if(mv&&typeof mv.id==='string'&&mp.mvSeen.get(key)!==mv.n){mp.mvSeen.set(key,mv.n);const t=st.tokens.find(t=>t.id===mv.id);
@@ -2585,13 +2662,9 @@ const ddbJsonUrl=id=>'https://character-service.dndbeyond.com/character/v5/chara
 const ddbSheetUrl=id=>'https://www.dndbeyond.com/characters/'+id;
 const abMod=v=>Math.floor((v-10)/2),sgn=n=>(n>=0?'+':'−')+Math.abs(n);
 class DdbErr extends Error{constructor(code){super(code);this.code=code}}
-// D&D Beyond's character JSON (the whole response, or just its data) -> summary. Derived numbers follow the sheet's own
-// rules where the JSON allows: equipped and attuned items only, unarmored defense, overrides the player set on the sheet.
-function ddbParse(j){
-  if(j&&typeof j==='object'&&j.success===false)throw new DdbErr('private');
-  const d=j&&j.data&&typeof j.data==='object'&&!Array.isArray(j.data)?j.data:j;
-  if(!d||typeof d!=='object'||!Array.isArray(d.stats)||!Array.isArray(d.classes))throw new DdbErr('notchar');
-  const num=v=>v!==null&&v!==''&&v!==undefined&&Number.isFinite(+v)?+v:null;
+// the pieces both the summary and the play sheet need: worn items' modifiers, ability scores, classes and level
+const ddbNum=v=>v!==null&&v!==''&&v!==undefined&&Number.isFinite(+v)?+v:null;
+function ddbBase(d){const num=ddbNum;
   const inv=Array.isArray(d.inventory)?d.inventory.filter(it=>it&&it.definition):[];
   const worn=new Set(inv.filter(it=>it.equipped&&(!it.definition.canAttune||it.isAttuned)).map(it=>it.definition.id));
   const mods=[];for(const[k,l]of Object.entries(d.modifiers||{}))if(Array.isArray(l))for(const m of l){if(!m||typeof m!=='object')continue;if(k==='item'&&!worn.has(m.componentId))continue;mods.push(m)}
@@ -2602,6 +2675,17 @@ function ddbParse(j){
     for(const m of mods)if(m.type==='set'&&m.subType===a+'-score')v=Math.max(v,num(m.value)||0);
     return Math.max(1,Math.min(30,v))});
   const cls=d.classes.filter(c=>c&&c.definition);const lvl=Math.max(1,cls.reduce((q,c)=>q+(num(c.level)||0),0));
+  return{num,inv,mods,sum,ab,cls,lvl}}
+const ddbData=j=>{if(j&&typeof j==='object'&&j.success===false)throw new DdbErr('private');
+  const d=j&&j.data&&typeof j.data==='object'&&!Array.isArray(j.data)?j.data:j;
+  if(!d||typeof d!=='object'||!Array.isArray(d.stats)||!Array.isArray(d.classes))throw new DdbErr('notchar');return d};
+// D&D Beyond's character JSON (the whole response, or just its data) -> summary. Derived numbers follow the sheet's own
+// rules where the JSON allows: equipped and attuned items only, unarmored defense, overrides the player set on the sheet.
+function ddbParse(j){
+  if(j&&typeof j==='object'&&j.success===false)throw new DdbErr('private');
+  const d=j&&j.data&&typeof j.data==='object'&&!Array.isArray(j.data)?j.data:j;
+  if(!d||typeof d!=='object'||!Array.isArray(d.stats)||!Array.isArray(d.classes))throw new DdbErr('notchar');
+  const{num,inv,mods,sum,ab,cls,lvl}=ddbBase(d);
   // hit points: base rolls + CON per level + per-level bonuses (Tough, Dwarven Toughness), unless the sheet overrides them
   const over=num(d.overrideHitPoints),perLvl=sum('hit-points-per-level');
   const max=Math.max(1,(over>0?over:(num(d.baseHitPoints)||0)+(abMod(ab[2])+perLvl)*lvl)+(num(d.bonusHitPoints)||0));
@@ -2642,7 +2726,7 @@ const charMine=s=>mp.role!=='player'||s==='me'||s===mySheet();   // who may chan
 function charSet(s,c){
   if(mp.role==='player'){if(s!=='me'&&s!==mySheet())return;myChar=c;myCharN++;mp.chPend=true;saveMine()}
   else{if(c)chars[s]=c;else delete chars[s];saveChars();mpChanged()}
-  chRender();if(mp.role==='player')syncUI()}
+  chRender();shRender();if(mp.role==='player')syncUI()}
 // DM: what players receive. Only characters on a token someone plays or can see, so a hidden NPC's card stays hidden.
 function charsShared(){const s=mp.sess||{assign:{}},r={};
   for(const[k,c]of Object.entries(chars))if(s.assign[k]||st.tokens.some(t=>t.s===+k&&tokShown(st.fog,t)))r[k]=c;return r}
@@ -2654,7 +2738,7 @@ function charTake(p,pr){const s=mp.sess,ch=pr.ch;if(!s||!s.live||!p.by||p.by===m
 // player: the DM's copy of my card comes back (with the DM's HP changes); take it unless I've changed mine since
 function charsArrived(d){mp.chars=charMap(d&&d.c);const k=mySheet(),c=k!==null&&mp.chars[k];
   if(c&&myChar&&c.id===myChar.id){if(JSON.stringify(c)===JSON.stringify(myChar))mp.chPend=false;else if(!mp.chPend){myChar=c;saveMine()}}
-  chRender()}
+  chRender();shRender()}
 
 // ---- on the map: an HP bar under each character's token, and their name and numbers on hover ----
 function hpCol(c){const f=c.hp.cur/c.hp.max;return f>.5?'#7fd07a':f>.25?'#e8c25a':'#e0705a'}
@@ -2697,6 +2781,7 @@ function chRender(){if($('chmodal').hidden||chS===null)return;const s=chS,c=char
     num('Temp HP',c.hp.tmp,'tmp',999);num('Armor class',c.ac,'ac',50);num('Speed',c.spd+' ft');num('Level',c.lvl);box.append(stats);
     const abs=el('div','chabs');c.ab.forEach((v,i)=>{const a=el('div','chab');a.append(el('span','lbl',ABBR[i]),el('b',null,sgn(abMod(v))),el('span','sc',String(v)));abs.append(a)});box.append(abs);
     const acts=el('div','mpacts');
+    {const ps=el('button','btn primary','Play sheet');ps.id='chplay';ps.onclick=()=>{const k=chS;chClose();shOpen(k)};acts.append(ps)}
     if(c.id){const a=el('a','btn','Open on D&D Beyond');a.href=ddbSheetUrl(c.id);a.target='_blank';a.rel='noopener noreferrer';acts.append(a)}
     if(edit){const up=el('button','btn','Update from D&D Beyond');up.onclick=()=>{chStep=c.id?'try':'link';chMsg='';chRender();if(c.id)chImport(c.id)};acts.append(up);
       const rm=el('button','btn ghost','Remove');rm.onclick=()=>{if(rm.dataset.sure){charSet(s,null);chStep='link';chRender()}else{rm.dataset.sure='1';rm.textContent='Remove? Click again'}};acts.append(rm)}
@@ -2730,18 +2815,293 @@ async function chImport(id){const s=chS;chStep='try';chMsg='';chRender();
       const r=await fetch(url,{credentials:'omit',signal:ac.signal});clearTimeout(to);
       if(r.status===403||r.status===401){chStep='paste';chMsg=ERRS.private;chRender();return}
       if(r.status===404){chStep='link';chMsg='D&D Beyond has no character with that number. Check the link.';chRender();return}
-      if(!r.ok)continue;const c=ddbParse(await r.json());if(chS!==s)return;chDone(c);return}
+      if(!r.ok)continue;const j=await r.json(),c=ddbParse(j);if(chS!==s)return;chDone(c,j);return}
     catch(e){if(e instanceof DdbErr){chStep='paste';chMsg=ERRS[e.code];chRender();return}}}   // blocked (CORS) or offline: the paste route
   if(chS!==s)return;chRender.id=id;chStep='paste';chRender()}
 function chPaste(text){let j;try{j=JSON.parse(String(text).trim())}catch(e){chMsg=ERRS.json;chRender();return}
-  try{chDone(ddbParse(j))}catch(e){chMsg=ERRS[e.code]||ERRS.notchar;chRender()}}
-function chDone(c){if(!c){chMsg=ERRS.notchar;chRender();return}chStep='';chMsg='';chRender.link='';charSet(chS,c)}
+  try{chDone(ddbParse(j),j)}catch(e){chMsg=ERRS[e.code]||ERRS.notchar;chRender()}}
+function chDone(c,j){if(!c){chMsg=ERRS.notchar;chRender();return}if(j&&c.id)sheetTake(c.id,j);chStep='';chMsg='';chRender.link='';charSet(chS,c);shRender()}
 $('chclose').onclick=chClose;
 $('chmodal').onclick=e=>{if(e.target.id==='chmodal')chClose()};
 $('chmodal').addEventListener('keydown',e=>{if(e.key==='Escape')chClose();e.stopPropagation()});
 cv.addEventListener('dblclick',e=>{if(tool!=='select')return;const h=hit(toMap(e));if(h&&h.type==='token'){const s=st.tokens[h.i].s;if(charMine(s)||charFor(s))openChar(s)}});
 // read-only peek for the tests
 window.__openChar=openChar;
+// ================= play sheet and dice =================
+// The character card above is the small shared summary. The play sheet is the rest of the D&D Beyond character a player
+// needs at the table: attacks, actions, bonus actions, reactions, spells with their slots, saves and skills, each with
+// its dice ready to roll. It is read from the same JSON at import time (ddbPlay) and kept only in this browser
+// (localStorage['dustmap-sheets'], by D&D Beyond id, with slots and uses spent), so it never crosses the network.
+// Rolls do: each one goes into the roller's presence (rl: the last few) and every page at the table shows it in the
+// roll feed (bottom left) and as a bubble over the roller's token. The DM can roll privately.
+const ACTS={1:'a',3:'b',4:'r'},ACTNAME={a:'Action',b:'Bonus action',r:'Reaction',o:''};
+const DTYPES=['','Bludgeoning','Piercing','Slashing','Necrotic','Acid','Cold','Fire','Lightning','Thunder','Poison','Psychic','Radiant','Force'];
+const SKILLS=[['Acrobatics',1],['Animal Handling',4],['Arcana',3],['Athletics',0],['Deception',5],['History',3],['Insight',4],['Intimidation',5],['Investigation',3],
+  ['Medicine',4],['Nature',3],['Perception',4],['Performance',5],['Persuasion',5],['Religion',3],['Sleight of Hand',1],['Stealth',1],['Survival',4]];
+// spell slots by caster level (the 5e multiclass table, which is also a full caster's own table)
+const SLOTS=[[],[2],[3],[4,2],[4,3],[4,3,2],[4,3,3],[4,3,3,1],[4,3,3,2],[4,3,3,3,1],[4,3,3,3,2],[4,3,3,3,2,1],[4,3,3,3,2,1],[4,3,3,3,2,1,1],[4,3,3,3,2,1,1],
+  [4,3,3,3,2,1,1,1],[4,3,3,3,2,1,1,1],[4,3,3,3,2,1,1,1,1],[4,3,3,3,3,1,1,1,1],[4,3,3,3,3,2,1,1,1],[4,3,3,3,3,2,2,1,1]];
+const ORD=n=>n+(n===1?'st':n===2?'nd':n===3?'rd':'th');
+const dieOf=o=>{if(!o||typeof o!=='object')return'';const n=ddbNum(o.diceCount),v=ddbNum(o.diceValue),f=ddbNum(o.fixedValue);
+  if(n>0&&v>0)return n+'d'+v+(f?(f>0?'+':'')+f:'');if(f)return String(f);return typeof o.diceString==='string'&&/^\d+d\d+([+-]\d+)?$/.test(o.diceString)?o.diceString:''};
+const addMod=(e,m)=>!e?'':!m?e:e+(m>0?'+':'')+m;
+// D&D Beyond JSON -> play sheet. Defensive: every part is optional, and anything odd is skipped rather than guessed.
+function ddbPlay(j){const d=ddbData(j);const{num,inv,mods,sum,ab,cls,lvl}=ddbBase(d);
+  const str=(v,n)=>typeof v==='string'?v.replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim().slice(0,n):'';
+  const has=(t,sub)=>mods.some(m=>m.type===t&&m.subType===sub),mod=i=>abMod(ab[i]),prof=Math.ceil(lvl/4)+1,half=has('half-proficiency','ability-checks')?Math.floor(prof/2):0;
+  const slug=n=>String(n||'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+  const saves=ABIL.map((a,i)=>{const p=has('proficiency',a+'-saving-throws');return[mod(i)+(p?prof:0)+sum('saving-throws')+sum(a+'-saving-throws'),p?1:0]});
+  const skills=SKILLS.map(([n,i])=>{const k=slug(n),ex=has('expertise',k),p=ex||has('proficiency',k);
+    return[mod(i)+(ex?2*prof:p?prof:half)+sum(k)+sum('ability-checks'),ex?2:p?1:0]});
+  // snippets use D&D Beyond's {{...}} templates; fill in the simple ones, drop the rest
+  const tpl=t=>str(t,400).replace(/\{\{([^}]*)\}\}/g,(_,x)=>{x=x.replace(/[@#].*$/,'').trim();
+    if(x==='proficiency')return String(prof);if(x==='classlevel'||x==='characterlevel')return String(lvl);
+    let m=x.match(/^savedc:(\w+)$/);if(m){const i=ABBR.indexOf(m[1].toUpperCase().slice(0,3));return i>=0?String(8+prof+mod(i)):'the DC'}
+    m=x.match(/^modifier:(\w+)$/);if(m){const i=ABBR.indexOf(m[1].toUpperCase().slice(0,3));return i>=0?sgn(mod(i)):''}
+    m=x.match(/^\(?(classlevel|characterlevel)\s*\/\s*(\d)\)?$/);if(m)return String(Math.ceil(lvl/+m[2]));return'…'}).slice(0,220);
+  const uses=(lu,key)=>{if(!lu||typeof lu!=='object')return null;let max=num(lu.maxUses)||0;
+    if(lu.useProficiencyBonus)max=prof;const st=num(lu.statModifierUsesId);if(st>=1&&st<=6&&!max)max=Math.max(1,mod(st-1));
+    if(max<=0||max>99)return null;return{k:key,max,used:Math.max(0,Math.min(max,num(lu.numberUsed)||0)),sr:num(lu.resetType)===1?1:0}};
+  const acts=[],used={};
+  // weapons: equipped ones, finesse takes the better of STR and DEX, ranged uses DEX, magic bonus on both rolls
+  for(const it of inv){const w=it.definition;if(!it.equipped||!w||!(w.filterType==='Weapon'||w.damage&&num(w.attackType)))continue;if(acts.length>=40)break;
+    const props=(Array.isArray(w.properties)?w.properties:[]).map(p=>p&&p.name).filter(Boolean),rng=num(w.attackType)===2;
+    const am=rng?mod(1):props.includes('Finesse')?Math.max(mod(0),mod(1)):mod(0);
+    const magic=(Array.isArray(w.grantedModifiers)?w.grantedModifiers:[]).filter(m=>m&&m.type==='bonus'&&m.subType==='magic').reduce((q,m)=>q+(num(m.value)||0),0);
+    const cat=num(w.categoryId),pf=cat===1&&has('proficiency','simple-weapons')||cat===2&&has('proficiency','martial-weapons')||has('proficiency',slug(w.type))||has('proficiency',slug(w.name))||!(cat===1||cat===2);
+    const dmg=dieOf(w.damage);
+    acts.push({k:'w'+acts.length,n:str(w.name,40),c:'a',hit:am+(pf?prof:0)+magic,dmg:dmg?[[addMod(dmg,am+magic),str(w.damageType,14)]]:[],
+      rng:num(w.range)?num(w.range)+(num(w.longRange)?'/'+num(w.longRange):'')+' ft':(rng?'':'5 ft'),note:props.slice(0,4).join(', ')})}
+  acts.push({k:'unarmed',n:'Unarmed Strike',c:'a',hit:mod(0)+prof,dmg:[[String(Math.max(1,1+mod(0))),'Bludgeoning']],rng:'5 ft',note:''});
+  // class, race, feat, background and item features
+  const A=d.actions&&typeof d.actions==='object'?d.actions:{};
+  for(const src of['class','race','feat','background','item'])for(const a of Array.isArray(A[src])?A[src]:[]){if(!a||typeof a!=='object'||!a.name||acts.length>=60)continue;
+    const c=ACTS[a.activation&&num(a.activation.activationType)]||'o',key='x'+slug(a.name).slice(0,24),am=num(a.abilityModifierStatId),dm=am>=1&&am<=6?mod(am-1):0;
+    const dice=dieOf(a.dice)||(num(a.value)?String(num(a.value)):''),sv=num(a.saveStatId),o={k:key,n:str(a.name,40),c,note:tpl(a.snippet||a.description),dmg:[]};
+    if(a.displayAsAttack){o.hit=num(a.fixedToHit)!==null?num(a.fixedToHit):dm+(a.isProficient!==false?prof:0);if(dice)o.dmg=[[addMod(dice,dm),DTYPES[num(a.damageTypeId)]||'']]}
+    else if(dice)o.dmg=[[dice,DTYPES[num(a.damageTypeId)]||'']];
+    if(sv>=1&&sv<=6){o.dc=num(a.fixedSaveDc)||8+prof+dm;o.sv=ABBR[sv-1]}
+    if(a.range&&num(a.range.range))o.rng=num(a.range.range)+' ft';
+    const u=uses(a.limitedUse,key);if(u){o.u=u;used[key]=u.used}acts.push(o)}
+  // spellcasting: one ability per class; slots from the classes (the multiclass rule when there are several), pact magic apart
+  const castAb=c=>{const v=num(c.definition.spellCastingAbilityId)||num(c.subclassDefinition&&c.subclassDefinition.spellCastingAbilityId);return v>=1&&v<=6?v-1:-1};
+  const rules=c=>c.definition.spellRules||c.subclassDefinition&&c.subclassDefinition.spellRules||null;
+  const isWl=c=>/warlock/i.test(c.definition.name||'');
+  const casters=cls.filter(c=>!isWl(c)&&castAb(c)>=0&&(c.definition.canCastSpells||c.subclassDefinition&&c.subclassDefinition.canCastSpells||rules(c)));
+  const div=c=>{const r=rules(c),v=r&&num(r.multiClassSpellSlotDivisor);if(v>=1&&v<=3)return v;const n=(c.definition.name||'')+' '+(c.subclassDefinition&&c.subclassDefinition.name||'');
+    return/paladin|ranger|artificer/i.test(n)?2:/eldritch knight|arcane trickster/i.test(n)?3:1};
+  let slots=[];
+  if(casters.length===1){const c=casters[0],l=Math.max(0,Math.min(20,num(c.level)||0)),r=rules(c),row=r&&Array.isArray(r.levelSpellSlots)&&r.levelSpellSlots[l];
+    if(Array.isArray(row)&&row.some(v=>num(v)>0))slots=row.map(v=>Math.max(0,num(v)||0));else{const dv=div(c);slots=l<(dv===1?1:dv)?[]:SLOTS[Math.ceil(l/dv)]||[]}}
+  else if(casters.length>1){const cl=casters.reduce((q,c)=>{const r=rules(c),up=r&&num(r.multiClassSpellSlotRounding)===2;return q+(up?Math.ceil:Math.floor)((num(c.level)||0)/div(c))},0);slots=SLOTS[Math.min(20,cl)]||[]}
+  slots=slots.slice(0,9);while(slots.length&&!slots[slots.length-1])slots.pop();
+  let pact=null;const wl=cls.find(isWl);
+  if(wl){const l=Math.max(1,Math.min(20,num(wl.level)||1)),r=rules(wl),row=r&&Array.isArray(r.levelSpellSlots)&&r.levelSpellSlots[l];let at=-1;
+    if(Array.isArray(row))row.forEach((v,i)=>{if(num(v)>0)at=i});
+    pact=at>=0?{l:at+1,n:num(row[at])}:{l:Math.min(5,Math.ceil(l/2)),n:l>=17?4:l>=11?3:l>=2?2:1}}
+  const fromArr=(arr,lv)=>{const e=Array.isArray(arr)&&arr.find(x=>x&&num(x.level)===lv);return e?Math.max(0,num(e.used)||0):0};
+  const slotUsed=slots.map((n,i)=>Math.min(n,fromArr(d.spellSlots,i+1))),pactUsed=pact?Math.min(pact.n,fromArr(d.pactMagic,pact.l)):0;
+  const casting=cls.filter(c=>castAb(c)>=0).map(c=>{const i=castAb(c);return{cl:str(c.definition.name,20),ab:i,hit:prof+mod(i)+sum('spell-attacks'),dc:8+prof+mod(i)+sum('spell-save-dc')}});
+  const best=[3,4,5].sort((a,b)=>ab[b]-ab[a])[0];
+  const spells=[],seen=new Set();
+  const addSpell=(e,ai,cl,prepUse)=>{const df=e&&e.definition;if(!df||!df.name||spells.length>=90)return;const l=Math.max(0,Math.min(9,num(df.level)||0)),key=slug(df.name);if(seen.has(key))return;seen.add(key);
+    const ov=num(e.spellCastingAbilityId);if(ov>=1&&ov<=6)ai=ov-1;const m=mod(ai),hit=prof+m+sum('spell-attacks'),dc=num(e.overrideSaveDc)||8+prof+m+sum('spell-save-dc');
+    const r=df.range||{},rg=r.origin==='Ranged'&&num(r.rangeValue)?num(r.rangeValue)+' ft':str(r.origin,10),aoe=num(r.aoeValue)&&r.aoeType?` (${num(r.aoeValue)}-ft ${str(r.aoeType,10).toLowerCase()})`:'';
+    const act=df.activation||{},at=num(act.activationType),c=ACTS[at]||'o',time=at===6?(num(act.activationTime)||1)+' min':at===7?(num(act.activationTime)||1)+' hr':'';
+    const scale=l===0?'c':String(df.scaleType||'spellscale');
+    const dmg=[];for(const md of Array.isArray(df.modifiers)?df.modifiers:[]){if(!md||!md.die||dmg.length>=3)continue;
+      const heal=md.type==='bonus'&&md.subType==='hit-points';if(md.type!=='damage'&&!heal)continue;
+      let die=dieOf(md.die);const hl=(md.atHigherLevels&&Array.isArray(md.atHigherLevels.higherLevelDefinitions)?md.atHigherLevels.higherLevelDefinitions:[]).filter(h=>h&&h.dice);let up='';
+      if(scale==='c'||scale==='characterlevel'){const tier=hl.filter(h=>num(h.level)<=lvl).sort((a,b)=>num(b.level)-num(a.level))[0];if(tier&&dieOf(tier.dice))die=dieOf(tier.dice)}
+      else if(hl.length&&dieOf(hl[0].dice)&&(num(hl[0].level)||1)===1)up=dieOf(hl[0].dice);
+      if(!die)continue;dmg.push([addMod(die,md.usePrimaryStat?m:0),heal?'Healing':str(md.subType,14).replace(/^\w/,x=>x.toUpperCase()),up])}
+    const o={k:'s'+key.slice(0,28),n:str(df.name,40),l,c,time,rg:rg+aoe,cl,conc:df.concentration?1:0,rit:df.ritual?1:0,dmg};
+    if(df.requiresAttackRoll)o.hit=hit;
+    const sv=num(df.saveDcAbilityId);if(df.requiresSavingThrow&&sv>=1&&sv<=6){o.dc=dc;o.sv=ABBR[sv-1]}
+    if(prepUse===0)o.np=1;
+    const u=!e.usesSpellSlot||l===0?uses(e.limitedUse,o.k):null;if(u){o.u=u;used[o.k]=u.used}else if(l>0&&e.usesSpellSlot===false&&!u)o.free=1;
+    spells.push(o)};
+  for(const g of Array.isArray(d.classSpells)?d.classSpells:[]){if(!g||!Array.isArray(g.spells))continue;const c=cls.find(c=>c.id===g.characterClassId)||cls[0],ai=c&&castAb(c)>=0?castAb(c):best;
+    const prepares=g.spells.some(e=>e&&e.prepared===true&&e.definition&&num(e.definition.level)>0);
+    for(const e of g.spells){const lv=e&&e.definition&&num(e.definition.level)||0;addSpell(e,ai,c?str(c.definition.name,20):'',prepares&&lv>0&&!e.prepared&&!e.alwaysPrepared?0:1)}}
+  const SP=d.spells&&typeof d.spells==='object'?d.spells:{};
+  for(const src of['race','class','feat','item','background'])for(const e of Array.isArray(SP[src])?SP[src]:[])addSpell(e,best,src==='race'?'Race':src==='item'?'Item':src==='feat'?'Feat':'',1);
+  spells.sort((a,b)=>a.l-b.l||a.n.localeCompare(b.n));
+  return{id:String(d.id||''),v:1,lvl,prof,ab,init:mod(1)+sum('initiative')+half,saves,skills,pp:10+skills[11][0],acts,
+    sp:{casting,slots,pact,list:spells},use:{sl:slotUsed,pk:pactUsed,u:used},t:Date.now()}}
+
+let playSheets=(()=>{try{const o=JSON.parse(localStorage.getItem('dustmap-sheets'));return o&&typeof o==='object'?o:{}}catch(e){return{}}})();
+const saveSheets=()=>{try{const ks=Object.keys(playSheets).sort((a,b)=>(playSheets[b].t||0)-(playSheets[a].t||0));ks.slice(12).forEach(k=>delete playSheets[k]);localStorage.setItem('dustmap-sheets',JSON.stringify(playSheets))}catch(e){}};
+// a fresh import keeps what was spent here when D&D Beyond says nothing was spent (so an update mid-fight doesn't refill slots)
+function sheetTake(id,j){let ps;try{ps=ddbPlay(j)}catch(e){return}if(!ps||!/^\d{1,12}$/.test(String(id)))return;const old=playSheets[id];
+  if(old&&old.use){ps.use.sl=ps.use.sl.map((u,i)=>Math.max(u,Math.min(ps.sp.slots[i]||0,old.use.sl&&old.use.sl[i]||0)));if(ps.sp.pact)ps.use.pk=Math.max(ps.use.pk,Math.min(ps.sp.pact.n,old.use.pk||0));
+    for(const k of Object.keys(ps.use.u))if(old.use.u&&fin(old.use.u[k]))ps.use.u[k]=Math.max(ps.use.u[k],+old.use.u[k])}
+  playSheets[id]=ps;saveSheets()}
+const sheetFor=c=>c&&c.id&&playSheets[c.id]&&playSheets[c.id].v===1?playSheets[c.id]:null;
+
+// ---- dice ----
+// "2d6+1d4+3": up to 8 terms, 50 dice, d2..d1000. adv/dis only touches a single leading d20.
+function diceParse(e){e=String(e||'').toLowerCase().replace(/\s+/g,'').replace(/[−–]/g,'-');if(!e||e.length>40||!/^[+-]?[0-9d+-]+$/.test(e))return null;
+  const parts=e.match(/[+-]?[^+-]+/g)||[],t=[];let nd=0;
+  for(const p of parts){const sg=p[0]==='-'?-1:1,q=p.replace(/^[+-]/,'');let m=q.match(/^(\d*)d(\d+)$/);
+    if(m){const n=m[1]===''?1:+m[1],d=+m[2];if(n<1||d<2||d>1000)return null;nd+=n;t.push({sg,n,d})}
+    else if(/^\d+$/.test(q))t.push({sg,k:+q});else return null}
+  return t.length&&t.length<=8&&nd<=50?t:null}
+const rnd=d=>{const a=new Uint32Array(1);crypto.getRandomValues(a);return 1+a[0]%d};
+function diceRoll(e,o={}){const t=diceParse(e);if(!t)return null;let total=0,first=true;const dice=[];
+  for(const p of t){if(p.k!==undefined){total+=p.sg*p.k;continue}
+    const n=o.crit?p.n*2:p.n;
+    if(first&&p.d===20&&p.n===1&&o.adv){const a=rnd(20),b=rnd(20),keep=o.adv==='a'?Math.max(a,b):Math.min(a,b);dice.push([20,keep,a===keep?b:a]);total+=p.sg*keep}
+    else for(let i=0;i<n;i++){const v=rnd(p.d);dice.push([p.d,v]);total+=p.sg*v}
+    first=false}
+  return{dice,total}}
+const tidy=e=>String(e).replace(/\+-/g,'-').replace(/-/g,'−').replace(/\+/g,' + ').replace(/−/g,' − ').trim();
+
+// ---- the roll log: mine go out on presence, everyone's land in the feed ----
+let rlN=0,rlLog=[],rolls=[],rlBubbles=[],rlCrit=null,rlOpen=false;const rlSeen=new Map();
+const rlPriv=()=>mp.role!=='player'&&!!sh.priv;
+function rollAdd(r,mine){rolls.push(r);if(rolls.length>40)rolls.shift();r.at=performance.now();
+  if(Number.isInteger(r.s)&&r.t!==null)rlBubbles.push({s:r.s,t0:r.at,txt:String(r.t),nat:r.nat});rlBubbles=rlBubbles.slice(-6);rlRender()}
+// roll something and tell the table. what: the label; e: the dice; kind 'hit' rolls a d20 that can crit; key ties a hit to its damage
+function rollDo(c,s,what,e,kind,key,ev){if(!c)return;let adv=sh.adv;if(ev&&ev.shiftKey)adv='a';else if(ev&&ev.altKey)adv='d';
+  const d20=kind==='d20'||kind==='hit',now=performance.now(),crit=kind==='dmg'&&rlCrit&&rlCrit.key===key&&now-rlCrit.t<90000;
+  const r=diceRoll(e,{adv:d20?adv:'',crit});if(!r)return;
+  let nat=0;if(d20&&r.dice[0]&&r.dice[0][0]===20)nat=r.dice[0][1]===20?20:r.dice[0][1]===1?1:0;
+  if(kind==='hit')rlCrit=nat===20?{key,t:now}:null;if(crit)rlCrit=null;
+  rollPost({w:c.name,l:what+(crit?' (critical)':''),e,d:r.dice,t:r.total,a:d20?adv:'',nat,s:tokOf(s)})}
+// a line for the table without dice: a save the targets must make, a spell cast
+function rollNote(c,s,what){if(c)rollPost({w:c.name,l:what,e:'',d:[],t:null,a:'',nat:0,s:tokOf(s)})}
+function rollPost(r){r.n=++rlN;r.me=1;r.priv=rlPriv()?1:0;r.p=mp.role!=='off'?mpName(mp.me):'';
+  if(!r.priv&&mp.role!=='off'){const{me,priv,p,...out}=r;out.d=out.d.slice(0,20);rlLog.push(out);if(rlLog.length>3)rlLog.shift();mp.pres.rl=rlLog.slice()}   // presence is capped at 4 KB, so only the last 3
+  rollAdd(r,true)}
+const tokOf=s=>s==='me'?mySheet():Number.isInteger(s)?s:null;
+// a peer's presence lists their last few rolls; show the new ones
+function rollPeer(key,rl,by){if(!Array.isArray(rl))rl=[];const seen=rlSeen.get(key),top=Math.max(0,...rl.map(e=>e&&fin(e.n)?+e.n:0));rlSeen.set(key,Math.max(seen||0,top));
+  if(seen===undefined)return;
+  for(const e of rl){if(!e||typeof e!=='object'||!fin(e.n)||+e.n<=seen)continue;
+    const s=v=>typeof v==='string'?v.slice(0,60):'',dice=Array.isArray(e.d)?e.d.slice(0,50).filter(x=>Array.isArray(x)&&x.length>=2&&x.length<=3&&x.every(fin)).map(x=>x.map(Number)):[];
+    const sh2=Number.isInteger(e.s)&&e.s>=0&&e.s<SHEETS.length?e.s:null;
+    rollAdd({w:s(e.w)||'Someone',l:s(e.l),e:typeof e.e==='string'&&diceParse(e.e)?e.e:'',d:dice,t:fin(e.t)?Math.round(+e.t):null,a:e.a==='a'||e.a==='d'?e.a:'',nat:e.nat===20||e.nat===1?e.nat:0,s:sh2,p:mpName(by)},false)}}
+function rlRender(){const box=$('rollfeed'),now=performance.now();box.replaceChildren();
+  const list=rlOpen?rolls.slice(-30):rolls.filter(r=>now-r.at<14000).slice(-4);
+  if(rolls.length){const h=el('button','rlhead',rlOpen?'Hide roll history':'Rolls ('+rolls.length+')');h.setAttribute('aria-expanded',String(rlOpen));h.onclick=()=>{rlOpen=!rlOpen;rlRender()};box.append(h)}
+  box.classList.toggle('open',rlOpen);
+  for(const r of list){const card=el('div','rl'+(r.nat===20?' n20':r.nat===1?' n1':'')+(r.priv?' priv':'')+(r.shown?'':' new'));r.shown=1;
+    const top=el('div','who');top.append(el('b',null,r.w));if(r.p&&!r.me)top.append(el('span',null,' · '+r.p));if(r.priv)top.append(el('span',null,' · only you'));
+    card.append(top,el('div','what',r.l));
+    if(r.t!==null){const row=el('div','res');row.append(el('span','tot',String(r.t)));
+      const bits=r.d.map(x=>x.length===3?`${x[1]} (${x[2]})`:String(x[1])),k=diceParse(r.e),fixed=k?k.filter(p=>p.k!==undefined).reduce((q,p)=>q+p.sg*p.k,0):0;
+      row.append(el('span','brk',(r.e?tidy(r.e)+': ':'')+'['+bits.join(', ')+']'+(fixed?(fixed>0?' + ':' − ')+Math.abs(fixed):'')+(r.a==='a'?' · advantage':r.a==='d'?' · disadvantage':'')+(r.nat===20?' · natural 20':r.nat===1?' · natural 1':'')));card.append(row)}
+    box.append(card)}
+  box.hidden=!rolls.length;if(!rlOpen&&rolls.length&&!list.length)box.querySelector('.rlhead').classList.add('quiet');
+  clearTimeout(rlRender.t);if(!rlOpen&&list.length)rlRender.t=setTimeout(rlRender,14100-(now-list[0].at))}
+// over the token: the total, rising and fading
+function drawRolls(){const now=performance.now(),fv=fogView();rlBubbles=rlBubbles.filter(b=>now-b.t0<3200);
+  for(const b of rlBubbles){const t=st.tokens.find(t=>t.s===b.s);if(!t||!tokShown(fv,t))continue;const q=(now-b.t0)/3200,x=t.x*Z,y=(t.y-30)*Z-10-q*16;
+    ctx.globalAlpha=q<.75?1:(1-q)/.25;ctx.font='700 15px "Pixelify Sans", monospace';const w=Math.max(26,ctx.measureText(b.txt).width+14);
+    ctx.fillStyle=b.nat===20?'#2f5a38':b.nat===1?'#6a2a24':'rgba(29,27,34,.94)';ctx.beginPath();ctx.roundRect(x-w/2,y-20,w,22,6);ctx.fill();
+    ctx.strokeStyle=b.nat===20?'#7fd07a':b.nat===1?'#e0705a':'#f2c49f';ctx.lineWidth=1.5;ctx.stroke();
+    ctx.fillStyle='#efe9e4';ctx.textAlign='center';ctx.fillText(b.txt,x,y-4);ctx.textAlign='left';ctx.globalAlpha=1}}
+
+// ---- the panel ----
+const sh={s:null,tab:'act',adv:'',priv:(()=>{try{return localStorage.getItem('dustmap-rollpriv')==='1'}catch(e){return false}})(),np:false,lv:{}};
+function shOpen(s){if(s!=='me'&&!TOKINFO[s])return;sh.s=s;$('sheet').hidden=false;document.body.classList.add('sheet-open');shRender()}
+function shClose(){$('sheet').hidden=true;sh.s=null;document.body.classList.remove('sheet-open')}
+function shUse(ps,fn){fn(ps.use);ps.t=Date.now();saveSheets();shRender()}
+function shRender(){const box=$('sheet');if(box.hidden||sh.s===null)return;const s=sh.s,c=charFor(s),ps=sheetFor(c),edit=charMine(s);
+  const keep=box.querySelector('.shbody'),sc=keep?keep.scrollTop:0;box.replaceChildren();
+  const head=el('div','shhead');
+  if(c&&c.img){const im=el('img');im.alt='';im.src=c.img;im.referrerPolicy='no-referrer';im.onerror=()=>im.remove();head.append(im)}
+  const nm=el('div','nm');nm.append(el('b',null,c?c.name:'No character'),el('span',null,c?[c.race,c.cls||('Level '+c.lvl)].filter(Boolean).join(' · '):tokLabel(s)));head.append(nm);
+  const x=el('button','ib','×');x.setAttribute('aria-label','Close the sheet');x.id='shclose';x.onclick=shClose;head.append(x);box.append(head);
+  if(!c){const p=el('div','shbody');p.append(el('p','note','No character on this token yet.'));if(edit){const b=el('button','btn primary','Import from D&D Beyond');b.onclick=()=>openChar(s);p.append(b)}box.append(p);return}
+  // the numbers you look at every turn
+  const top=el('div','shstats');
+  const stat=(lbl,val,fn,tip)=>{const d=el(fn?'button':'div','shstat'+(fn?' roll':''));d.append(el('span','lbl',lbl),el('b',null,val));if(fn){d.onclick=fn;d.dataset.tip=tip||'Roll';}top.append(d);return d};
+  const hp=stat('HP',`${c.hp.cur}${c.hp.tmp?'+'+c.hp.tmp:''}/${c.hp.max}`,()=>openChar(s),'Change hit points');hp.classList.add('hp');hp.style.setProperty('--hpc',hpCol(c));hp.id='shhp';
+  stat('AC',String(c.ac));
+  const init=ps?ps.init:abMod(c.ab[1]);stat('Init',sgn(init),e=>rollDo(c,s,'Initiative','1d20'+sgn(init).replace('−','-'),'d20','',e),'Roll initiative').id='shinit';
+  stat('Speed',c.spd+' ft');if(ps)stat('Prof',sgn(ps.prof));box.append(top);
+  // advantage for the next d20s, and (DM) private rolls
+  const bar=el('div','shbar'),seg=el('div','seg');seg.setAttribute('role','group');seg.setAttribute('aria-label','d20 rolls');
+  [['','Normal'],['a','Advantage'],['d','Disadvantage']].forEach(([k,n])=>{const b=el('button',null,n);b.setAttribute('aria-pressed',String(sh.adv===k));b.dataset.tip=k?n+' on every d20':'One d20';b.dataset.sub=k?'Shift-click a roll for advantage, Alt-click for disadvantage':'';b.onclick=()=>{sh.adv=k;shRender()};seg.append(b)});bar.append(seg);
+  if(mp.role==='dm'){const l=el('label','check note'),cb=el('input');cb.type='checkbox';cb.checked=sh.priv;cb.id='shpriv';cb.onchange=()=>{sh.priv=cb.checked;try{localStorage.setItem('dustmap-rollpriv',sh.priv?'1':'0')}catch(e){}};l.append(cb,' Roll privately');bar.append(l)}
+  box.append(bar);
+  const tabs=el('div','shtabs');tabs.setAttribute('role','tablist');
+  const TABS=[['act','Actions'],['spl','Spells'],['chk','Checks'],['dice','Dice']].filter(t=>t[0]!=='spl'||ps&&ps.sp.list.length);if(!TABS.some(t=>t[0]===sh.tab))sh.tab='act';
+  TABS.forEach(([k,n])=>{const b=el('button',null,n);b.setAttribute('role','tab');b.id='shtab-'+k;b.setAttribute('aria-selected',String(sh.tab===k));b.onclick=()=>{sh.tab=k;shRender()};tabs.append(b)});box.append(tabs);
+  const body=el('div','shbody');box.append(body);
+  if(!ps&&sh.tab!=='dice'&&sh.tab!=='chk'){body.append(el('p','note',edit?'Spells, attacks and actions come from D&D Beyond. Update this character to load them.':'Only '+c.name+'’s player has their spells and actions. Checks and dice work here.'));
+    if(edit&&c.id){const b=el('button','btn primary','Update from D&D Beyond');b.onclick=()=>{openChar(s);chStep='try';chImport(c.id)};body.append(b)}}
+  else if(sh.tab==='act')shActions(body,c,s,ps);
+  else if(sh.tab==='spl')shSpells(body,c,s,ps);
+  else if(sh.tab==='chk')shChecks(body,c,s,ps);
+  else shDice(body,c,s);
+  body.scrollTop=sc}
+// one row: name and details, then its buttons (to hit, save DC, damage, cast)
+function shRow(c,s,ps,o,extra){const r=el('div','shrow');r.dataset.k=o.k;const t=el('div','t');const n=el('b',null,o.n);t.append(n);
+  const tags=[];if(o.l>0)tags.push(ORD(o.l));if(o.l===0)tags.push('Cantrip');if(o.time)tags.push(o.time);if(o.rng)tags.push(o.rng);if(o.conc)tags.push('Concentration');if(o.rit)tags.push('Ritual');if(o.np)tags.push('Not prepared');if(o.cl&&ps&&ps.sp.casting.length>1)tags.push(o.cl);
+  if(tags.length)t.append(el('span','meta',tags.join(' · ')));if(o.note)t.append(el('span','desc',o.note));r.append(t);
+  const bt=el('div','b');
+  if(o.u){const pips=el('div','pips');pips.setAttribute('aria-label',`${o.u.max-ps.use.u[o.k]} of ${o.u.max} uses left`);
+    for(let i=0;i<o.u.max;i++){const p=el('button','pip'+(i<(ps.use.u[o.k]||0)?' used':''));p.setAttribute('aria-label',`Use ${i+1}`);p.dataset.tip=i<(ps.use.u[o.k]||0)?'Used. Click to get it back':'Click to mark used';
+      p.onclick=()=>shUse(ps,u=>{u.u[o.k]=(u.u[o.k]||0)>i?i:i+1});pips.append(p)}t.append(pips)}
+  if(o.hit!==undefined){const b=el('button','btn dice',sgn(o.hit));b.dataset.tip=(o.l!==undefined?'Spell attack':'Attack roll')+': 1d20'+sgn(o.hit);b.dataset.sub='Shift-click for advantage';
+    b.onclick=e=>rollDo(c,s,o.n+' · to hit','1d20'+(o.hit>=0?'+':'')+o.hit,'hit',o.k,e);bt.append(b)}
+  if(o.dc){const b=el('button','btn dice','DC '+o.dc+' '+o.sv);b.dataset.tip='Tell the table';b.dataset.sub=`Targets make a DC ${o.dc} ${o.sv} save`;b.onclick=()=>rollNote(c,s,`${o.n}: DC ${o.dc} ${o.sv} save`);bt.append(b)}
+  const lv=o.l>0?(sh.lv[o.k]||o.l):0;
+  for(const[e,ty,up]of o.dmg){let ex=e;if(up&&lv>o.l){const m=up.match(/^(\d+)d(\d+)$/),b=e.match(/^(\d+)d(\d+)(.*)$/);if(m&&b&&m[2]===b[2])ex=(+b[1]+(+m[1])*(lv-o.l))+'d'+b[2]+b[3];else ex=e+'+'+Array(lv-o.l).fill(up).join('+')}
+    const b=el('button','btn dice dmg',tidy(ex).replace(/ /g,'')+(ty?' '+ty.toLowerCase():''));b.dataset.tip=(ty==='Healing'?'Roll healing':'Roll damage')+(lv>o.l?' at '+ORD(lv)+' level':'');b.dataset.sub='Right after a natural 20 to hit, the dice double';
+    b.onclick=e=>rollDo(c,s,o.n+' · '+(ty==='Healing'?'healing':(ty?ty.toLowerCase()+' ':'')+'damage')+(lv>o.l?` (${ORD(lv)} level)`:''),ex,'dmg',o.k,e);bt.append(b)}
+  if(extra)extra(bt);r.append(bt);return r}
+const shSec=(body,title)=>{const h=el('h4',null,title);body.append(h);return h};
+function shRest(body,ps){const row=el('div','mpacts shrest');
+  const sr=el('button','btn','Short rest');sr.dataset.tip='Short rest';sr.dataset.sub='Pact slots and short-rest uses come back';
+  sr.onclick=()=>shUse(ps,u=>{u.pk=0;for(const o of[...ps.acts,...ps.sp.list])if(o.u&&o.u.sr)u.u[o.k]=0});
+  const lr=el('button','btn','Long rest');lr.dataset.tip='Long rest';lr.dataset.sub='All spell slots and uses come back';
+  lr.onclick=()=>shUse(ps,u=>{u.sl=u.sl.map(()=>0);u.pk=0;for(const k of Object.keys(u.u))u.u[k]=0});row.append(sr,lr);body.append(row)}
+function shActions(body,c,s,ps){
+  const spellsOf=k=>ps.sp.list.filter(o=>o.c===k&&!(o.np&&!sh.np));
+  for(const[k,title]of[['a','Actions'],['b','Bonus actions'],['r','Reactions'],['o','Other']]){
+    const acts=ps.acts.filter(o=>o.c===k),sp=k==='o'?[]:spellsOf(k);if(!acts.length&&!sp.length)continue;shSec(body,title);
+    acts.forEach(o=>body.append(shRow(c,s,ps,o)));sp.forEach(o=>body.append(shSpellRow(c,s,ps,o)))}
+  shRest(body,ps)}
+// slots left at each level (pact slots counted with their level)
+function slotsLeft(ps){const u=ps.use,left=ps.sp.slots.map((n,i)=>Math.max(0,n-(u.sl[i]||0)));return{left,pact:ps.sp.pact?Math.max(0,ps.sp.pact.n-(u.pk||0)):0}}
+function shSpellRow(c,s,ps,o){return shRow(c,s,ps,o,bt=>{if(o.l===0||o.u||o.free)return;
+  const{left,pact}=slotsLeft(ps),pk=ps.sp.pact,lvls=[];for(let l=o.l;l<=9;l++)if((ps.sp.slots[l-1]||0)>0||pk&&pk.l===l)lvls.push(l);
+  if(lvls.length>1){const sel=el('select');sel.setAttribute('aria-label','Cast at level');lvls.forEach(l=>{const op=el('option',null,ORD(l));op.value=l;sel.append(op)});sel.value=String(sh.lv[o.k]||o.l);
+    sel.onchange=()=>{sh.lv[o.k]=+sel.value;shRender()};bt.append(sel)}
+  const lv=sh.lv[o.k]||o.l,ok=(left[lv-1]||0)>0||pk&&pk.l===lv&&pact>0,b=el('button','btn cast','Cast');b.disabled=!ok;b.dataset.tip=ok?'Cast at '+ORD(lv)+' level':'No '+ORD(lv)+'-level slots left';b.dataset.sub=ok?'Uses a slot and tells the table':'Take a rest, or cast at a higher level';
+  b.onclick=()=>{const{left}=slotsLeft(ps);shUse(ps,u=>{if((left[lv-1]||0)>0)u.sl[lv-1]=(u.sl[lv-1]||0)+1;else u.pk=(u.pk||0)+1});rollNote(c,s,`casts ${o.n}`+(lv>o.l?` at ${ORD(lv)} level`:''))};bt.append(b)})}
+function shSpells(body,c,s,ps){const sp=ps.sp,u=ps.use;
+  if(sp.casting.length){const cast=el('div','shcast');sp.casting.forEach(k=>{cast.append(el('span',null,(sp.casting.length>1?k.cl+': ':'')+`${ABBR[k.ab]} · attack ${sgn(k.hit)} · save DC ${k.dc}`))});body.append(cast)}
+  if(sp.slots.length||sp.pact){const box=el('div','shslots');
+    const line=(lbl,n,used,fn)=>{const r=el('div','slot');r.append(el('span','lbl',lbl));const pips=el('div','pips');
+      for(let i=0;i<n;i++){const p=el('button','pip'+(i<used?' used':''));p.setAttribute('aria-label',`${lbl} slot ${i+1}`);p.dataset.tip=i<used?'Spent. Click to get it back':'Click to spend';p.onclick=()=>shUse(ps,u=>fn(u,used>i?i:i+1));pips.append(p)}
+      r.append(pips,el('span','left',`${n-used}/${n}`));box.append(r)};
+    sp.slots.forEach((n,i)=>{if(n)line(ORD(i+1),n,Math.min(n,u.sl[i]||0),(u,v)=>{u.sl[i]=v})});
+    if(sp.pact)line('Pact '+ORD(sp.pact.l),sp.pact.n,Math.min(sp.pact.n,u.pk||0),(u,v)=>{u.pk=v});body.append(box)}
+  const np=sp.list.some(o=>o.np);if(np){const l=el('label','check note'),cb=el('input');cb.type='checkbox';cb.checked=sh.np;cb.onchange=()=>{sh.np=cb.checked;shRender()};l.append(cb,' Show spells that aren’t prepared');body.append(l)}
+  for(let l=0;l<=9;l++){const list=sp.list.filter(o=>o.l===l&&(!o.np||sh.np));if(!list.length)continue;shSec(body,l?ORD(l)+' level':'Cantrips');list.forEach(o=>body.append(shSpellRow(c,s,ps,o)))}
+  shRest(body,ps)}
+function shChecks(body,c,s,ps){
+  shSec(body,'Abilities');const g=el('div','shabs');
+  c.ab.forEach((v,i)=>{const m=abMod(v),sv=ps?ps.saves[i]:[m,0],d=el('div','shab');d.append(el('span','lbl',ABBR[i]),el('span','sc',String(v)));
+    const ck=el('button','btn dice',sgn(m));ck.dataset.tip=ABIL[i].replace(/^\w/,x=>x.toUpperCase())+' check';ck.onclick=e=>rollDo(c,s,ABBR[i]+' check','1d20'+(m>=0?'+':'')+m,'d20','',e);
+    const sb=el('button','btn dice'+(sv[1]?' prof':''),'Save '+sgn(sv[0]));sb.dataset.tip=ABIL[i].replace(/^\w/,x=>x.toUpperCase())+' saving throw'+(sv[1]?' (proficient)':'');sb.onclick=e=>rollDo(c,s,ABBR[i]+' save','1d20'+(sv[0]>=0?'+':'')+sv[0],'d20','',e);
+    d.append(ck,sb);g.append(d)});body.append(g);
+  if(!ps){body.append(el('p','note','Saves and skills with proficiency come from the full D&D Beyond sheet.'));return}
+  shSec(body,'Skills').append(el('span','note','Passive Perception '+ps.pp));const sk=el('div','shskills');
+  SKILLS.forEach(([n,i],k)=>{const[b,p]=ps.skills[k],r=el('button','shskill'+(p?' prof':''));r.append(el('span','dot',p===2?'◆':p?'●':'○'),el('span','n',n),el('span','ab',ABBR[i]),el('b',null,sgn(b)));
+    r.dataset.tip=n+(p===2?' (expertise)':p?' (proficient)':'');r.onclick=e=>rollDo(c,s,n,'1d20'+(b>=0?'+':'')+b,'d20','',e);sk.append(r)});body.append(sk)}
+function shDice(body,c,s){const g=el('div','shdice');
+  for(const d of[4,6,8,10,12,20,100]){const b=el('button','btn dice','d'+d);b.onclick=e=>rollDo(c,s,'d'+d,'1d'+d,d===20?'d20':'',null,e);g.append(b)}body.append(g);
+  const row=el('div','row'),inp=el('input','chin');inp.id='shexpr';inp.placeholder='2d6+3';inp.autocomplete='off';inp.spellcheck=false;inp.setAttribute('aria-label','Dice to roll');inp.value=shDice.last||'';
+  const go=el('button','btn primary','Roll');const run=e=>{const v=inp.value.trim();shDice.last=v;if(!diceParse(v)){msg.textContent='Write dice like 2d6+3 or 1d20+5 (up to 50 dice).';return}msg.textContent='';rollDo(c,s,'Roll',v,/^1d20([+-]\d+)?$/i.test(v.replace(/\s/g,''))?'d20':'',null,e)};
+  go.onclick=run;inp.onkeydown=e=>{e.stopPropagation();if(e.key==='Enter')run(e)};row.append(inp,go);body.append(row);const msg=el('p','note');msg.setAttribute('role','status');body.append(msg)}
+$('sheet').addEventListener('keydown',e=>{if(e.key==='Escape'){shClose();e.stopPropagation()}});
+window.__sheet={ddbPlay,diceParse,diceRoll,rolls:()=>rolls.map(r=>({...r})),open:shOpen};
 // ================= signs =================
 // A signpost is an object like any other ({k:'sign',x,y,v}) that also carries its message: txt (what the DM typed),
 // lang (a SCRIPTS id) and tr (1 = players may read the plain text under the script). v picks the board: 0 plank, 1 arrow right, 2 arrow left.
