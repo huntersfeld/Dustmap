@@ -86,6 +86,15 @@ try{
   const ra=(await p.evaluate(()=>window.__sheet.rolls())).pop();if(ra.a!=='a'||ra.d[0].length!==3)fail('advantage toggle');
   await p.click('#shtab-dice');await p.fill('#shexpr','3d8+2');await p.press('#shexpr','Enter');
   const rd=(await p.evaluate(()=>window.__sheet.rolls())).pop();if(rd.e!=='3d8+2'||rd.d.length!==3)fail('free dice');
+  // the stage: one d8-shaped die per die, the modifier apart, the total once they land
+  if(await p.$$eval('#rollstage .die[data-d="8"]',l=>l.length)!==3)fail('three d8 dice on the stage');
+  if((await p.textContent('#rollstage .dmod')).replace(/\s/g,'')!=='+2')fail('modifier shown apart');
+  await until(()=>p.evaluate(()=>document.querySelector('#rollstage').classList.contains('done')),'dice land');
+  const shown=await p.$$eval('#rollstage .die text',l=>l.map(t=>+t.textContent));if(JSON.stringify(shown)!==JSON.stringify(rd.d.map(x=>x[1])))fail('dice land on the rolled numbers: '+shown);
+  if(+(await p.textContent('#rollstage .stot'))!==rd.t)fail('stage total');
+  await p.evaluate(()=>{const o=crypto.getRandomValues.bind(crypto);window.__q=[19];crypto.getRandomValues=a=>{if(window.__q.length){a[0]=window.__q.shift();return a}return o(a)}});
+  await p.fill('#shexpr','1d20+1');await p.press('#shexpr','Enter');
+  await until(()=>p.evaluate(()=>document.querySelector('#rollstage').classList.contains('n20')&&!!document.querySelector('#rollstage .die.n20')),'natural 20 is green');
   await p.click('#shtab-act');await p.screenshot({path:path.join(OUT,'sheet_actions.png')});
   await p.click('#rollfeed .rlhead');await p.screenshot({path:path.join(OUT,'sheet_roll_history.png')});await p.click('#rollfeed .rlhead');
   // a character imported before the play sheet existed asks for an update
@@ -119,6 +128,7 @@ try{
   await p1.click('#shtab-spl');await p1.click('#sheet .shrow[data-k="sfire-bolt"] .btn.dice');
   const pr=(await p1.evaluate(()=>window.__sheet.rolls())).pop();
   await until(()=>dm.evaluate(n=>window.__sheet.rolls().some(r=>r.l==='Fire Bolt · to hit'&&r.w==='Elmira Thorn'&&r.t===n),pr.t),'player roll reaches the DM');
+  await until(()=>dm.evaluate(()=>!document.querySelector('#rollstage').hidden&&!!document.querySelector('#rollstage .die[data-d="20"]')),'the DM watches the player\'s d20 land');
   await until(()=>dm.isVisible('#rollfeed .rl'),'DM feed');
   const who=await dm.textContent('#rollfeed .rl .who');if(!/Elmira Thorn/.test(who)||!/Alex/.test(who))fail('feed names the character and the player: '+who);
   const dr2=await dm.evaluate(()=>window.__sheet.rolls().pop());if(dr2.s!==3)fail('roll tied to the token for the bubble');

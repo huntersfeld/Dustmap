@@ -318,6 +318,38 @@ body.mp-player .dmonly{display:none!important}
 .rl .tot{font:700 22px var(--display);color:var(--fg)}
 .rl.n20 .tot{color:var(--live)}.rl.n1 .tot{color:#e0705a}
 .rl .brk{font-size:11.5px;color:var(--muted);overflow-wrap:anywhere}
+.rl .res{align-items:center;gap:10px}
+.dicerow{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.die{position:relative;width:52px;height:60px;display:flex;flex-direction:column;align-items:center;flex:none;will-change:transform}
+.die svg{width:52px;height:52px;overflow:visible}
+.die .f{fill:#3a3442;stroke:var(--accent);stroke-width:1.6;stroke-linejoin:round}
+.die .ln{fill:none;stroke:var(--accent);stroke-width:.8;opacity:.35;stroke-linejoin:round}
+.die text{font:700 15px var(--display);fill:var(--fg)}
+.die[data-d="100"] text{font-size:12px}
+.die .dl{font-size:10px;color:var(--muted);line-height:1;margin-top:-1px}
+.die.set{animation:diepop .28s ease-out}
+.die.drop{opacity:.38}.die.drop .f{stroke:var(--muted)}
+.die.n20 .f{fill:#2f5a38;stroke:var(--live)}.die.n20 .ln{stroke:var(--live)}
+.die.n1 .f{fill:#6a2a24;stroke:#e0705a}.die.n1 .ln{stroke:#e0705a}
+.dicerow.sm{gap:3px}.dicerow.sm .die{width:26px;height:28px}.dicerow.sm .die svg{width:26px;height:26px}.dicerow.sm .die .dl{display:none}
+.dicerow.sm .die .f{stroke-width:2.2}.dicerow.sm .die text{font-size:16px}
+.dmod{font:700 15px var(--display);color:var(--accent);background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:3px 9px;white-space:nowrap}
+.dicerow.sm .dmod{font-size:12px;padding:1px 6px}
+.rollstage{position:absolute;z-index:8;left:50%;transform:translateX(-50%);bottom:calc(150px + env(safe-area-inset-bottom,0px));max-width:min(640px,calc(100% - 24px));
+  background:var(--glass);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:10px 14px 8px;display:flex;flex-direction:column;gap:6px;animation:stagein .22s ease-out;pointer-events:none}
+.rollstage .who{font-size:12px;color:var(--muted)}.rollstage .who b{color:var(--accent);font-weight:600}.rollstage .what{color:var(--fg);margin-left:8px}
+.rollstage .sline{display:flex;align-items:center;gap:10px}
+.rollstage .eq{font:700 20px var(--display);color:var(--muted);opacity:0}
+.rollstage .stot{font:700 36px var(--display);color:var(--fg);min-width:44px;text-align:center;opacity:0;transform:scale(.6)}
+.rollstage.done .eq{opacity:1;transition:opacity .2s}
+.rollstage.done .stot{opacity:1;transform:scale(1);transition:transform .3s cubic-bezier(.3,1.6,.5,1),opacity .15s}
+.rollstage.n20{border-color:var(--live);box-shadow:0 0 0 1px var(--live),0 0 26px rgba(127,208,122,.35),var(--shadow)}.rollstage.n20 .stot{color:var(--live)}
+.rollstage.n1{border-color:#e0705a;box-shadow:0 0 0 1px #e0705a,0 0 26px rgba(224,112,90,.35),var(--shadow)}.rollstage.n1 .stot{color:#e0705a}
+.rollstage.out{opacity:0;transition:opacity .35s}
+@keyframes diepop{50%{transform:scale(1.22)}}
+@keyframes stagein{from{opacity:0;transform:translate(-50%,10px)}}
+@media (prefers-reduced-motion:reduce){.die.set,.rollstage{animation:none}}
+@media (max-width:640px){.rollstage .die{width:40px;height:48px}.rollstage .die svg{width:40px;height:40px}.rollstage{bottom:calc(150px + env(safe-area-inset-bottom,0px))}}
 @keyframes rlin{from{transform:translateY(6px);opacity:0}}
 @media (prefers-reduced-motion:reduce){.rl{animation:none}}
 @media (max-width:640px){.rollfeed{left:var(--gap)}.sheet{top:auto;bottom:calc(150px + env(safe-area-inset-bottom,0px));height:min(calc(100% - 230px),520px);width:auto;left:var(--gapr)}}
@@ -455,6 +487,7 @@ a.btn{text-decoration:none;color:var(--fg)}
   <div class="hint" id="hint" role="status"></div>
   <div class="float sheet" id="sheet" role="complementary" aria-label="Character sheet" hidden></div>
   <div class="rollfeed" id="rollfeed" aria-live="polite" hidden></div>
+  <div class="rollstage" id="rollstage" aria-hidden="true" hidden></div>
   <div class="float selbar" id="selbar" hidden></div>
   <div class="float qmenu" id="qmenu" role="menu" hidden></div>
   <div class="signcard" id="signcard" hidden><div class="sgtr" id="sgtrn" hidden></div><div class="plank" id="sgplank"></div></div>
@@ -2961,7 +2994,7 @@ const tidy=e=>String(e).replace(/\+-/g,'-').replace(/-/g,'−').replace(/\+/g,' 
 let rlN=0,rlLog=[],rolls=[],rlBubbles=[],rlCrit=null,rlOpen=false;const rlSeen=new Map();
 const rlPriv=()=>mp.role!=='player'&&!!sh.priv;
 function rollAdd(r,mine){rolls.push(r);if(rolls.length>40)rolls.shift();r.at=performance.now();
-  if(Number.isInteger(r.s)&&r.t!==null)rlBubbles.push({s:r.s,t0:r.at,txt:String(r.t),nat:r.nat});rlBubbles=rlBubbles.slice(-6);rlRender()}
+  if(r.t!==null&&r.d.length)rlStage(r);else{r.ready=1;rlRender()}}
 // roll something and tell the table. what: the label; e: the dice; kind 'hit' rolls a d20 that can crit; key ties a hit to its damage
 function rollDo(c,s,what,e,kind,key,ev){if(!c)return;let adv=sh.adv;if(ev&&ev.shiftKey)adv='a';else if(ev&&ev.altKey)adv='d';
   const d20=kind==='d20'||kind==='hit',now=performance.now(),crit=kind==='dmg'&&rlCrit&&rlCrit.key===key&&now-rlCrit.t<90000;
@@ -2983,18 +3016,67 @@ function rollPeer(key,rl,by){if(!Array.isArray(rl))rl=[];const seen=rlSeen.get(k
     const sh2=Number.isInteger(e.s)&&e.s>=0&&e.s<SHEETS.length?e.s:null;
     rollAdd({w:s(e.w)||'Someone',l:s(e.l),e:typeof e.e==='string'&&diceParse(e.e)?e.e:'',d:dice,t:fin(e.t)?Math.round(+e.t):null,a:e.a==='a'||e.a==='d'?e.a:'',nat:e.nat===20||e.nat===1?e.nat:0,s:sh2,p:mpName(by)},false)}}
 function rlRender(){const box=$('rollfeed'),now=performance.now();box.replaceChildren();
-  const list=rlOpen?rolls.slice(-30):rolls.filter(r=>now-r.at<14000).slice(-4);
+  const list=(rlOpen?rolls.slice(-30):rolls.filter(r=>now-r.at<16000).slice(-4)).filter(r=>r.ready);
   if(rolls.length){const h=el('button','rlhead',rlOpen?'Hide roll history':'Rolls ('+rolls.length+')');h.setAttribute('aria-expanded',String(rlOpen));h.onclick=()=>{rlOpen=!rlOpen;rlRender()};box.append(h)}
   box.classList.toggle('open',rlOpen);
   for(const r of list){const card=el('div','rl'+(r.nat===20?' n20':r.nat===1?' n1':'')+(r.priv?' priv':'')+(r.shown?'':' new'));r.shown=1;
     const top=el('div','who');top.append(el('b',null,r.w));if(r.p&&!r.me)top.append(el('span',null,' · '+r.p));if(r.priv)top.append(el('span',null,' · only you'));
     card.append(top,el('div','what',r.l));
-    if(r.t!==null){const row=el('div','res');row.append(el('span','tot',String(r.t)));
-      const bits=r.d.map(x=>x.length===3?`${x[1]} (${x[2]})`:String(x[1])),k=diceParse(r.e),fixed=k?k.filter(p=>p.k!==undefined).reduce((q,p)=>q+p.sg*p.k,0):0;
-      row.append(el('span','brk',(r.e?tidy(r.e)+': ':'')+'['+bits.join(', ')+']'+(fixed?(fixed>0?' + ':' − ')+Math.abs(fixed):'')+(r.a==='a'?' · advantage':r.a==='d'?' · disadvantage':'')+(r.nat===20?' · natural 20':r.nat===1?' · natural 1':'')));card.append(row)}
+    if(r.t!==null){const row=el('div','res');row.append(el('span','tot',String(r.t)),rlDiceRow(r,true));card.append(row);
+      const extra=[r.e?tidy(r.e):'',r.a==='a'?'advantage':r.a==='d'?'disadvantage':'',r.nat===20?'natural 20':r.nat===1?'natural 1':''].filter(Boolean).join(' · ');if(extra)card.append(el('div','brk',extra))}
     box.append(card)}
   box.hidden=!rolls.length;if(!rlOpen&&rolls.length&&!list.length)box.querySelector('.rlhead').classList.add('quiet');
-  clearTimeout(rlRender.t);if(!rlOpen&&list.length)rlRender.t=setTimeout(rlRender,14100-(now-list[0].at))}
+  clearTimeout(rlRender.t);if(!rlOpen&&list.length)rlRender.t=setTimeout(rlRender,16100-(now-list[0].at))}
+// ---- dice you can watch: every die in a row, shaped like its die, numbers spinning down to the result ----
+// The result is rolled first (and is what goes to the table); the spin is only a show, the same on every page.
+// d4 triangle, d6 square, d8 diamond, d10/d100 kite, d12 pentagon, d20 icosahedron; d2 a coin, d3 a rounded triangle,
+// d5 a shield, anything else a round die. Faint inner lines hint at the solid.
+const DIEF={
+  2:['M20 3a17 17 0 1 0 0.01 0Z','M20 9a11 11 0 1 0 0.01 0Z',21],
+  3:['M20 4Q22 4 23 6L36 31Q37 34 34 34H6Q3 34 4 31L17 6Q18 4 20 4Z','',26],
+  4:['M20 3L37 35H3Z','',27],
+  5:['M5 6H35V22Q35 33 20 38Q5 33 5 22Z','',21],
+  6:['M8 4H32Q36 4 36 8V32Q36 36 32 36H8Q4 36 4 32V8Q4 4 8 4Z','',21],
+  8:['M20 2L38 20L20 38L2 20Z','M2 20H38',21],
+  10:['M20 2L37 21L20 38L3 21Z','M3 21L20 27L37 21M20 27V38',19],
+  12:['M20 2L38 15L31 37H9L2 15Z','M20 9L30 16L26 28H14L10 16Z M20 2V9M38 15L30 16M31 37L26 28M9 37L14 28M2 15L10 16',21],
+  20:['M20 2L36 11V29L20 38L4 29V11Z','M20 9L31 27H9Z M20 2V9M4 11L20 9M36 11L20 9M36 11L31 27M36 29L31 27M20 38L31 27M20 38L9 27M4 29L9 27M4 11L9 27',22]};
+DIEF[100]=DIEF[10];
+const dieF=d=>DIEF[d]||['M20 3a17 17 0 1 0 0.01 0Z','',21];
+function dieEl(d,v,cls){const[f,ln,ty]=dieF(d),w=el('div','die '+(cls||''));w.dataset.d=d;
+  w.innerHTML=`<svg viewBox="0 0 40 40" aria-hidden="true"><path class="f" d="${f}"/>${ln?`<path class="ln" d="${ln}"/>`:''}<text x="20" y="${ty}" text-anchor="middle" dominant-baseline="middle"></text></svg><span class="dl">d${d}</span>`;
+  w.querySelector('text').textContent=String(v);w.setAttribute('aria-label',`d${d}: ${v}`);return w}
+// the parts of a roll to draw: each die (kept or dropped, natural 1/20 on a d20), and the flat modifier apart
+function rlParts(r){const k=diceParse(r.e),mod=k?k.filter(p=>p.k!==undefined).reduce((q,p)=>q+p.sg*p.k,0):0,dice=[];
+  r.d.forEach(x=>{const nat=x[0]===20&&(x[1]===20||x[1]===1)?x[1]:0;dice.push({d:x[0],v:x[1],nat});if(x.length===3)dice.push({d:x[0],v:x[2],drop:1})});
+  return{dice,mod}}
+function rlDiceRow(r,small){const{dice,mod}=rlParts(r),row=el('div','dicerow'+(small||dice.length>8?' sm':''));
+  dice.forEach(q=>row.append(dieEl(q.d,q.v,(q.drop?'drop':'')+(q.nat===20?' n20':q.nat===1?' n1':''))));
+  if(mod)row.append(el('span','dmod',(mod>0?'+ ':'− ')+Math.abs(mod)));return row}
+const rlCalm=()=>!$('anim').checked||matchMedia('(prefers-reduced-motion: reduce)').matches;
+// the stage: the newest roll, big, near the bottom of the screen; when the last die lands, the total pops and the roll goes to the feed
+let rlStageT=0,rlStageRaf=0;
+function rlStage(r){const box=$('rollstage');cancelAnimationFrame(rlStageRaf);clearTimeout(rlStageT);
+  rolls.forEach(q=>{if(q!==r)q.ready=1});box.replaceChildren();box.className='rollstage';box.hidden=false;
+  const top=el('div','who');top.append(el('b',null,r.w));if(r.p&&!r.me)top.append(el('span',null,' · '+r.p));if(r.priv)top.append(el('span',null,' · only you'));top.append(el('span','what',r.l));
+  const row=rlDiceRow(r),tot=el('div','stot',String(r.t));tot.setAttribute('aria-label','Total '+r.t);
+  const line=el('div','sline');line.append(row,el('span','eq','='),tot);box.append(top,line);
+  const ds=[...row.querySelectorAll('.die')],{dice}=rlParts(r),n=ds.length,t0=performance.now(),calm=rlCalm();
+  const dz=ds.map((e,i)=>({e,tx:e.querySelector('text'),d:dice[i].d,v:dice[i].v,end:calm?0:900+i*Math.min(220,1100/Math.max(1,n))+Math.random()*120,next:0,cur:dice[i].v}));
+  const land=()=>{box.classList.add('done');if(r.nat)box.classList.add(r.nat===20?'n20':'n1');r.ready=1;
+    if(Number.isInteger(r.s))rlBubbles.push({s:r.s,t0:performance.now(),txt:String(r.t),nat:r.nat});rlBubbles=rlBubbles.slice(-6);rlRender();
+    rlStageT=setTimeout(()=>{box.classList.add('out');rlStageT=setTimeout(()=>{box.hidden=true},380)},2600)};
+  if(calm){land();return}
+  let landed=false;const once=()=>{if(landed)return;landed=true;cancelAnimationFrame(rlStageRaf);dz.forEach(q=>{q.tx.textContent=String(q.v);q.e.style.transform='';q.e.classList.add('set')});land()};
+  rlStageT=setTimeout(once,Math.max(...dz.map(q=>q.end))+400);   // a hidden tab gets no animation frames
+  const tick=now=>{let left=0;
+    for(const q of dz){const el2=q.e,dt=now-t0;if(q.done)continue;
+      if(dt>=q.end){q.done=1;q.tx.textContent=String(q.v);el2.style.transform='';el2.classList.add('set');continue}left++;
+      if(dt>=q.next){const p=dt/q.end;let v;do v=1+Math.floor(Math.random()*q.d);while(v===q.cur&&q.d>1);q.cur=v;q.tx.textContent=String(v);q.next=dt+40+320*p*p}
+      const p=dt/q.end;el2.style.transform=`rotate(${Math.sin(dt/38+q.end)*16*(1-p)}deg) translateY(${-Math.abs(Math.sin(dt/90))*6*(1-p)}px)`}
+    if(left)rlStageRaf=requestAnimationFrame(tick);else{clearTimeout(rlStageT);once()}};
+  rlStageRaf=requestAnimationFrame(tick)}
+
 // over the token: the total, rising and fading
 function drawRolls(){const now=performance.now(),fv=fogView();rlBubbles=rlBubbles.filter(b=>now-b.t0<3200);
   for(const b of rlBubbles){const t=st.tokens.find(t=>t.s===b.s);if(!t||!tokShown(fv,t))continue;const q=(now-b.t0)/3200,x=t.x*Z,y=(t.y-30)*Z-10-q*16;
