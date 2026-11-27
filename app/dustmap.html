@@ -439,6 +439,7 @@ a.btn{text-decoration:none;color:var(--fg)}
       <div class="pane" id="toks"></div>
       <div class="pane" id="pane-place"><span class="tsep"></span>
         <button class="sw" id="gridbtn" aria-label="Place as a grid" aria-expanded="false" data-tip="Place many at once" data-sub="Pick a grid or pattern, spacing and a random mix"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="6" height="6"/><rect x="14" y="4" width="6" height="6"/><rect x="4" y="14" width="6" height="6"/><rect x="14" y="14" width="6" height="6"/></svg><span class="gbadge" id="gridbadge"></span></button>
+        <button class="sw dmonly" id="thide" aria-label="Place hidden" aria-pressed="false" hidden data-tip="Place hidden" data-sub="Players don’t see the tokens you place until you reveal them. For ambushes."></button>
       </div>
       <div class="pane dmonly" id="sec-fog">
         <div class="seg" role="group" aria-label="Fog brush paints"><button id="fog-reveal" aria-label="Click reveals" data-tip="Click reveals" data-sub="Click or drag reveals. Double-click (and drag) hides."></button><button id="fog-hide" aria-label="Click hides" data-tip="Click hides" data-sub="Click or drag hides. Double-click (and drag) reveals."></button></div>
@@ -1406,7 +1407,9 @@ function fogGet(){   // what this viewer has hidden right now: a string, or null
   return st.fog||null}
 const fogAt=(f,x,y)=>{const c=Math.floor(x/GRID),r=Math.floor(y/GRID);return!!f&&c>=0&&r>=0&&c<st.cols&&r<st.rows&&f[r*st.cols+c]==='1'};
 const tokHidden=(f,t)=>fogAt(f,t.x,t.y-4);   // by the square the token stands in
-const tokShown=(f,t)=>!f||!tokHidden(f,t)||!!(mp.sess&&mp.sess.live&&mp.sess.assign[t.s]);
+const tokShown=(f,t)=>!!(mp.sess&&mp.sess.live&&mp.sess.assign[t.s])||!t.hd&&(!f||!tokHidden(f,t));   // hd: hidden by the DM (see hidden tokens)
+// what this page draws: players see what they're sent; the DM also sees hidden tokens (ghosted), except in the player preview
+const tokSeen=(f,t)=>tokShown(f,t)||mp.role!=='player'&&!fogPreview&&!!t.hd;
 // fog as the players see it in drawWorld: players always, the DM only when previewing
 const fogView=()=>mp.role==='player'?fogGet():fogPreview?st.fog||null:null;
 function fogCleanDoc(d){if(!d||typeof d!=='object')return null;const cols=Math.round(+d.cols),rows=Math.round(+d.rows),f=typeof d.f==='string'&&/^[01]*$/.test(d.f)?d.f:'';
@@ -1529,8 +1532,8 @@ function drawFires(g,ts,fv){const list=litFires(fv);if(!list.length)return;const
 function drawWorld(g,s,ts){ // draw terrain, objects, tokens and grid in map units (transform already set)
   g.imageSmoothingEnabled=false;g.drawImage(tcan,0,0);g.drawImage(ocan,0,0);const fv=fogView();drawFires(g,ts===undefined?performance.now():ts,fv);if(g===ctx){drawBlasts(g,fv);killUnder(g,fv)}
   drawFogSolid(g,fv);
-  st.tokens.filter(t=>tokShown(fv,t)).map(t=>{const gh=t.id&&mp.ghost.get(t.id);return gh?{...t,x:gh[0],y:gh[1]}:t}).sort((a,b)=>a.y-b.y).forEach(t=>{if(g===ctx)tokAura(g,t);g.drawImage(shadowImg,Math.round(t.x)-7,Math.round(t.y)-2);
-    const f=(frame+(t.o||0))%8,im=sheets[t.s];if(im.complete)g.drawImage(im,f*32,0,32,32,Math.round(t.x)-16,Math.round(t.y)-31,32,32)});
+  const scr=g===ctx;if(scr)entPrune();
+  st.tokens.filter(t=>scr?tokSeen(fv,t):tokShown(fv,t)).map(t=>{const gh=t.id&&mp.ghost.get(t.id);return gh?{...t,x:gh[0],y:gh[1],ref:t}:t}).sort((a,b)=>a.y-b.y).forEach(t=>{if(scr)tokAura(g,t);tokDraw(g,t,scr)});
   if(g===ctx)killOver(g,fv);
   if($('grid').checked&&GRID*s>=6){g.strokeStyle='rgba(60,40,40,.18)';g.lineWidth=1/s;g.beginPath();
     for(let x=GRID;x<W;x+=GRID){g.moveTo(x,0);g.lineTo(x,H)}for(let y=GRID;y<H;y+=GRID){g.moveTo(0,y);g.lineTo(W,y)}g.stroke()}}
@@ -1732,7 +1735,7 @@ cv.addEventListener('pointerdown',e=>{const p=toMap(e);cv.setPointerCapture(e.po
     draft.push(clamp(p).map(v=>Math.round(v*2)/2));syncHint();return}
   if(tool==='brush'){stroke={pts:[clamp(p)],r:bsize};return}
   if(tool==='sculpt'){sculpt={phase:'paint',pts:[clamp(p)],cy:e.clientY,t:performance.now(),y0:0,base:0,delta:0};syncHint();return}
-  if(tool==='object'&&tokKind()>=0){const ts=placementTokens(p[0],p[1]);if(!ts.length)return;push();ts.forEach(t=>st.tokens.push({...t,o:Math.floor(Math.random()*8)}));save();if(tokScatter)tokSeed++;return}
+  if(tool==='object'&&tokKind()>=0){const ts=placementTokens(p[0],p[1]);if(!ts.length)return;push();ts.forEach(t=>st.tokens.push({...t,o:Math.floor(Math.random()*8),...(placeHidden?{hd:1}:{})}));save();if(tokScatter)tokSeed++;return}
   if(tool==='object'){const items=placementItems(p[0],p[1]);if(!items.length)return;push();const g=items.length>1?'g'+Date.now().toString(36):undefined;items.forEach(it=>st.objects.push(g?{...it,g}:it));objDirty=true;save();if((objMix||objScat)&&!objKind.startsWith('stamp:'))scatSeed++;return}
   if(tool==='fog'&&mp.role!=='player'){const q=clamp(p),now=performance.now(),lc=fogLastClick;fogLastClick=null;
     // a second press right after a click on the same spot (a double click) takes that click back and paints the other way
@@ -1831,7 +1834,7 @@ function setTool(t){if(mp.role==='player'&&!PLAYER_TOOLS.includes(t))return;cons
 function delSel(){if(!sel)return;push();if(sel.type==='token'){st.tokens.splice(sel.i,1)}else if(sel.type==='op'){markOp(st.ops[sel.i]);st.ops.splice(sel.i,1)}else{[...selList()].sort((a,b)=>b-a).forEach(i=>st.objects.splice(i,1));objDirty=true}sel=null;save();syncUI()}
 // Duplicate (selection bar or Ctrl+D): a copy one square down and right, selected so it can be dragged straight away
 function dupSel(){if(!sel||mp.role==='player')return;push();const D=GRID;
-  if(sel.type==='token'){const t=st.tokens[sel.i];if(!t){hist.pop();return}const c={...t,x:Math.min(W-8,t.x+D),o:Math.floor(Math.random()*8)};delete c.id;st.tokens.push(c);sel={type:'token',i:st.tokens.length-1}}
+  if(sel.type==='token'){const t=st.tokens[sel.i];if(!t){hist.pop();return}const c={...t,x:Math.min(W-8,t.x+D),o:Math.floor(Math.random()*8)};delete c.id;delete c.rv;delete c.re;st.tokens.push(c);sel={type:'token',i:st.tokens.length-1}}
   else if(sel.type==='op'){const op=st.ops[sel.i];const c={...op,pts:op.pts.map(q=>[q[0]+D,q[1]+D]),sid:Math.floor(Math.random()*1000)};st.ops.push(c);markOp(c);sel={type:'op',i:st.ops.length-1}}
   else{const l=selList(),gm={},start=st.objects.length;l.forEach(i=>{const o=st.objects[i],c={...o,x:Math.min(W,o.x+D),y:Math.min(H,o.y+D)};if(o.g)c.g=gm[o.g]||(gm[o.g]='g'+Date.now().toString(36)+Math.random().toString(36).slice(2,5));if(c.id)c.id=objId();st.objects.push(c)});objDirty=true;setObjSel(l.map((_,k)=>start+k))}
   save();syncUI()}
@@ -2008,7 +2011,7 @@ function syncUI(){
   sizePressed($('sizes'),bsize);sizePressed($('fogsizes'),fogR);
   $('ogap').value=objGap;$('gridlbl').textContent=objKind.startsWith('stamp:')?'Stamp'+(stampRot?` · ${stampRot*90}°`:''):cellLabel();paintPick(objCells);
   $('omix').checked=objMix;$('mixopts').hidden=!objMix;$('odens').value=scatDens;$('odenslbl').textContent=`Fill ${scatDens}%`;$('mixlbl').textContent=mixKinds.size?`${mixKinds.size} in the mix`:'Nothing picked yet';
-  {const tk=tokKind()>=0,ts=tk&&tokScatter;$('ogaplbl').hidden=$('ogap').hidden=tk;$('tgaplbl').hidden=$('tgap').hidden=!tk;$('tgap').value=tokGap;$('tgaplbl').textContent=tokGap?`${tokGap} square${tokGap>1?'s':''} between`:'Side by side';$('omixlbl').textContent=tk?'Scatter randomly':'Random mix';
+  {const tk=tokKind()>=0,ts=tk&&tokScatter;$('ogaplbl').hidden=$('ogap').hidden=tk;$('thide').hidden=!tk||mp.role==='player';$('thide').setAttribute('aria-pressed',String(placeHidden));$('tgaplbl').hidden=$('tgap').hidden=!tk;$('tgap').value=tokGap;$('tgaplbl').textContent=tokGap?`${tokGap} square${tokGap>1?'s':''} between`:'Side by side';$('omixlbl').textContent=tk?'Scatter randomly':'Random mix';
    if(tk){$('omix').checked=ts;$('mixopts').hidden=!ts&&!tokMix.size;$('mixreroll').hidden=!ts;const n=cellList().length;$('mixlbl').textContent=(tokMix.size?`${tokMix.size} in the mix · `:'')+(n>1?`${n} tokens`:tokMix.size?'one of each':'1 token')}
    const stp=objKind.startsWith('stamp:'),scat=objScat&&!tk&&!stp;
    $('placemode').hidden=tk;$('pl-grid').setAttribute('aria-pressed',String(!scat));$('pl-scat').setAttribute('aria-pressed',String(scat));
@@ -2055,6 +2058,7 @@ function syncHint(){const h=$('hint');h.replaceChildren();
     add(tool==='draw'?'Drag it up or down, or <kbd>↑</kbd> <kbd>↓</kbd>':'<kbd>↑</kbd> <kbd>↓</kbd> raise or lower it');btn('Done','',()=>{sel=null;syncUI()})}
   else if(tool==='object'&&tokKind()<0&&objMix&&!objKind.startsWith('stamp:')&&!mixKinds.size){pill('Mix');add('Pick objects to mix')}
   else if(tool==='object'&&tokKind()>=0&&tokMix.size){pill('Mix');add(`${tokMix.size} tokens · Ctrl-click to add or remove · click the map to ${tokScatter?'scatter':'place'} them`)}
+  else if(tool==='object'&&tokKind()>=0&&placeHidden&&mp.role!=='player'){pill('Hidden');add('New tokens are hidden from players until you reveal them')}
   else if(tool==='measure'&&measure&&measure.follow){pill('Measure');add('Click where it ends')}
   else if(tool==='fog'&&mp.role!=='player'){const once=fogMode==='hide'?'hides':'reveals',twice=fogMode==='hide'?'reveals':'hides';
     if(fogPaint)pill(fogPaint.v==='1'?'Hiding':'Revealing');else pill('Fog');add(`Click or drag ${once} · double-click and drag ${twice}`)}
@@ -2064,7 +2068,7 @@ function syncHint(){const h=$('hint');h.replaceChildren();
     if(mine.length){pill('Playing '+mine.join(' & '));add('Drag, or step with <kbd>←</kbd><kbd>↑</kbd><kbd>→</kbd><kbd>↓</kbd> / <kbd>WASD</kbd>');add('Click an enemy to throw at it')}
     else{pill('Watching');add('Pick a token to join')}}
   else{if(!sel)return;
-    if(sel.type==='token'){const t=st.tokens[sel.i];pill(t?tokLabel(t.s)+' selected':'Token selected');add('Arrow keys or <kbd>WASD</kbd> step one square · <kbd>Enter</kbd> clears the path');if(killable(t)&&mp.role!=='player')add('<kbd>K</kbd> kills it')}
+    if(sel.type==='token'){const t=st.tokens[sel.i];pill(t?tokLabel(t.s)+' selected':'Token selected');add('Arrow keys or <kbd>WASD</kbd> step one square · <kbd>Enter</kbd> clears the path');if(killable(t)&&mp.role!=='player')add('<kbd>K</kbd> kills it');if(t&&tokHid(t)&&mp.role!=='player')add('Hidden from players')}
     else if(sel.type!=='op'){const l=selList();pill(l.length===1?OBJ.find(o=>o.k===st.objects[l[0]].k).name+' selected':`${l.length} objects selected`)}
     else{const op=st.ops[sel.i];pill((op.layer==='ground'?TERR[op.t].name:op.blast?'Crater':elevName(op.h,op.s))+' selected');
       add(op.layer==='height'?'Drag corners to reshape · <kbd>↑</kbd> <kbd>↓</kbd> raise or lower':'Drag corners to reshape')}}}
@@ -2100,6 +2104,7 @@ function buildSelbar(){const bar=$('selbar');bar.replaceChildren();const add=(ic
   add('copy','Duplicate','Ctrl D','A copy, one square over',dupSel);
   dynSelbar(bar,add);
   killSelbar(bar,add);
+  hidSelbar(bar,add);
   if(sel.type==='obj'&&isPortal(sel.i)){const i=sel.i;add('go','Send the party through','','Everyone in the party goes to where it leads',()=>portalGo(i));add('portal','Edit door','Enter','Where it leads and where tokens arrive',()=>portalEdit(i));add('link','Link','','Click where it leads, here or on another map',()=>portalLinkStart(i))}
   zoneSelbar(bar,add);
   if(sel.type==='obj'&&isSign(sel.i))add('sign','Edit sign','Enter','Write the message and pick its language',()=>signEdit(sel.i));
@@ -2129,9 +2134,11 @@ function openQuick(cx,cy,p){const m=$('qmenu'),pl=mp.role==='player';m.replaceCh
       add('copy','Duplicate '+nm,()=>{pickIt();dupSel()});
       // objects with looks (a chest open or shut, a banner's colour...): one item per other look; new ones then take that look
       if(h.type==='obj'){const o=st.objects[h.i],L=LOOKS[o.k];if(L){const cur=lookOf(o);L.forEach((lk,j)=>{if(j!==cur)add('look',nm+': '+lk,()=>{push();o.v=(o.v||0)-cur+j;objLook[o.k]=j;objDirty=true;save()})})}}
+      if(h.type==='token')hidQuick(add,h.i,nm);
       add('trash','Delete '+nm,()=>{pickIt();delSel()},'danger')}
     const ts=tokKind()>=0?tokKind():+lastTokKind.slice(4);
-    if(TOKINFO[ts]){const cvs=tokSwatch(ts);add(cvs,'Place '+tokLabel(ts),()=>{push();const sn=v=>altDown?Math.round(v):Math.round(v/8)*8;st.tokens.push({s:ts,x:Math.max(8,Math.min(W-8,sn(p[0]))),y:Math.max(30,Math.min(H-1,sn(p[1]))),o:Math.floor(Math.random()*8)});save()})}
+    if(TOKINFO[ts]){const cvs=tokSwatch(ts);add(cvs,'Place '+tokLabel(ts),()=>{push();const sn=v=>altDown?Math.round(v):Math.round(v/8)*8;st.tokens.push({s:ts,x:Math.max(8,Math.min(W-8,sn(p[0]))),y:Math.max(30,Math.min(H-1,sn(p[1]))),o:Math.floor(Math.random()*8),...(placeHidden?{hd:1}:{})});save()})}
+    hidAllQuick(add);
     if(p[0]>=0&&p[1]>=0&&p[0]<W&&p[1]<H){if(fogAt(st.fog,p[0],p[1]))add('reveal','Reveal around here',()=>fogQuick(p,'0'));else add('hide','Hide around here',()=>fogQuick(p,'1'))}}
   m.hidden=false;const w=m.offsetWidth,hh=m.offsetHeight;m.style.left=Math.max(8,Math.min(innerWidth-w-8,cx))+'px';m.style.top=Math.max(8,Math.min(innerHeight-hh-8,cy))+'px'}
 cv.addEventListener('wheel',qClose,{passive:true});
@@ -2483,13 +2490,13 @@ async function mpPush(){if(mp.role!=='dm'||!mp.db)return;
     if(mj!==mp.pushed.map){const rev=Math.max(mp.meta&&fin(mp.meta.rev)?+mp.meta.rev:0,mp.applied||0)+1,n=Math.max(1,Math.ceil(mj.length/CHUNK));
       for(let i=0;i<n;i++)await mp.db.doc('live/map/parts/p'+i).set({rev,s:mj.slice(i*CHUNK,(i+1)*CHUNK)});
       await mp.db.doc('live/map').set({rev,n,name:(libCur()||{}).name||''});mp.applied=rev;mp.pushed.map=mj}
-    const tj=JSON.stringify(shown.map(t=>[t.id,t.s,t.x,t.y,t.o||0]));
+    const tj=JSON.stringify(shown.map(t=>[t.id,t.s,t.x,t.y,t.o||0,t.rv||0,t.re||'']));
     if(tj!==mp.pushed.tok){const rev=Math.max(mp.tok&&fin(mp.tok.rev)?+mp.tok.rev:0,mp.tokApplied||0)+1;
       // a move the token's player made isn't a change they missed: their next step (sent before this arrives) still counts
       st.tokens.forEach(t=>{const lp=mp.lastPos.get(t.id),pm=mp.plMv.get(t.id);if((!lp||lp[0]!==t.x||lp[1]!==t.y)&&!(pm&&pm[0]===t.x&&pm[1]===t.y))mp.tokR[t.id]=rev});mp.plMv.clear();
       // positions as sent, taken before the write: a move made while it's in flight must still count as a change next time
       const sent=new Map(st.tokens.map(t=>[t.id,[t.x,t.y]]));
-      await mp.db.doc('live/tokens').set({rev,list:shown.map(t=>({id:t.id,s:t.s,x:t.x,y:t.y,o:t.o||0,r:mp.tokR[t.id]||0}))});
+      await mp.db.doc('live/tokens').set({rev,list:shown.map(t=>({id:t.id,s:t.s,x:t.x,y:t.y,o:t.o||0,r:mp.tokR[t.id]||0,...(t.rv?{rv:t.rv,re:t.re||'u'}:{})}))});
       mp.tokApplied=rev;mp.pushed.tok=tj;mp.lastPos=sent}
     const cj=JSON.stringify(charsShared());if(cj!==mp.pushed.ch){await mp.db.doc('live/chars').set({c:JSON.parse(cj)});mp.pushed.ch=cj}
     if(mp.err){mp.err='';mpUI()}}
@@ -2506,10 +2513,10 @@ function mpTryTokens(){if(mp.role!=='player'||!mp.tok)return;const d=mp.tok;
   if(drag&&drag.kind==='token'){mp.heldTok=true;return}   // taken when the drag ends
   if(d.rev===mp.tokApplied&&!mp.heldTok)return;mp.heldTok=false;
   const list=(Array.isArray(d.list)?d.list:[]).filter(t=>t&&typeof t.id==='string'&&Number.isInteger(t.s)&&t.s>=0&&t.s<SHEETS.length&&fin(t.x)&&fin(t.y))
-    .map(t=>({id:t.id,s:t.s,x:Math.max(0,Math.min(W,+t.x)),y:Math.max(0,Math.min(H,+t.y)),o:Number.isInteger(t.o)?t.o:0,r:fin(t.r)?+t.r:0}));
+    .map(t=>({id:t.id,s:t.s,x:Math.max(0,Math.min(W,+t.x)),y:Math.max(0,Math.min(H,+t.y)),o:Number.isInteger(t.o)?t.o:0,r:fin(t.r)?+t.r:0,...(fin(t.rv)?{rv:+t.rv,re:ENT[t.re]?t.re:'u'}:{})}));
   // my own move stays on screen until the DM's page has taken it (or a newer DM move replaces it)
   const pe=mp.pend;if(pe){const t=list.find(t=>t.id===pe.id);if(t&&t.r<=pe.base){t.x=pe.x;t.y=pe.y}else mp.pend=null}
-  st.tokens=list.map(({r,...t})=>t);mp.tokApplied=d.rev;syncHint()}
+  entArrived(list,mp.tokApplied===null);st.tokens=list.map(({r,...t})=>t);mp.tokApplied=d.rev;syncHint()}
 function mpMoved(t){if(mp.role!=='player'||!t)return;const base=mp.tokApplied||0;
   mp.pend={id:t.id,x:t.x,y:t.y,base};mp.pres.mv={id:t.id,x:t.x,y:t.y,n:++mp.myMv,base};mpTryTokens()}
 function mpPinged(x,y){if(mp.role!=='off')mp.pres.ping={x:Math.round(x),y:Math.round(y),n:++mp.myPing}}
@@ -2776,7 +2783,7 @@ function charsArrived(d){mp.chars=charMap(d&&d.c);const k=mySheet(),c=k!==null&&
 // ---- on the map: an HP bar under each character's token, and their name and numbers on hover ----
 function hpCol(c){const f=c.hp.cur/c.hp.max;return f>.5?'#7fd07a':f>.25?'#e8c25a':'#e0705a'}
 function drawChars(){const fv=fogView();let hv=null;
-  for(const t0 of st.tokens){const c=charFor(t0.s);if(!c||!tokShown(fv,t0))continue;const gh=t0.id&&mp.ghost.get(t0.id),t=gh?{...t0,x:gh[0],y:gh[1]}:t0;
+  for(const t0 of st.tokens){const c=charFor(t0.s);if(!c||!tokSeen(fv,t0))continue;const gh=t0.id&&mp.ghost.get(t0.id),t=gh?{...t0,x:gh[0],y:gh[1]}:t0;
     const w=Math.max(22,18*Z),x=t.x*Z-w/2,y=(t.y+2)*Z+1,f=Math.min(1,c.hp.cur/c.hp.max);
     ctx.fillStyle='rgba(18,15,20,.85)';ctx.beginPath();ctx.roundRect(x-1,y-1,w+2,6,3);ctx.fill();
     ctx.fillStyle=hpCol(c);ctx.fillRect(x,y,w*f,4);if(c.hp.tmp){ctx.fillStyle='#7fb2e8';ctx.fillRect(x+w*f,y,Math.min(w*(1-f),w*c.hp.tmp/c.hp.max),4)}
@@ -3079,7 +3086,7 @@ function rlStage(r){const box=$('rollstage');cancelAnimationFrame(rlStageRaf);cl
 
 // over the token: the total, rising and fading
 function drawRolls(){const now=performance.now(),fv=fogView();rlBubbles=rlBubbles.filter(b=>now-b.t0<3200);
-  for(const b of rlBubbles){const t=st.tokens.find(t=>t.s===b.s);if(!t||!tokShown(fv,t))continue;const q=(now-b.t0)/3200,x=t.x*Z,y=(t.y-30)*Z-10-q*16;
+  for(const b of rlBubbles){const t=st.tokens.find(t=>t.s===b.s);if(!t||!tokSeen(fv,t))continue;const q=(now-b.t0)/3200,x=t.x*Z,y=(t.y-30)*Z-10-q*16;
     ctx.globalAlpha=q<.75?1:(1-q)/.25;ctx.font='700 15px "Pixelify Sans", monospace';const w=Math.max(26,ctx.measureText(b.txt).width+14);
     ctx.fillStyle=b.nat===20?'#2f5a38':b.nat===1?'#6a2a24':'rgba(29,27,34,.94)';ctx.beginPath();ctx.roundRect(x-w/2,y-20,w,22,6);ctx.fill();
     ctx.strokeStyle=b.nat===20?'#7fd07a':b.nat===1?'#e0705a':'#f2c49f';ctx.lineWidth=1.5;ctx.stroke();
@@ -3510,7 +3517,7 @@ function killPlace(k){k.placed=true;if(st!==k.st)return;   // undone or another 
   const[x,y]=killPool(k);st.objects.push({k:poolK(k),x,y,v:k.bv});objDirty=true;save()}
 function tokKill(i,style){if(mp.role==='player')return;const t=st.tokens[i];if(!killable(t))return;signClose();
   const boom=(style||killStyle)==='boom';push();st.tokens.splice(i,1);sel=null;const sd=1+Math.floor(Math.random()*99999);
-  killStart(t,sd,killBlood,false,boom);save();syncUI();bmEmit({f:3,x:Math.round(t.x),y:Math.round(t.y),s:t.s,d:sd,b:killBlood?1:0,e:boom?1:0})}
+  killStart(t,sd,killBlood,false,boom);save();syncUI();if(!tokHid(t))bmEmit({f:3,x:Math.round(t.x),y:Math.round(t.y),s:t.s,d:sd,b:killBlood?1:0,e:boom?1:0})}
 function killPeer(e){const s=+e.s;if(!Number.isInteger(s)||!TOKINFO[s])return;killStart({x:+e.x,y:+e.y,s,o:0},fin(e.d)?Math.max(1,Math.floor(+e.d)):1,!!e.b,true,!!e.e)}
 function killTick(){const now=performance.now();kills.forEach(k=>{if(!k.placed&&now-k.t0>=poolT(k)[1]*1000)killPlace(k)});kills=kills.filter(k=>now-k.t0<killLen(k));throwTick(now)}
 // the spray: each drop leaves the body at a fake height, flies with gravity, lands, then soaks in and fades
@@ -3858,6 +3865,94 @@ function buildAtk(){const box=$('pane-atk'),me=myTok(),cur=atkCur(me),auto=atkPi
 function atkPop(on){const pop=$('atkpop');if(on){pop.hidden=false;const r=$('atkbtn').getBoundingClientRect();pop.style.left=Math.max(8,Math.min(innerWidth-pop.offsetWidth-8,r.left+r.width/2-pop.offsetWidth/2))+'px';
     pop.style.bottom=(innerHeight-r.top+10)+'px'}else pop.hidden=true;const b=$('atkbtn');if(b)b.setAttribute('aria-expanded',String(on))}
 document.addEventListener('pointerdown',e=>{const pop=$('atkpop');if(!pop.hidden&&!pop.contains(e.target)&&!e.target.closest('#atkbtn'))atkPop(false)},true);
+// ================= hidden tokens (ambushes) =================
+// The DM can hide any token from players (t.hd = 1): select it and Hide from players, right-click it, or tick Place hidden
+// in the Tokens tray so new ones start hidden. Hidden tokens are left out of what players receive (like tokens in fog), so a
+// player's page never knows they're there. The DM sees them ghosted, with a dotted ring and a closed eye overhead; the player
+// preview leaves them out, and so do snapshots.
+// Reveal (one token, or Reveal all hidden) clears hd and stamps the token with rv (Date.now()) and re, how it enters:
+//   'u' springs up out of the ground, 'd' drops in from above, 's' appears in a puff of smoke
+// (the selection bar's entrance button, remembered per browser in dustmap-entrance). A player's page plays the entrance when a
+// token arrives with an rv it hasn't seen, except in the first token list it gets and for reveals older than 20 s, so it plays
+// once, as the token appears. Several revealed together go off one after another, left to right.
+// Animation off or reduced motion: it just appears. A token handed to a player in a session always shows, hidden or not.
+const ENT={u:{name:'Springs up',how:'spring up out of the ground',len:900},d:{name:'Drops in',how:'drop in from above',len:850},s:{name:'Puff of smoke',how:'appear in a puff of smoke',len:1150}};
+const ENT_ORDER=['u','d','s'],ENT_GAP=140;
+let entStyle='u',placeHidden=false,ents=[],entClock=null;const entSeen=new Set();   // entClock: tests pin every entrance to one moment (ms in)
+try{const v=localStorage.getItem('dustmap-entrance');if(ENT[v])entStyle=v}catch(e){}
+const tokPlayed=t=>!!(mp.sess&&mp.sess.live&&mp.sess.assign[t.s]);
+const tokHid=t=>!!t&&!!t.hd&&!tokPlayed(t);
+const hidSel=()=>tool==='select'&&mp.role!=='player'&&sel&&sel.type==='token'&&st.tokens[sel.i]?sel.i:-1;
+$('thide').innerHTML=svgI('hide',2);$('thide').onclick=()=>{placeHidden=!placeHidden;syncUI()};
+function tokHide(i,on){if(mp.role==='player')return;const t=st.tokens[i];if(!t||!!t.hd===on)return;push();
+  if(on){t.hd=1;delete t.rv;delete t.re}else tokUnhide(t,0);save();selKey='';syncUI()}
+function tokUnhide(t,delay){delete t.hd;t.rv=Date.now();t.re=entStyle;entStart(t,t.re,delay)}
+function tokRevealAll(){if(mp.role==='player')return;const l=st.tokens.filter(t=>t.hd);if(!l.length)return;push();
+  l.sort((a,b)=>a.x-b.x).forEach((t,k)=>tokUnhide(t,k*ENT_GAP));save();selKey='';syncUI()}
+// ---- entrances ----
+const strHash=s=>{let h=7;for(const c of String(s))h=Math.imul(h^c.charCodeAt(0),16777619);return h>>>0};
+function entStart(t,e,delay){if(killStill()||!ENT[e])return;ents=ents.filter(q=>q.ref!==t&&!(t.id&&q.id===t.id));
+  ents.push({ref:t,id:t.id||'',e,t0:performance.now()+(delay||0),sd:1+strHash((t.id||'')+t.x+','+t.y)%99991,shook:false})}
+function entPrune(){const now=performance.now();if(ents.length&&entClock===null)ents=ents.filter(q=>now-q.t0<ENT[q.e].len)}
+function entFind(t){const r=t.ref||t;return ents.find(q=>q.ref===r||q.id&&q.id===t.id)}
+// players: tokens just revealed by the DM come in with an entrance
+function entArrived(list,first){const had=new Set(st.tokens.map(t=>t.id)),now=Date.now(),fresh=[];
+  list.forEach(t=>{if(!t.rv)return;const k=t.id+':'+t.rv;if(entSeen.has(k))return;entSeen.add(k);if(!first&&!had.has(t.id)&&Math.abs(now-t.rv)<20000)fresh.push(t)});
+  fresh.sort((a,b)=>a.x-b.x).forEach((t,k)=>entStart(t,t.re,k*ENT_GAP))}
+// one token, in map units
+function tokDraw(g,t,scr){const f=(frame+(t.o||0))%8,im=sheets[t.s],x=Math.round(t.x),y=Math.round(t.y);
+  const en=scr&&entFind(t);if(en){entDraw(g,t,en,im,f,x,y);return}
+  const gh=scr&&mp.role!=='player'&&tokHid(t.ref||t);
+  if(gh){g.save();g.globalAlpha=.42}
+  g.drawImage(shadowImg,x-7,y-2);if(im.complete)g.drawImage(im,f*32,0,32,32,x-16,y-31,32,32);
+  if(gh){g.restore();hidMark(g,t,x,y)}}
+// DM only: a dotted ring at its feet and a closed eye over its head
+function hidMark(g,t,x,y){const a=.65+.25*Math.sin(performance.now()/300);g.fillStyle=`rgba(176,140,255,${a})`;
+  for(let k=0;k<16;k+=1){if(k%2)continue;const q=k/16*Math.PI*2;g.fillRect(Math.round(x+Math.cos(q)*9)-.5,Math.round(y+Math.sin(q)*3.5)-.5,1,1)}
+  const ey=y+tokTop(t.s)-5,eye=[[-3,0],[-2,1],[-1,1],[0,1],[1,1],[2,1],[3,0],[-2,2],[0,2],[2,2]];
+  g.fillStyle='rgba(29,27,34,.85)';eye.forEach(([dx,dy])=>g.fillRect(x+dx-.5,ey+dy+.5,2,2));
+  g.fillStyle=`rgba(220,206,255,${Math.min(1,a+.2)})`;eye.forEach(([dx,dy])=>g.fillRect(x+dx-.5,ey+dy-.5,1,1))}
+const clamp01=v=>Math.max(0,Math.min(1,v));
+const backOut=p=>{const c=2.2;return 1+(c+1)*Math.pow(p-1,3)+c*Math.pow(p-1,2)};
+function entDraw(g,t,en,im,f,x,y){const tt=(entClock!==null?entClock:performance.now()-en.t0)/1000;if(tt<0)return;const R=mulberry(en.sd),ok=im.complete;
+  const sprite=(dx,dy,w,h)=>{if(ok)g.drawImage(im,f*32,0,32,32,dx,dy,w,h)};
+  if(en.e==='u'){   // the ground cracks, it bursts up through it with a little hop, dirt flies
+    const crack=tt<.12?tt/.12:tt<.5?1:Math.max(0,1-(tt-.5)/.35),cw=Math.round(4+8*Math.min(1,tt/.12));
+    if(crack>0){g.fillStyle=`rgba(64,44,38,${.85*crack})`;g.fillRect(x-cw/2,y-1,cw,1);g.fillRect(x-cw/2-2,y,cw+4,2);g.fillRect(x-cw/2,y+2,cw,1);
+      g.fillStyle=`rgba(36,24,22,${.9*crack})`;g.fillRect(x-cw/2+1,y,cw-2,2)}
+    const p=clamp01((tt-.08)/.42),off=Math.round((1-backOut(p))*30);
+    if(p>0){g.save();g.globalAlpha=p;g.drawImage(shadowImg,x-7,y-2);g.restore();
+      g.save();g.beginPath();g.rect(x-20,y-70,40,72);g.clip();sprite(x-16,y-31+off,32,32);g.restore()}
+    const tau=tt-.08;if(tau>0)for(let k=0;k<18;k++){const vx=(R()-.5)*70,vz=50+R()*90,c=DIRT[Math.floor(R()*DIRT.length)],sz=R()<.3?2:1,z=vz*tau-160*tau*tau;
+      if(z<0)continue;g.fillStyle=`rgba(${c[0]},${c[1]},${c[2]},${clamp01(1.2-tau/.7)})`;g.fillRect(Math.round(x+vx*tau),Math.round(y-z),sz,sz)}
+    return}
+  if(en.e==='d'){   // falls from above while its shadow grows, lands with a squash, a puff of dust and a small shake
+    const T=.36,p=clamp01(tt/T),h=Math.round(150*(1-p*p)),s=.3+.7*p;
+    g.save();g.globalAlpha=.35+.65*p;g.drawImage(shadowImg,Math.round(x-7*s),y-2,Math.max(2,Math.round(14*s)),Math.max(1,Math.round(4*s)));g.restore();
+    if(tt<T){g.save();g.globalAlpha=.22;sprite(x-16,y-31-h-14,32,32);g.globalAlpha=.4;sprite(x-16,y-31-h-7,32,32);g.restore();sprite(x-16,y-31-h,32,32);return}
+    if(!en.shook){en.shook=true;if(!reduce.matches)shake={t0:performance.now(),a:2}}
+    const l=tt-T;if(l<.12){const q=Math.sin(l/.12*Math.PI),w=Math.round(32*(1+.14*q)),hh=Math.round(32*(1-.18*q));sprite(x-w/2,y+1-hh,w,hh)}else sprite(x-16,y-31,32,32);
+    for(let k=0;k<16;k++){const dir=k%2?1:-1,vx=dir*(25+R()*70),vz=8+R()*30,z=Math.max(0,vz*l-120*l*l),a=clamp01(1-l/.45);if(a<=0)break;
+      g.fillStyle=`rgba(232,214,196,${a})`;const sz=R()<.4?2:1;g.fillRect(Math.round(x+vx*l),Math.round(y+(R()-.5)*3-z),sz,sz)}
+    return}
+  // 's': a cloud of smoke bursts out, it's standing there as it thins
+  if(tt>=.2){g.drawImage(shadowImg,x-7,y-2);sprite(x-16,y-31,32,32)}
+  const A=tt<.12?tt/.12:clamp01(1-(tt-.12)/1),G=[[230,226,222],[204,198,198],[176,168,172]];
+  for(let k=0;k<14;k++){const q=R()*Math.PI*2,sp=.6+R()*.8,r=Math.round(3+R()*3+tt*5),c=G[Math.floor(R()*3)];
+    const cx=Math.round(x+Math.cos(q)*(3+tt*22*sp)),cy=Math.round(y-11+Math.sin(q)*(3+tt*12*sp)-tt*10);
+    g.fillStyle=`rgba(${c[0]},${c[1]},${c[2]},${A*.85})`;g.fillRect(cx-r,cy-Math.round(r*.6),r*2,Math.round(r*1.2));g.fillRect(cx-Math.round(r*.6),cy-r,Math.round(r*1.2),r*2)}}
+// ---- the DM's controls ----
+function hidSelbar(bar,add){const i=hidSel();if(i<0)return;const t=st.tokens[i];if(tokPlayed(t))return;
+  if(t.hd){add('reveal','Reveal','','Players see it '+ENT[entStyle].how,()=>tokHide(hidSel(),false));
+    const b=document.createElement('button'),rv=bar.lastChild,lbl=()=>{const n=ENT[entStyle].name;b.textContent=n;b.setAttribute('aria-label','Entrance: '+n);b.dataset.tip='Entrance: '+n;rv.dataset.sub='Players see it '+ENT[entStyle].how};
+    b.className='ib ibt';b.dataset.sub='Click to change how it appears';lbl();
+    b.onclick=()=>{entStyle=ENT_ORDER[(ENT_ORDER.indexOf(entStyle)+1)%ENT_ORDER.length];try{localStorage.setItem('dustmap-entrance',entStyle)}catch(e){}lbl();tipHide()};bar.append(b)}
+  else add('hide','Hide from players','','Players stop seeing it until you reveal it',()=>tokHide(hidSel(),true));
+  const n=st.tokens.filter(q=>q.hd).length;if(n>1||n===1&&!t.hd)add('showall',`Reveal all hidden (${n})`,'','Every hidden token appears, one after another',tokRevealAll)}
+function hidQuick(add,i,nm){const t=st.tokens[i];if(!t||tokPlayed(t))return;
+  if(t.hd)add('reveal','Reveal '+nm,()=>tokHide(i,false));else add('hide','Hide '+nm+' from players',()=>tokHide(i,true))}
+function hidAllQuick(add){const n=st.tokens.filter(t=>t.hd).length;if(n)add('showall',`Reveal all hidden (${n})`,tokRevealAll)}
+
 // ================= doors, stairs and entrances =================
 // A portal is an object ({k:'door'|'stairsdown'|'stairsup'|'entrance', x, y}) that also carries where it leads:
 //   id   its own id (so other doors can name it as the place to arrive)
@@ -4456,7 +4551,7 @@ $('libtour').onclick=tourOpen;$('tour').onclick=()=>{menuShow(false);tourOpen()}
 $('libcave').onclick=caveOpen;$('cave').onclick=()=>{menuShow(false);caveOpen()};
 // read-only peek for the tests
 window.__terrain=()=>({cv:tcan,L:lastR.L,W,H});
-window.__mpMe=()=>mp.me;window.__dustmap=()=>({st,fog:fogGet(),litFires:litFires(fogView()).length,role:mp.role,cam:{...cam},Z,pings:pings.map(p=>({x:p.x,y:p.y,rgb:p.rgb||null})),blasts:blasts.map(b=>({x:b.x,y:b.y,r:b.r})),fuses:fuses.length,kills:kills.length,throws:throws.length,hits:hits.length,th:thLog.slice(),tool,peers:mp.peers.length,busy:mp.busy,err:mp.err,again:mp.again,ks:kLive()?{n:kstep.n,path:kstep.path}:null,hist:hist.length,sel});
+window.__mpMe=()=>mp.me;window.__entClock=v=>{entClock=v==null?null:+v};window.__dustmap=()=>({st,fog:fogGet(),litFires:litFires(fogView()).length,role:mp.role,cam:{...cam},Z,pings:pings.map(p=>({x:p.x,y:p.y,rgb:p.rgb||null})),blasts:blasts.map(b=>({x:b.x,y:b.y,r:b.r})),fuses:fuses.length,kills:kills.length,ents:ents.length,entStyle,throws:throws.length,hits:hits.length,th:thLog.slice(),tool,peers:mp.peers.length,busy:mp.busy,err:mp.err,again:mp.again,ks:kLive()?{n:kstep.n,path:kstep.path}:null,hist:hist.length,sel});
 libInit();mpInit();
 buildTools();buildObjs();buildToks();buildPaints();updUndo();sizeCanvas();syncUI();requestAnimationFrame(loop);
 setTimeout(buildPaints,0);
