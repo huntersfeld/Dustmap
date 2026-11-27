@@ -120,6 +120,17 @@ input[type=range]{width:100%;accent-color:var(--rust)}
 .check{display:flex;align-items:center;gap:8px;cursor:pointer}
 .check input{accent-color:var(--rust);width:15px;height:15px;margin:0}
 .row{display:flex;align-items:center;gap:8px}
+/* the Attack tool's kind picker */
+.atkbtn{display:flex;align-items:center;gap:7px;white-space:nowrap}
+.atkdot{display:inline-block;width:10px;height:10px;border-radius:50%;flex:none;box-shadow:0 0 0 1px rgba(0,0,0,.35),0 0 6px currentColor}
+.atkdot.auto{background:conic-gradient(#ff8c28,#96d2ff,#b078ff,#ffdc6e,#82dc78,#ff8c28)}
+.atkpop{width:min(440px,calc(100vw - 16px));display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:8px;top:auto}
+.atkpop[hidden]{display:none}
+.atkopt{display:grid;grid-template-columns:auto 1fr;column-gap:8px;align-items:center;text-align:left;padding:6px 8px;border:0;border-radius:8px;background:transparent;color:var(--fg);cursor:pointer;font:inherit}
+.atkopt:hover{background:var(--raised)}.atkopt[aria-pressed="true"]{background:var(--raised);box-shadow:inset 0 0 0 1px var(--rust)}
+.atkopt b{font-size:13px;font-weight:600}.atkopt span:last-child{grid-column:2;font-size:11px;color:var(--muted);line-height:1.25}
+.atkopt#atk-auto{grid-column:1/-1}
+@media (max-width:520px){.atkpop{grid-template-columns:1fr}}
 /* zoom */
 .zoom{right:var(--gapr);bottom:calc(12px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;align-items:center;padding:4px;gap:1px}
 .zoom .ib{width:34px;height:32px;font-size:18px;font-weight:600}
@@ -337,6 +348,7 @@ a.btn{text-decoration:none;color:var(--fg)}
         <span class="trnote" id="fognote"></span>
       </div>
       <div class="pane" id="pane-mine"></div>
+      <div class="pane" id="pane-atk"></div>
     </div>
   </div>
 
@@ -367,6 +379,7 @@ a.btn{text-decoration:none;color:var(--fg)}
     <span class="note" id="gridnote">Drag for a block, click squares for a pattern. Right-click the map or R turns it.</span>
   </div>
 
+  <div class="pop atkpop" id="atkpop" role="group" aria-label="What your attack looks like" hidden></div>
   <div class="hint" id="hint" role="status"></div>
   <div class="float selbar" id="selbar" hidden></div>
   <div class="float qmenu" id="qmenu" role="menu" hidden></div>
@@ -1898,7 +1911,7 @@ function syncUI(){
    $('gridbadge').textContent=stp?(stampRot?stampRot*90+'°':''):scat?'×'+scatCount:objMix&&!tk||ts?'mix':objCells.size>1?cellLabel().replace(/ × /,'×').replace(' squares',''):''}
   // the tray shows only what the active tool needs
   const show={'pane-mode':!pl&&(r==='paint'||r==='height')&&!opSel,paints:!pl&&(r==='paint'||r==='height'||opSel),'pane-size':!pl&&(tool==='brush'||tool==='sculpt'||(tool==='draw'&&isPathPaint(paint)&&paint.t!==9)),
-    objs:!pl&&r==='object',toks:!pl&&r==='token','pane-place':!pl&&(r==='object'||r==='token'),'sec-fog':!pl&&r==='fog','pane-mine':pl};
+    objs:!pl&&r==='object',toks:!pl&&r==='token','pane-place':!pl&&(r==='object'||r==='token'),'sec-fog':!pl&&r==='fog','pane-mine':pl,'pane-atk':pl&&tool==='attack'};
   Object.entries(show).forEach(([id,on])=>$(id).hidden=!on);
   const any=Object.values(show).some(Boolean);$('tray').hidden=!any;document.body.classList.toggle('notray',!any);
   if(r!=='object'&&r!=='token')gridPop(false);
@@ -1909,6 +1922,7 @@ function syncUI(){
   $('fogwalkr').hidden=!st.fogWalk;$('walkr-v').textContent=walkR()+' sq';$('walkr-v').title=`Reveals ${walkR()} square${walkR()>1?'s':''} in every direction (${walkR()*5} ft)`;
   {const n=st.fog?[...st.fog].filter(c=>c==='1').length:0;$('fognote').textContent=n?`${n} of ${st.cols*st.rows} hidden`:'Nothing hidden'}
   if(pl)buildMine();
+  if(pl&&tool==='attack')buildAtk();else atkPop(false);
   $('rag').value=st.rag;syncHint()}
 // a player's tray: their own token(s); click one to find it on the map
 let mineKey='';
@@ -1935,7 +1949,7 @@ function syncHint(){const h=$('hint');h.replaceChildren();
   else if(tool==='measure'&&measure&&measure.follow){pill('Measure');add('Click where it ends')}
   else if(tool==='fog'&&mp.role!=='player'){const once=fogMode==='hide'?'hides':'reveals',twice=fogMode==='hide'?'reveals':'hides';
     if(fogPaint)pill(fogPaint.v==='1'?'Hiding':'Revealing');else pill('Fog');add(`Click or drag ${once} · double-click and drag ${twice}`)}
-  else if(tool==='attack'){pill(aim?'Aiming':'Attack');add('Drag to aim, release to throw · click an enemy to throw straight at it')}
+  else if(tool==='attack'){const v=ATK_BY[atkCur()].verb;pill(aim?'Aiming':ATK_BY[atkCur()].name);add(`Drag to aim, release to ${v} · click an enemy to ${v} straight at it`)}
   else if(tool!=='select'){}
   else if(mp.role==='player'){const mine=st.tokens.filter(t=>mpMayMove(t,mp.me)).map(t=>tokName(t.s));
     if(mine.length){pill('Playing '+mine.join(' & '));add('Drag, or step with <kbd>←</kbd><kbd>↑</kbd><kbd>→</kbd><kbd>↓</kbd> / <kbd>WASD</kbd>');add('Click an enemy to throw at it')}
@@ -3080,7 +3094,7 @@ function killPoolDraw(g,k,t){const[t0,t1]=poolT(k);if(!k.blood||!(k.peer||!k.pla
 function killUnder(g,fv){const now=performance.now(),still=killStill();
   kills.forEach(k=>{if(fogAt(fv,k.x,k.y))return;const t=(now-k.t0)/1000;killPoolDraw(g,k,t);
     if(!still){killDrops(g,k,t,true);if(k.boom)killGibs(g,k,t,true)}});
-  if(!still)hits.forEach(h=>{if(!h.miss&&!fogAt(fv,h.x,h.y))killDrops(g,h,(now-h.t0)/1000,true,10,1.6)})}
+  if(!still)hits.forEach(h=>{if(!h.miss&&!h.kill&&atkBleeds(h)&&!fogAt(fv,h.x,h.y))killDrops(g,h,(now-h.t0)/1000,true,10,1.6)})}
 // the token's current frame tinted with a colour, drawn where it stands
 function tokTint(g,cvs,t,col){const f=(frame+(t.o||0))%8,im=sheets[t.s];if(!im||!im.complete)return;const tg=cvs.getContext('2d');tg.globalCompositeOperation='copy';
   tg.drawImage(im,f*32,0,32,32,0,0,32,32);tg.globalCompositeOperation='source-atop';tg.fillStyle=col;tg.fillRect(0,0,32,32);g.drawImage(cvs,Math.round(t.x)-16,Math.round(t.y)-31)}
@@ -3107,11 +3121,11 @@ function killOver(g,fv){const now=performance.now(),still=killStill();
     killDrops(g,k,t,false)});
   throwDraw(g,fv,now,still);
   // a hit: the target flashes white, then red
-  hits.forEach(h=>{const t=(now-h.t0)/1000;if(t>.3||fogAt(fv,h.x,h.y))return;const tk=h.id&&st.tokens.find(q=>q.id===h.id);if(!tk)return;
-    tokTint(g,tintCv,tk,t<.08?'rgba(255,255,255,.95)':`rgba(200,24,24,${.6*(1-(t-.08)/.22)})`);
-    if(!still&&t<.25){g.strokeStyle=`rgba(255,240,200,${1-t/.25})`;g.lineWidth=1;const r=3+t*24,cx=h.x,cy=h.y-14;
+  hits.forEach(h=>{const t=(now-h.t0)/1000;if(fogAt(fv,h.x,h.y))return;const tk=h.id&&st.tokens.find(q=>q.id===h.id);atkHit(g,h,t,tk,still);if(t>.3||!tk)return;
+    const tc=ATK_BY[h.c].tint||[200,24,24];tokTint(g,tintCv,tk,t<.08?'rgba(255,255,255,.95)':`rgba(${tc[0]},${tc[1]},${tc[2]},${.6*(1-(t-.08)/.22)})`);
+    if(!still&&t<.25&&atkBleeds(h)){g.strokeStyle=`rgba(255,240,200,${1-t/.25})`;g.lineWidth=1;const r=3+t*24,cx=h.x,cy=h.y-14;
       for(let a=0;a<8;a++){const an=a/8*Math.PI*2;g.beginPath();g.moveTo(cx+Math.cos(an)*r*.6,cy+Math.sin(an)*r*.6);g.lineTo(cx+Math.cos(an)*r,cy+Math.sin(an)*r);g.stroke()}}});
-  if(!still)hits.forEach(h=>{if(fogAt(fv,h.x,h.y))return;const t=(now-h.t0)/1000;if(!h.miss){killDrops(g,h,t,false,10,1.6);return}
+  if(!still)hits.forEach(h=>{if(fogAt(fv,h.x,h.y)||!atkBleeds(h))return;const t=(now-h.t0)/1000;if(!h.miss){if(!h.kill)killDrops(g,h,t,false,10,1.6);return}
     // a miss: a puff of dust where it lands
     if(t<.7){const R=mulberry(h.sd+3);for(let i=0;i<7;i++){const a=R()*Math.PI*2,p=t/.7;g.fillStyle=`rgba(196,160,128,${.5*(1-p)})`;g.beginPath();g.arc(h.x+Math.cos(a)*(2+p*7),h.y+Math.sin(a)*(1+p*3)-p*3,1+p*2.5,0,7);g.fill()}}});
   aimDraw(g);
@@ -3135,23 +3149,25 @@ function killBoom(g,k,t,still){const x=k.x,y=k.y-14;
 const THROW_KINDS=['rock','bottle','knife'];
 let throws=[],hits=[],thLog=[],thN=0,thLast=0;const thSeen=new Map();
 const throwDur=(fx,fy,tx,ty)=>.32+Math.hypot(tx-fx,ty-fy)/420;
-function throwStart(fx,fy,tx,ty,id,sd,judge){const now=performance.now();throws.push({fx,fy,tx,ty,id,sd,kind:THROW_KINDS[sd%3],t0:now,dur:throwDur(fx,fy,tx,ty)*1000,judge})}
+function throwStart(fx,fy,tx,ty,id,sd,judge,c){const now=performance.now();c=ATK_BY[c]?c:'thrown';
+  throws.push({fx,fy,tx,ty,id,sd,c,kind:THROW_KINDS[sd%3],t0:now,dur:atkDur(c,Math.hypot(tx-fx,ty-fy))*1000,judge})}
 // a player clicks a townsfolk or enemy token: their own token throws at it
 function throwAt(i){if(mp.role!=='player'||!mp.sess||!mp.sess.live)return false;const t=st.tokens[i];if(!killable(t)||!t.id)return false;
   const me=st.tokens.find(q=>mp.sess.assign[q.s]===mp.me);if(!me)return false;const now=performance.now();if(now-thLast<350)return true;thLast=now;
-  const sd=1+Math.floor(Math.random()*99999),ev={n:++thN,id:t.id,fx:Math.round(me.x),fy:Math.round(me.y),tx:Math.round(t.x),ty:Math.round(t.y),sd};
-  thLog.push(ev);if(thLog.length>6)thLog.shift();mp.pres.th=thLog.slice();throwStart(ev.fx,ev.fy,ev.tx,ev.ty,t.id,sd,false);return true}
+  throwEmit(me,t.x,t.y,t.id);return true}
 // any page: play the throws a peer's presence lists (new ones only); the DM's page judges what they hit
 function throwPeer(key,th){if(!Array.isArray(th))th=[];const seen=thSeen.get(key),top=Math.max(0,...th.map(e=>e&&fin(e.n)?+e.n:0));thSeen.set(key,Math.max(seen||0,top));
   if(seen===undefined)return;th.forEach(e=>{if(!e||!fin(e.n)||+e.n<=seen||typeof e.id!=='string'||![e.fx,e.fy,e.tx,e.ty].every(fin))return;
-    throwStart(+e.fx,+e.fy,+e.tx,+e.ty,e.id,fin(e.sd)?Math.max(1,Math.floor(+e.sd)):1,mp.role==='dm')})}
+    throwStart(+e.fx,+e.fy,+e.tx,+e.ty,e.id,fin(e.sd)?Math.max(1,Math.floor(+e.sd)):1,mp.role==='dm',typeof e.c==='string'?e.c:'thrown')})}
 function throwTick(now){const done=throws.filter(p=>now-p.t0>=p.dur);if(!done.length)return;throws=throws.filter(p=>now-p.t0<p.dur);
   done.forEach(p=>{const i=p.id?st.tokens.findIndex(t=>t.id===p.id):-1,t=st.tokens[i],x=t?t.x:p.tx,y=t?t.y:p.ty;
-    if(p.judge&&t&&t.kl&&killable(t)){tokKill(i,klStyle(t));return}
-    hits.push({x,y,id:p.id,sd:p.sd,dir:p.tx>=p.fx?1:-1,t0:now,miss:!t})});
+    const h={x,y,id:p.id,sd:p.sd,c:p.c,fx:p.fx,fy:p.fy,dir:p.tx>=p.fx?1:-1,t0:now,miss:!t};
+    if(p.judge&&t&&t.kl&&killable(t)){tokKill(i,klStyle(t));h.id='';h.kill=1}   // the death plays; the spell's burst still lands
+    hits.push(h)});
   hits=hits.filter(h=>now-h.t0<1600)}
 // the thrown thing: an arc from the thrower's hand to the target's chest, spinning, with its shadow on the ground
 function throwDraw(g,fv,now,still){throws.forEach(p=>{const q=Math.min(1,(now-p.t0)/p.dur),gx=p.fx+(p.tx-p.fx)*q,gy=p.fy+(p.ty-p.fy)*q;if(fogAt(fv,gx,gy))return;
+  if(p.c!=='thrown'){atkFlight(g,p,q,now,still);return}
   const hgt=Math.min(36,8+Math.hypot(p.tx-p.fx,p.ty-p.fy)*.22),z=14-2*q+(still?0:4*hgt*q*(1-q));
   g.fillStyle='rgba(60,30,30,.28)';g.fillRect(Math.round(gx)-1,Math.round(gy)-1,3,1);
   g.save();g.translate(Math.round(gx),Math.round(gy-z));g.rotate((p.tx>=p.fx?1:-1)*q*p.dur/1000*(p.kind==='rock'?9:16));
@@ -3190,8 +3206,8 @@ function aimPath(me,a,b){let dx=b[0]-a[0],dy=b[1]-a[1];const L=Math.hypot(dx,dy)
   st.tokens.forEach(t=>{if(t===me||!killable(t)||!t.id)return;const cx=t.x,cy=t.y-6,s=Math.max(0,Math.min(1,((cx-sx)*vx+(cy-sy)*vy)/vv));
     if(Math.hypot(sx+vx*s-cx,sy+vy*s-cy)<=10&&s<bs){bs=s;best=t}});
   return{ex,ey,t:best}}
-function throwEmit(me,tx,ty,id){const sd=1+Math.floor(Math.random()*99999),ev={n:++thN,id,fx:Math.round(me.x),fy:Math.round(me.y),tx:Math.round(tx),ty:Math.round(ty),sd};
-  thLog.push(ev);if(thLog.length>6)thLog.shift();mp.pres.th=thLog.slice();throwStart(ev.fx,ev.fy,ev.tx,ev.ty,id,sd,false)}
+function throwEmit(me,tx,ty,id){const sd=1+Math.floor(Math.random()*99999),c=atkTake(me),ev={n:++thN,id,fx:Math.round(me.x),fy:Math.round(me.y),tx:Math.round(tx),ty:Math.round(ty),sd,c};
+  thLog.push(ev);if(thLog.length>6)thLog.shift();mp.pres.th=thLog.slice();throwStart(ev.fx,ev.fy,ev.tx,ev.ty,id,sd,false,c)}
 cv.addEventListener('pointerdown',e=>{if(tool!=='attack'||mp.role!=='player'||e.button!==0||spaceDown)return;e.stopImmediatePropagation();e.preventDefault();
   const p=toMap(e);try{cv.setPointerCapture(e.pointerId)}catch(_){}aim={a:p,b:p,id:e.pointerId,sx:e.clientX,sy:e.clientY,far:false};syncUI()},true);
 cv.addEventListener('pointermove',e=>{if(!aim||e.pointerId!==aim.id)return;aim.b=toMap(e);if(Math.hypot(e.clientX-aim.sx,e.clientY-aim.sy)>6)aim.far=true;hover=aim.b},true);
@@ -3203,9 +3219,203 @@ function aimEnd(e){if(!aim||e.pointerId!==aim.id)return;e.stopImmediatePropagati
 cv.addEventListener('pointerup',aimEnd,true);cv.addEventListener('pointercancel',aimEnd,true);
 // the aim line on the thrower's own screen: dashed from the token to where it lands, a ring on whoever is in the way
 function aimDraw(g){if(!aim||!aim.far)return;const me=myTok();if(!me)return;const r=aimPath(me,aim.a,aim.b);if(!r)return;
-  const ex=r.t?r.t.x:r.ex,ey=r.t?r.t.y:r.ey,ln=()=>{g.beginPath();g.moveTo(me.x,me.y-12);g.lineTo(ex,ey-(r.t?12:0));g.stroke()};g.save();g.lineCap='round';g.lineWidth=2.6;g.strokeStyle='rgba(60,30,30,.55)';ln();g.setLineDash([4,3]);g.lineWidth=1.3;g.strokeStyle='rgba(255,240,210,1)';ln();g.setLineDash([]);
+  const ex=r.t?r.t.x:r.ex,ey=r.t?r.t.y:r.ey,ln=()=>{g.beginPath();g.moveTo(me.x,me.y-12);g.lineTo(ex,ey-(r.t?12:0));g.stroke()};g.save();g.lineCap='round';g.lineWidth=2.6;g.strokeStyle='rgba(60,30,30,.55)';ln();g.setLineDash([4,3]);g.lineWidth=1.3;{const c=ATK_BY[atkCur(me)].col;g.strokeStyle=`rgb(${Math.round(c[0]/2+128)},${Math.round(c[1]/2+128)},${Math.round(c[2]/2+128)})`}ln();g.setLineDash([]);
   if(r.t){g.strokeStyle='rgba(230,40,40,.95)';g.lineWidth=1.5;g.beginPath();g.ellipse(r.t.x,r.t.y-1,8,4,0,0,7);g.stroke()}
   else{g.strokeStyle='rgba(255,236,200,.95)';g.beginPath();g.moveTo(ex-3,ey-3);g.lineTo(ex+3,ey+3);g.moveTo(ex+3,ey-3);g.lineTo(ex-3,ey+3);g.stroke()}g.restore()}
+// ---- attack kinds: what a player's attack looks like ----
+// Every attack (a click on an enemy, or an Attack tool drag) plays one of a dozen kinds. Spells are grouped by look, not
+// one animation per spell:
+//   thrown     a rock, a bottle or a knife, spinning in an arc (the old throw)
+//   melee      a weapon swing: a white crescent across the target
+//   arrow      bow or crossbow: a fast, nearly flat arrow
+//   shot       firearm: muzzle flash, a tracer, a spark and a curl of gun smoke
+//   fire       a fireball with an ember trail; a burst of flame          (fire damage)
+//   frost      a pale blue ray; ice shards and frost on the target       (cold)
+//   lightning  a forked, flickering bolt; a white flash and sparks       (lightning)
+//   arcane     three violet darts that curve in; a ring of sparkles     (force, psychic)
+//   radiant    a column of gold light from above; motes rising          (radiant)
+//   necrotic   a wavering dark orb trailing smoke; tendrils close in     (necrotic)
+//   acid       a green glob lobbed in an arc; a splash that hisses       (acid, poison)
+//   sonic      rings of sound and music notes; the target shudders      (thunder; bard)
+// Which kind: the player picks one in the Attack tool's tray (remembered per browser in dustmap-attack), or Auto, which
+// goes by the class on their D&D Beyond card (first class listed), then by the token (the Wizard casts arcane), then thrown.
+// The kind rides on the throw (th[].c on presence); a page that doesn't know it plays a plain throw.
+// Hook for spell and dice panels: atkKindFor({spell, damage, weapon, ranged, cls}) names the kind for an attack, and
+// atkArm(kind) makes the player's next attack that kind (and picks the Attack tool). Both are on window.dustmapAttack too.
+const ATK=[
+ {k:'thrown',name:'Throw',verb:'throw',sub:'A rock, a bottle or a knife',col:[214,184,150],phys:1},
+ {k:'melee',name:'Strike',verb:'strike',sub:'Sword, axe, club or fist',col:[236,236,242],phys:1},
+ {k:'arrow',name:'Arrow',verb:'shoot',sub:'Bow or crossbow',col:[200,160,110],phys:1},
+ {k:'shot',name:'Gunshot',verb:'shoot',sub:'Pistol, rifle or musket',col:[255,214,120],phys:1},
+ {k:'fire',name:'Fire',verb:'cast',sub:'Fire Bolt, Fireball, Scorching Ray',col:[255,140,40],tint:[255,110,20]},
+ {k:'frost',name:'Frost',verb:'cast',sub:'Ray of Frost, Ice Knife, Cone of Cold',col:[150,210,255],tint:[120,190,255]},
+ {k:'lightning',name:'Lightning',verb:'cast',sub:'Witch Bolt, Shocking Grasp, Lightning Bolt',col:[200,220,255],tint:[255,250,190]},
+ {k:'arcane',name:'Arcane',verb:'cast',sub:'Magic Missile, Eldritch Blast: force and psychic',col:[176,120,255],tint:[160,90,255]},
+ {k:'radiant',name:'Radiant',verb:'cast',sub:'Sacred Flame, Guiding Bolt, smites',col:[255,220,110],tint:[255,214,90]},
+ {k:'necrotic',name:'Necrotic',verb:'cast',sub:'Chill Touch, Toll the Dead, Inflict Wounds',col:[130,220,120],tint:[60,20,70]},
+ {k:'acid',name:'Acid & poison',verb:'cast',sub:'Acid Splash, Poison Spray, Melf’s Acid Arrow',col:[150,230,70],tint:[120,210,40]},
+ {k:'sonic',name:'Sonic',verb:'cast',sub:'Vicious Mockery, Thunderwave: bardic and thunder',col:[255,150,210],tint:[255,140,200]}];
+const ATK_BY=Object.fromEntries(ATK.map(a=>[a.k,a]));
+const atkBleeds=h=>!!ATK_BY[h.c].phys;
+// a class's usual attack (D&D Beyond's class names; the card's first class wins on a multiclass)
+const ATK_CLASS={barbarian:'melee',fighter:'melee',monk:'melee',paladin:'radiant',rogue:'thrown',ranger:'arrow',bard:'sonic',cleric:'radiant',
+  druid:'lightning',sorcerer:'fire',wizard:'arcane',warlock:'necrotic',artificer:'shot','blood hunter':'necrotic'};
+// damage types (D&D Beyond's names, any case)
+const ATK_DAMAGE={fire:'fire',cold:'frost',lightning:'lightning',thunder:'sonic',force:'arcane',psychic:'arcane',radiant:'radiant',necrotic:'necrotic',acid:'acid',poison:'acid'};
+// spells whose look isn't their damage type
+const ATK_SPELL={'vicious mockery':'sonic','dissonant whispers':'sonic','shatter':'sonic','thunderwave':'sonic','booming blade':'melee','green-flame blade':'melee',
+  'eldritch blast':'arcane','magic missile':'arcane','mind sliver':'arcane','chill touch':'necrotic','toll the dead':'necrotic','hex':'necrotic','sacred flame':'radiant',
+  'guiding bolt':'radiant','word of radiance':'radiant','ice knife':'frost','hunter’s mark':'arrow',"hunter's mark":'arrow','thorn whip':'melee','shillelagh':'melee'};
+const atkLow=v=>String(v||'').toLowerCase().trim();
+function atkClass(cls){const s=atkLow(cls);if(!s)return null;let best=null,at=1e9;   // the first class named in "Wizard (Evocation) 5 / Fighter 2"
+  for(const[n,k]of Object.entries(ATK_CLASS)){const i=s.indexOf(n);if(i>=0&&i<at){at=i;best=k}}return best}
+function atkKindFor(o){o=o&&typeof o==='object'?o:{};const sp=atkLow(o.spell),dm=atkLow(o.damage),wp=atkLow(o.weapon);
+  if(ATK_BY[o.kind])return o.kind;
+  if(sp&&ATK_SPELL[sp])return ATK_SPELL[sp];
+  if(ATK_DAMAGE[dm])return ATK_DAMAGE[dm];
+  if(/pistol|revolver|rifle|musket|blunderbuss|shotgun|firearm|\bgun\b/.test(wp))return'shot';
+  if(/bow\b|crossbow|longbow|shortbow/.test(wp))return'arrow';
+  if(/dagger|javelin|dart|handaxe|throwing|sling|net|light hammer/.test(wp)&&o.ranged)return'thrown';
+  if(/piercing|slashing|bludgeoning/.test(dm)||wp)return o.ranged?(dm==='piercing'?'arrow':'thrown'):'melee';
+  return atkClass(o.cls)||'thrown'}
+let atkPick='auto',atkNext=null;try{const v=localStorage.getItem('dustmap-attack');if(v==='auto'||ATK_BY[v])atkPick=v}catch(e){}
+// Auto: the class on my card, then my token (the Wizard sprite casts arcane), then a throw
+function atkAuto(me){const c=myChar&&atkClass(myChar.cls);if(c)return c;if(me&&me.s===3)return'arcane';return'thrown'}
+const atkCur=me=>atkNext||(atkPick==='auto'?atkAuto(me||myTok()):atkPick);
+function atkTake(me){const c=atkCur(me);if(atkNext){atkNext=null;atkSync()}return c}
+function atkArm(kind){if(!ATK_BY[kind])return false;atkNext=kind;if(mp.role==='player'&&tool!=='attack')setTool('attack');atkSync();return true}
+function atkSet(k){atkPick=k;atkNext=null;try{localStorage.setItem('dustmap-attack',k)}catch(e){}atkSync()}
+window.dustmapAttack={kinds:ATK.map(a=>({k:a.k,name:a.name})),kindFor:atkKindFor,arm:atkArm,current:()=>atkCur()};
+// how long a kind takes to get there (seconds), d = distance in map px
+function atkDur(c,d){switch(c){case'melee':return .26+d/1400;case'arrow':return .12+d/650;case'shot':return .07+d/2400;case'fire':return .28+d/300;
+  case'frost':return .32+d/900;case'lightning':return .2;case'arcane':return .42+d/380;case'radiant':return .46;case'necrotic':return .38+d/250;
+  case'acid':return .3+d/380;case'sonic':return .3+d/320;default:return throwDur(0,0,d,0)}}
+// ---- drawing ----
+const atkRgba=(c,a)=>`rgba(${c[0]},${c[1]},${c[2]},${Math.max(0,Math.min(1,a))})`;
+function atkGlow(g,x,y,r,c,a){if(a<=0||r<=0)return;const gr=g.createRadialGradient(x,y,0,x,y,r);gr.addColorStop(0,atkRgba(c,a));gr.addColorStop(1,atkRgba(c,0));
+  g.save();g.globalCompositeOperation='lighter';g.fillStyle=gr;g.fillRect(x-r,y-r,r*2,r*2);g.restore()}
+const atkPx=(g,x,y,c,a,s)=>{g.fillStyle=atkRgba(c,a);g.fillRect(Math.round(x),Math.round(y),s||1,s||1)};
+// a forked bolt from a to b, the same while seed n holds
+function atkBolt(g,ax,ay,bx,by,n,w,col,a){const R=mulberry(n),dx=bx-ax,dy=by-ay,L=Math.hypot(dx,dy)||1,nx=-dy/L,ny=dx/L,seg=Math.max(3,Math.round(L/7)),pts=[[ax,ay]];
+  for(let i=1;i<seg;i++){const f=i/seg,o=(R()-.5)*Math.min(9,L*.16);pts.push([ax+dx*f+nx*o,ay+dy*f+ny*o])}pts.push([bx,by]);
+  g.save();g.globalCompositeOperation='lighter';g.lineCap='round';g.lineJoin='round';
+  for(const[lw,c,al]of[[w+3,[90,110,255],a*.35],[w,col,a],[1,[255,255,255],a]]){g.strokeStyle=atkRgba(c,al);g.lineWidth=lw;g.beginPath();pts.forEach(([x,y],i)=>i?g.lineTo(x,y):g.moveTo(x,y));g.stroke()}
+  // a short fork off the middle
+  const m=pts[Math.floor(pts.length/2)],fa=Math.atan2(dy,dx)+(R()<.5?-1:1)*(.6+R()*.5),fl=4+R()*6;g.strokeStyle=atkRgba(col,a*.8);g.lineWidth=1;g.beginPath();g.moveTo(m[0],m[1]);
+  g.lineTo(m[0]+Math.cos(fa)*fl*.5+(R()-.5)*3,m[1]+Math.sin(fa)*fl*.5+(R()-.5)*3);g.lineTo(m[0]+Math.cos(fa)*fl,m[1]+Math.sin(fa)*fl);g.stroke();g.restore()}
+// a music note (2×2 head, 3-tall stem, a flag)
+function atkNote(g,x,y,c,a){x=Math.round(x);y=Math.round(y);g.fillStyle=atkRgba(c,a);g.fillRect(x,y,2,2);g.fillRect(x+1,y-3,1,3);g.fillRect(x+2,y-3,1,1)}
+// in flight: p is the throw, q how far along (0..1)
+function atkFlight(g,p,q,now,still){const A=ATK_BY[p.c],col=A.col,ax=p.fx,ay=p.fy-14,bx=p.tx,by=p.ty-(p.id?12:1),dx=bx-ax,dy=by-ay,L=Math.hypot(dx,dy)||1,ux=dx/L,uy=dy/L,
+    nx=-uy,ny=ux,t=(now-p.t0)/1000,x=ax+dx*q,y=ay+dy*q,R=mulberry(p.sd),hx=ax+ux*4,hy=ay+uy*3;
+  // casters' hands glow while the spell goes
+  if(!A.phys&&p.c!=='radiant')atkGlow(g,hx,hy,6+2*Math.sin(t*40),col,.7*(1-q*.6));
+  switch(p.c){
+  case'melee':{const tt=Math.min(1,q/.35);   // speed lines off the attacker, then the swing across the target
+    if(!still&&q<.5)for(let i=0;i<3;i++){const s=(tt+i*.18)%1,o=(i-1)*3;g.strokeStyle=`rgba(255,255,255,${.55*(1-q*2)})`;g.lineWidth=1;g.beginPath();
+      g.moveTo(ax+dx*s*.6+nx*o,ay+dy*s*.6+ny*o);g.lineTo(ax+dx*(s*.6+.12)+nx*o,ay+dy*(s*.6+.12)+ny*o);g.stroke()}
+    if(q>.3){const sw=Math.min(1,(q-.3)/.6),base=Math.atan2(dy,dx)+(p.sd&1?1:-1)*Math.PI/2,dir=p.sd&1?-1:1,a0=base,a1=base+dir*Math.PI*sw,r=9;
+      g.save();g.lineCap='round';for(let k=0;k<6;k++){const f=k/6,a=a0+(a1-a0)*f;g.strokeStyle=`rgba(255,255,255,${.25+.7*f})`;g.lineWidth=.8+f*2;g.beginPath();
+        g.arc(bx,by,r,Math.min(a,a+(a1-a0)/6),Math.max(a,a+(a1-a0)/6));g.stroke()}g.restore()}break}
+  case'arrow':{const h=Math.min(10,L*.08),z=4*h*q*(1-q),dz=4*h*(1-2*q),an=Math.atan2(dy-dz,dx),X=Math.round(x),Y=Math.round(y-z);
+    g.fillStyle='rgba(60,30,30,.25)';g.fillRect(Math.round(x)-2,Math.round(p.fy+(p.ty-p.fy)*q)-1,4,1);
+    g.save();g.translate(X,Y);g.rotate(an);g.fillStyle='#7a5434';g.fillRect(-7,0,8,1);g.fillStyle='#c9ccd2';g.fillRect(1,-1,2,3);g.fillStyle='#ffffff';g.fillRect(3,0,1,1);
+    g.fillStyle='#c84a3a';g.fillRect(-8,-1,2,1);g.fillRect(-8,1,2,1);g.restore();break}
+  case'shot':{if(t<.08){atkGlow(g,hx+ux*3,hy+uy*3,9,[255,220,140],.9);atkPx(g,hx+ux*3-1,hy+uy*3-1,[255,255,220],1,3)}
+    g.save();g.lineCap='round';g.strokeStyle='rgba(255,230,160,.9)';g.lineWidth=1.2;g.beginPath();g.moveTo(Math.max(0,q-.25)*dx+ax,Math.max(0,q-.25)*dy+ay);g.lineTo(x,y);g.stroke();g.restore();break}
+  case'fire':{const fy=y-(still?0:Math.sin(q*Math.PI)*Math.min(10,L*.06));
+    if(!still)for(let i=1;i<=9;i++){const b=q-i*.035;if(b<0)break;const j=mulberry(p.sd+i*7+Math.floor(t*30)),ex=ax+dx*b+(j()-.5)*3,ey=ay+dy*b-Math.sin(b*Math.PI)*Math.min(10,L*.06)+(j()-.5)*3-i*.4;
+      atkPx(g,ex,ey,i<4?[255,200,80]:i<7?[230,90,30]:[110,90,90],1-i/10,i<3?2:1)}
+    atkGlow(g,x,fy,9+Math.sin(t*50),[255,120,30],.75);g.fillStyle='#ff8a20';g.fillRect(Math.round(x)-2,Math.round(fy)-2,4,4);g.fillStyle='#ffe28a';g.fillRect(Math.round(x)-1,Math.round(fy)-1,2,2);break}
+  case'frost':{const e=Math.min(1,q/.55),tx=ax+dx*e,ty=ay+dy*e,fl=still?1:.75+.25*Math.sin(t*60);
+    g.save();g.globalCompositeOperation='lighter';g.lineCap='round';g.strokeStyle=`rgba(110,170,255,${.35*fl})`;g.lineWidth=4;g.beginPath();g.moveTo(hx,hy);g.lineTo(tx,ty);g.stroke();
+    g.strokeStyle=`rgba(200,235,255,${.9*fl})`;g.lineWidth=1.4;g.beginPath();g.moveTo(hx,hy);g.lineTo(tx,ty);g.stroke();g.restore();
+    if(!still)for(let i=0;i<7;i++){const f=R(),s=R()*Math.PI*2+t*6,o=Math.sin(s)*3;if(f>e)continue;atkPx(g,ax+dx*f+nx*o,ay+dy*f+ny*o,[235,248,255],.9,1)}
+    atkGlow(g,tx,ty,6,[160,220,255],.8);atkPx(g,tx-1,ty,[255,255,255],1,3);atkPx(g,tx,ty-1,[255,255,255],1,1);atkPx(g,tx,ty+1,[255,255,255],1,1);break}
+  case'lightning':{const n=p.sd*31+(still?0:Math.floor(t*22)),on=still||Math.floor(t*40)%3!==2;if(on)atkBolt(g,hx,hy,bx,by,n,1.6,[190,210,255],1);
+    atkGlow(g,bx,by,12,[200,220,255],on?.8:.3);break}
+  case'arcane':{for(let i=0;i<3;i++){const qi=Math.max(0,Math.min(1,(q-i*.12)/.76));if(qi<=0||qi>=1)continue;const off=(i-1)*9+(R()-.5)*4,bend=Math.sin(qi*Math.PI)*off,
+      mx=ax+dx*qi+nx*bend,my=ay+dy*qi+ny*bend-Math.sin(qi*Math.PI)*4;
+    if(!still)for(let k=1;k<=4;k++){const b=qi-k*.04;if(b<0)break;const tb=Math.sin(b*Math.PI)*off;atkPx(g,ax+dx*b+nx*tb,ay+dy*b+ny*tb-Math.sin(b*Math.PI)*4,[190,140,255],.7-k*.15,1)}
+    atkGlow(g,mx,my,5,[170,110,255],.8);atkPx(g,mx-1,my-1,[240,220,255],1,2)}break}
+  case'radiant':{const tx=bx,top=by-70,e=Math.min(1,q/.45),bot=top+(by+4-top)*e,w=still?3:3+Math.sin(t*30)*.8;   // the light comes down from above
+    atkGlow(g,hx,hy-2,7,[255,220,120],.8);
+    g.save();g.globalCompositeOperation='lighter';const gr=g.createLinearGradient(0,top,0,bot);gr.addColorStop(0,'rgba(255,230,140,0)');gr.addColorStop(1,'rgba(255,236,160,.75)');
+    g.fillStyle=gr;g.fillRect(Math.round(tx-w),top,Math.round(w*2),bot-top);g.fillStyle='rgba(255,255,230,.8)';g.fillRect(Math.round(tx)-1,top+(bot-top)*.3,2,(bot-top)*.7);g.restore();
+    atkGlow(g,tx,bot,8,[255,220,110],.7);break}
+  case'necrotic':{const wob=still?0:Math.sin(q*14+p.sd)*3,cx=x+nx*wob,cy=y+ny*wob;
+    if(!still)for(let i=1;i<=10;i++){const b=q-i*.03;if(b<0)break;const w=Math.sin(b*14+p.sd)*3,dr=i*.6;g.fillStyle=`rgba(40,20,50,${.5*(1-i/11)})`;g.beginPath();
+      g.arc(ax+dx*b+nx*w,ay+dy*b+ny*w-dr,1.2+i*.25,0,7);g.fill()}
+    atkGlow(g,cx,cy,8,[110,210,110],.55);g.fillStyle='#1c0f22';g.beginPath();g.arc(cx,cy,2.6,0,7);g.fill();atkPx(g,cx-1,cy-1,[160,240,150],1,1);atkPx(g,cx+1,cy-1,[160,240,150],1,1);break}
+  case'acid':{const h=Math.min(30,6+L*.2),z=still?0:4*h*q*(1-q),gx=Math.round(x),gy=Math.round(y-z);
+    g.fillStyle='rgba(60,30,30,.25)';g.fillRect(gx-1,Math.round(p.fy+(p.ty-p.fy)*q)-1,3,1);
+    if(!still)for(let i=0;i<3;i++){const b=(t*3+i/3)%1;atkPx(g,gx+(i-1),gy+2+b*6,[150,230,70],1-b,1)}
+    atkGlow(g,gx,gy,6,[150,240,60],.5);g.fillStyle='#4c8a1c';g.fillRect(gx-2,gy-1,4,3);g.fillRect(gx-1,gy-2,2,5);g.fillStyle='#b8f060';g.fillRect(gx-1,gy-1,1,1);break}
+  case'sonic':{for(let i=0;i<3;i++){const qi=q-i*.16;if(qi<0||qi>1)continue;const cx=ax+dx*qi,cy=ay+dy*qi,r=3+qi*5,an=Math.atan2(dy,dx);
+      g.strokeStyle=atkRgba(col,.9*(1-qi*.4));g.lineWidth=1.2;g.beginPath();g.arc(cx-ux*r,cy-uy*r,r,an-.9,an+.9);g.stroke()}
+    if(!still)for(let i=0;i<3;i++){const b=(t*1.4+i/3)%1;atkNote(g,ax+nx*(i-1)*6+ux*3+Math.sin(b*6+i)*2,ay-4-b*10,[255,190,230],1-b)}break}}}
+// the landing: under the hit flash, for every kind that has one (weapons keep the old flash, starburst and blood)
+function atkHit(g,h,t,tk,still){const A=ATK_BY[h.c],c=A.col,x=h.x,y=h.y-(h.miss?2:12),R=mulberry(h.sd+11),s=h.miss?.6:1;
+  switch(h.c){
+  case'melee':if(t<.3&&!h.miss){const a=1-t/.3,an=(h.dir>0?1:-1)*.7;g.save();g.lineCap='round';g.strokeStyle=`rgba(255,255,255,${a})`;g.lineWidth=1.3;
+    for(const o of[-3,2]){g.beginPath();g.moveTo(x-7+o,y-6*an);g.lineTo(x+7+o,y+6*an);g.stroke()}g.restore()}break;
+  case'shot':if(!still&&t<1){for(let i=0;i<4;i++){const b=t-i*.06;if(b<0)continue;const a=.32*(1-t);g.fillStyle=`rgba(200,196,190,${a})`;g.beginPath();   // gun smoke curls up from the muzzle
+      g.arc(h.fx+h.dir*(5+b*6)+Math.sin(b*5+i)*2,h.fy-14-b*12-i,1.5+b*4,0,7);g.fill()}}
+    if(t<.15){atkGlow(g,x,y,7,[255,220,140],.9*(1-t/.15));if(!still)for(let i=0;i<6;i++){const a=R()*Math.PI*2,d=2+t*50*R();atkPx(g,x+Math.cos(a)*d,y+Math.sin(a)*d,[255,230,150],1-t/.15,1)}}break;
+  case'fire':if(t<.9){const p=t/.9;atkGlow(g,x,y,(6+p*14)*s,[255,110,20],.9*(1-p));
+      if(!still)for(let i=0;i<14*s;i++){const a=R()*Math.PI*2,sp=10+R()*36,life=.4+R()*.5,b=t/life;if(b>1)continue;const cc=b<.4?[255,220,100]:b<.7?[240,110,30]:[100,80,80];
+        atkPx(g,x+Math.cos(a)*sp*t,y+Math.sin(a)*sp*t*.6-t*t*30,cc,1-b,R()<.3?2:1)}
+      if(!still&&t>.2)for(let i=0;i<4;i++){const b=(t-.2)/.7;g.fillStyle=`rgba(70,60,60,${.3*(1-b)})`;g.beginPath();g.arc(x+(i-1.5)*3,y-b*14-i,1.5+b*3,0,7);g.fill()}}break;
+  case'frost':if(t<1.1){const p=Math.min(1,t/.3);if(t<.45){g.save();g.globalCompositeOperation='lighter';g.strokeStyle=`rgba(210,240,255,${1-t/.45})`;g.lineWidth=1;
+      for(let i=0;i<8;i++){const a=i/8*Math.PI*2+R()*.3,r0=2+p*4,r1=r0+(3+R()*4)*s;g.beginPath();g.moveTo(x+Math.cos(a)*r0,y+Math.sin(a)*r0*.8);g.lineTo(x+Math.cos(a)*r1,y+Math.sin(a)*r1*.8);g.stroke()}g.restore()}
+      if(tk&&t>.25&&t<1.1)tokTint(g,tintCv,tk,`rgba(150,210,255,${.45*(1-(t-.25)/.85)})`);   // rimed in frost a moment longer
+      if(!still)for(let i=0;i<6;i++){const a=R()*Math.PI*2,d=3+R()*8,b=t/1.1;atkPx(g,x+Math.cos(a)*d,y+Math.sin(a)*d*.7+b*6,[235,248,255],.9*(1-b),1)}}break;
+  case'lightning':if(t<.5){const on=still||Math.floor(t*30)%2===0;if(t<.12)atkGlow(g,x,y,18*s,[230,235,255],1-t/.12);
+      if(on&&!still)for(let i=0;i<4;i++){const a=R()*Math.PI*2,l=5+R()*7;atkBolt(g,x,y,x+Math.cos(a)*l,y+Math.sin(a)*l*.7,h.sd+i+Math.floor(t*25),.8,[210,225,255],1-t/.5)}
+      if(tk&&t>.3&&on)tokTint(g,tintCv,tk,`rgba(255,250,200,${.5*(1-(t-.3)/.2)})`)}break;
+  case'arcane':if(t<.7){const p=t/.7;g.strokeStyle=`rgba(190,140,255,${.8*(1-p)})`;g.lineWidth=1.2;g.beginPath();g.ellipse(x,y+4,(4+p*14)*s,(4+p*14)*.5*s,0,0,7);g.stroke();
+      atkGlow(g,x,y,10*s,[170,110,255],.6*(1-p));
+      if(!still)for(let i=0;i<7;i++){const a=R()*Math.PI*2,d=(3+R()*9)*s,tw=Math.sin(t*30+i)>.2;if(!tw)continue;const sx=x+Math.cos(a)*d,sy=y+Math.sin(a)*d*.7-p*4;
+        atkPx(g,sx,sy,[240,220,255],1-p,1);atkPx(g,sx-1,sy,[200,160,255],.7*(1-p),1);atkPx(g,sx+1,sy,[200,160,255],.7*(1-p),1);atkPx(g,sx,sy-1,[200,160,255],.7*(1-p),1);atkPx(g,sx,sy+1,[200,160,255],.7*(1-p),1)}}break;
+  case'radiant':if(t<1){const p=t/1,top=h.y-70;if(t<.4){g.save();g.globalCompositeOperation='lighter';g.fillStyle=`rgba(255,236,160,${.6*(1-t/.4)})`;
+      g.fillRect(Math.round(x)-3,top,6,h.y+4-top);g.restore()}atkGlow(g,x,h.y-2,(10+p*6)*s,[255,220,110],.7*(1-p));
+      if(!still)for(let i=0;i<10*s;i++){const ox=(R()-.5)*16,sp=10+R()*20,b=(t*1.2+R())%1;atkPx(g,x+ox,h.y-b*sp*1.6,[255,240,170],(1-b)*(1-p),1)}
+      if(tk&&t>.3&&t<.8)tokTint(g,tintCv,tk,`rgba(255,226,120,${.4*(1-(t-.3)/.5)})`)}break;
+  case'necrotic':if(t<1.2){const p=t/1.2;   // dark tendrils closing in, then wisps leaving
+      if(!still)for(let i=0;i<10*s;i++){const a=R()*Math.PI*2,d0=10+R()*8,b=Math.min(1,t/.5),d=d0*(1-b);g.fillStyle=`rgba(30,14,40,${.65*(1-p)})`;g.beginPath();
+        g.arc(x+Math.cos(a)*d,y+Math.sin(a)*d*.7,1+R()*1.5,0,7);g.fill()}
+      atkGlow(g,x,y,10*s,[110,210,110],.5*(1-p));
+      if(tk&&t<.9)tokTint(g,tintCv,tk,`rgba(40,16,50,${.55*(1-t/.9)})`);
+      if(!still&&t>.3)for(let i=0;i<3;i++){const b=(t-.3)/.9;g.fillStyle=`rgba(120,220,120,${.35*(1-b)})`;g.beginPath();g.arc(x+(i-1)*4+Math.sin(b*8+i)*2,y-b*16,1+b*2,0,7);g.fill()}}break;
+  case'acid':if(t<1.2){const p=t/1.2;if(!still)for(let i=0;i<12*s;i++){const a=R()*Math.PI*2,sp=8+R()*26,vz=20+R()*50,T=(vz+Math.sqrt(vz*vz+2*380*8))/380,ft=Math.min(t,T),
+        z=Math.max(0,8+vz*ft-190*ft*ft);atkPx(g,x+Math.cos(a)*sp*ft,h.y-2+Math.sin(a)*sp*ft*.6-z,[150,230,70],t<T?1:Math.max(0,1-p*1.5),R()<.3?2:1)}
+      atkGlow(g,x,y,8*s,[150,240,60],.6*(1-p));
+      if(!still)for(let i=0;i<4;i++){const b=(t*1.5+i/4)%1;g.fillStyle=`rgba(190,240,140,${.3*(1-b)*(1-p)})`;g.beginPath();g.arc(x+(i-1.5)*4,y+2-b*10,1+b*2,0,7);g.fill()}
+      if(tk&&t>.25&&t<.8)tokTint(g,tintCv,tk,`rgba(130,220,50,${.35*(1-(t-.25)/.55)})`)}break;
+  case'sonic':if(t<.7){const p=t/.7;for(let i=0;i<3;i++){const b=p-i*.15;if(b<0)continue;g.strokeStyle=atkRgba(c,.8*(1-b));g.lineWidth=1.2;g.beginPath();
+        g.ellipse(x,y,(3+b*16)*s,(3+b*16)*.7*s,0,0,7);g.stroke()}
+      if(tk&&!still&&t<.4)tokTint(g,tintCv,{...tk,x:tk.x+(Math.floor(t*40)%2?1:-1)},`rgba(255,160,215,${.4*(1-t/.4)})`);   // it shudders
+      if(!still)for(let i=0;i<3;i++){const a=-Math.PI/2+(i-1)*.8,d=6+p*12;atkNote(g,x+Math.cos(a)*d,y+Math.sin(a)*d,[255,190,230],1-p)}}break}}
+// the Attack tool's tray: which kind the next attack is (Auto names what it picked)
+ICON.atkkind='M12 3l2.6 5.6 6 .7-4.5 4.1 1.2 6L12 16.4 6.7 19.4l1.2-6L3.4 9.3l6-.7z';
+function atkSync(){if(typeof syncUI==='function'&&$('pane-atk'))syncUI()}
+function atkSwatch(k){const c=ATK_BY[k].col;return `<span class="atkdot" style="background:rgb(${c[0]},${c[1]},${c[2]})"></span>`}
+function buildAtk(){const box=$('pane-atk'),me=myTok(),cur=atkCur(me),auto=atkPick==='auto'&&!atkNext;box.replaceChildren();
+  const sep=document.createElement('span');sep.className='tsep';box.append(sep);
+  const b=document.createElement('button');b.className='btn atkbtn';b.id='atkbtn';b.setAttribute('aria-expanded',String(!$('atkpop').hidden));b.setAttribute('aria-haspopup','true');
+  b.innerHTML=atkSwatch(cur)+'<span></span>';b.lastChild.textContent=ATK_BY[cur].name+(atkNext?' · next attack':auto?' · auto':'');
+  b.dataset.tip='What your attack looks like';b.dataset.sub=auto?'Auto goes by your character’s class. Click to pick one.':'Click to change';
+  b.setAttribute('aria-label','Attack looks like: '+ATK_BY[cur].name);b.onclick=()=>atkPop($('atkpop').hidden);box.append(b);
+  const pop=$('atkpop');pop.replaceChildren();
+  const opt=(k,name,sub,on)=>{const o=document.createElement('button');o.className='atkopt';o.id='atk-'+k;o.setAttribute('aria-pressed',String(on));
+    o.innerHTML=(k==='auto'?`<span class="atkdot auto"></span>`:atkSwatch(k))+'<b></b><span></span>';o.children[1].textContent=name;o.children[2].textContent=sub;
+    o.onclick=()=>{atkSet(k);atkPop(false)};pop.append(o)};
+  const ac=myChar&&atkClass(myChar.cls),why=ac?(myChar.cls.split(/[\s(/]/)[0]||'your class'):me&&me.s===3?'the Wizard token':'no class yet';
+  opt('auto','Auto: '+ATK_BY[atkAuto(me)].name,'From '+why,atkPick==='auto'&&!atkNext);
+  ATK.forEach(a=>opt(a.k,a.name,a.sub,!atkNext&&atkPick===a.k||atkNext===a.k))}
+function atkPop(on){const pop=$('atkpop');if(on){pop.hidden=false;const r=$('atkbtn').getBoundingClientRect();pop.style.left=Math.max(8,Math.min(innerWidth-pop.offsetWidth-8,r.left+r.width/2-pop.offsetWidth/2))+'px';
+    pop.style.bottom=(innerHeight-r.top+10)+'px'}else pop.hidden=true;const b=$('atkbtn');if(b)b.setAttribute('aria-expanded',String(on))}
+document.addEventListener('pointerdown',e=>{const pop=$('atkpop');if(!pop.hidden&&!pop.contains(e.target)&&!e.target.closest('#atkbtn'))atkPop(false)},true);
 // ================= doors, stairs and entrances =================
 // A portal is an object ({k:'door'|'stairsdown'|'stairsup'|'entrance', x, y}) that also carries where it leads:
 //   id   its own id (so other doors can name it as the place to arrive)
