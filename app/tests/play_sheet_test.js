@@ -94,6 +94,7 @@ try{
   if(+(await p.textContent('#rollstage .stot'))!==rd.t)fail('stage total');
   await p.evaluate(()=>{const o=crypto.getRandomValues.bind(crypto);window.__q=[19];crypto.getRandomValues=a=>{if(window.__q.length){a[0]=window.__q.shift();return a}return o(a)}});
   await p.fill('#shexpr','1d20+1');await p.press('#shexpr','Enter');
+  if(await p.evaluate(()=>!!document.querySelector('#rollstage .die.n20')||document.querySelector('#rollstage').classList.contains('n20')))fail('green shows only once the die lands');
   await until(()=>p.evaluate(()=>document.querySelector('#rollstage').classList.contains('n20')&&!!document.querySelector('#rollstage .die.n20')),'natural 20 is green');
   await p.click('#shtab-act');await p.screenshot({path:path.join(OUT,'sheet_actions.png')});
   await p.click('#rollfeed .rlhead');await p.screenshot({path:path.join(OUT,'sheet_roll_history.png')});await p.click('#rollfeed .rlhead');
@@ -125,10 +126,15 @@ try{
   await until(()=>p1.isVisible('#chpaste'),'player paste');await p1.fill('#chpaste',SHEET);
   await until(async()=>(await p1.textContent('.chtop b').catch(()=>''))==='Elmira Thorn','player card');await p1.click('#chclose');
   await until(()=>p1.isVisible('#mysheet'),'Sheet & dice in the tray');await p1.click('#mysheet');await until(()=>p1.isVisible('#sheet'),'player sheet');
+  const watch=q=>q.evaluate(()=>{window.__landed=null;new MutationObserver(()=>{if(!window.__landed&&document.querySelector('#rollstage').classList.contains('done'))window.__landed=Date.now()}).observe(document.querySelector('#rollstage'),{attributes:true})});
+  await watch(p1);await watch(dm);
   await p1.click('#shtab-spl');await p1.click('#sheet .shrow[data-k="sfire-bolt"] .btn.dice');
   const pr=(await p1.evaluate(()=>window.__sheet.rolls())).pop();
   await until(()=>dm.evaluate(n=>window.__sheet.rolls().some(r=>r.l==='Fire Bolt · to hit'&&r.w==='Elmira Thorn'&&r.t===n),pr.t),'player roll reaches the DM');
   await until(()=>dm.evaluate(()=>!document.querySelector('#rollstage').hidden&&!!document.querySelector('#rollstage .die[data-d="20"]')),'the DM watches the player\'s d20 land');
+  const[l1,l2]=await until(async()=>{const a=await p1.evaluate(()=>window.__landed),b=await dm.evaluate(()=>window.__landed);return a&&b&&[a,b]},'both pages land the roll');
+  if(Math.abs(l1-l2)>200)fail(`the roller and the DM see the dice land together (${l1-l2} ms apart)`);
+  if(!/1d20: \d+/.test(await dm.textContent('#rollfeed .rl .brk').catch(()=>'')))fail('feed lists each die for the DM');
   await until(()=>dm.isVisible('#rollfeed .rl'),'DM feed');
   const who=await dm.textContent('#rollfeed .rl .who');if(!/Elmira Thorn/.test(who)||!/Alex/.test(who))fail('feed names the character and the player: '+who);
   const dr2=await dm.evaluate(()=>window.__sheet.rolls().pop());if(dr2.s!==3)fail('roll tied to the token for the bubble');
