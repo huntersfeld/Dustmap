@@ -52,6 +52,7 @@ kbd{font-family:ui-monospace,monospace;font-size:11px;background:var(--bg);borde
 .roomtab{display:flex;align-items:center;gap:6px;border:0;border-radius:8px;padding:5px 8px 5px 10px;background:transparent;cursor:pointer;font-size:13px;white-space:nowrap;color:var(--muted)}
 .roomtab:hover{background:var(--raised);color:var(--fg)}
 .roomtab[aria-selected="true"]{background:var(--raised);color:var(--fg);box-shadow:inset 0 -2px 0 var(--accent)}
+.roomtab .rtx{margin-left:-2px;padding:0 3px;border-radius:4px;color:var(--muted)}.roomtab .rtx:hover{background:var(--line);color:var(--fg)}
 .roomtab .rtn{max-width:160px;overflow:hidden;text-overflow:ellipsis}
 .roomtab .rtc{min-width:18px;height:18px;border-radius:9px;padding:0 5px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;background:#2b3a2b;color:#d8f0d3}
 #libbtn .chev{color:var(--muted);font-size:10px}
@@ -2190,7 +2191,7 @@ function libClean(s){s=migrate(s&&typeof s==='object'?s:null);if(!s||!Array.isAr
   s.fog=typeof s.fog==='string'&&s.fog.length===s.cols*s.rows&&/^[01]*$/.test(s.fog)&&s.fog.includes('1')?s.fog:null;if(s.fogWalk!==true)delete s.fogWalk;if(!(Number.isInteger(s.fogWalkR)&&s.fogWalkR>=1&&s.fogWalkR<=10))delete s.fogWalkR;return s}
 // the four cowboys start near the middle, moved in whole squares so they stay snapped
 function blankMap(base,cols,rows){cols=cols||40;rows=rows||28;const ex=example(),dx=Math.round((cols*GRID/2-208)/GRID)*GRID,dy=Math.round((rows*GRID/2+56-374)/GRID)*GRID;
-  return{v:3,cols,rows,base:BASES.includes(base)?base:0,seed:Math.floor(Math.random()*100000),rag:5,ops:[],objects:[],tokens:ex.tokens.map(t=>({...t,x:t.x+dx,y:t.y+dy})),skip:[]}}
+  return{v:3,cols,rows,base:BASES.includes(base)?base:0,seed:Math.floor(Math.random()*100000),rag:5,ops:[],objects:[],tokens:mp.role==='dm'?[]:ex.tokens.map(t=>({...t,x:t.x+dx,y:t.y+dy})),skip:[]}}   // in a live session the party is already somewhere: a new map starts empty
 function libInit(){try{lib=JSON.parse(localStorage.getItem(LIBKEY))}catch(e){lib=null}
   if(!lib||!Array.isArray(lib.maps))lib={cur:null,maps:[]};
   lib.maps=lib.maps.filter(m=>m&&typeof m.id==='string');lib.maps.forEach(m=>m.name=String(m.name||'Untitled map').slice(0,60));
@@ -2389,10 +2390,16 @@ function inRoom(id,fn){if(mp.role!=='dm'||!id||id===lib.cur)return fn();const b=
   try{return fn()}finally{st=was.st;lib.cur=was.cur;W=was.W;H=was.H;roomCtx=was.ctx}}
 const roomIds=()=>mp.role==='dm'?[lib.cur,...mp.rooms.keys()]:[];
 // a room nobody plays a token in any more closes (it stays in the library)
-function roomPrune(){for(const[id,s]of[...mp.rooms])if(!roomHasPlayer(s)||!lib.maps.some(m=>m.id===id))mp.rooms.delete(id)}
-// the DM switches rooms; the one they leave keeps running while someone plays a token in it
+// a room stays open while someone plays a token in it, or holds a token that went through a door this session (a character
+// the DM sent ahead before anyone picked it), so a player who picks that character joins it there. The DM can close a room
+// nobody plays in from its tab.
+const roomAhead=new Set();   // ids of tokens that went through a door during this session
+const roomKeep=s=>!!s&&s.tokens.some(t=>roomPlayed(t)||roomAhead.has(t.id));
+function roomPrune(){for(const[id,s]of[...mp.rooms])if(!roomKeep(s)||!lib.maps.some(m=>m.id===id)){mp.rooms.delete(id);mp.pushedR.delete(id)}}
+function roomClose(id){if(id===lib.cur||!mp.rooms.has(id)||roomHasPlayer(mp.rooms.get(id)))return;mp.rooms.delete(id);mp.pushedR.delete(id);roomTabs();mpChanged()}
+// the DM switches rooms; the one they leave keeps running while anyone from the party is in it
 function roomView(id){if(mp.role!=='dm'||roomCtx||id===lib.cur)return false;const s=mp.rooms.get(id)||libGet(id);if(!s)return false;
-  const was=lib.cur,old=st;portalFade();if(!libOpen(id,s))return false;if(roomHasPlayer(old))mp.rooms.set(was,old);mp.walkLast.clear();zonePaths.clear();save();roomTabs();return true}
+  const was=lib.cur,old=st;portalFade();if(!libOpen(id,s))return false;if(roomKeep(old))mp.rooms.set(was,old);mp.walkLast.clear();zonePaths.clear();save();roomTabs();return true}
 // which room each played token is in (the DM's map first)
 function roomWhere(){const a=(mp.sess||{assign:{}}).assign,w={};
   for(const k of Object.keys(a))for(const id of roomIds()){const m=id===lib.cur?st:mp.rooms.get(id);if(m&&m.tokens.some(t=>t.s===+k)){w[k]=id;break}}return w}
@@ -2404,6 +2411,8 @@ function roomTabs(){if(roomCtx)return;const box=$('roomtabs'),ids=mp.role==='dm'
   info.forEach(r=>{const b=document.createElement('button');b.className='roomtab';b.setAttribute('role','tab');b.setAttribute('aria-selected',String(r.id===lib.cur));
     const n=document.createElement('span');n.className='rtn';n.textContent=r.name;const c=document.createElement('span');c.className='rtc';c.textContent=String(r.who.length);
     b.append(n,c);b.dataset.tip=r.name;b.dataset.sub=r.who.length?r.who.join(', ')+(r.who.length>1?' are':' is')+' here':'Nobody is playing a token here';
+    if(r.id!==lib.cur&&!r.who.length){const x=document.createElement('span');x.className='rtx';x.textContent='×';x.setAttribute('role','button');x.setAttribute('aria-label','Close '+r.name);
+      x.title='Close this room (nobody plays a token in it). The map stays in your maps.';x.onclick=e=>{e.stopPropagation();roomClose(r.id)};b.append(x)}
     b.onclick=()=>{if(r.id!==lib.cur){portalSay('');roomView(r.id)}};box.append(b)})}
 // players: the room my token is in, else the lobby
 function roomMine(){const d=mp.roomsDoc,k=mySheet();if(!d||typeof d!=='object')return null;
@@ -2544,7 +2553,7 @@ function mpRoleChanged(){const was=mp.role,now=mpRole();
     if(now==='player'){mp.applied=null;mp.tokApplied=null;hist=[];updUndo();sel=null;draft=[];stroke=null;sculpt=null;boxSel=null;drag=null;
       if(!PLAYER_TOOLS.includes(tool))tool='select';mpTryMap();mpTryTokens()}
     if(now==='dm'){mp.pushed={map:null,tok:null,fog:null};mp.pushedR.clear();mpIds();mpChanged()}
-    if(now!=='dm')mp.rooms.clear();
+    if(now!=='dm'){mp.rooms.clear();roomAhead.clear()}
     if(now==='off')mp.ghost.clear()}
   roomFollow();roomTabs();mpUI();syncUI()}
 
@@ -2645,14 +2654,16 @@ function mpPeers(ch){mp.peers=ch.peers;const now=performance.now(),ghost=new Map
 // DM: players choose their own token (one each). A new choice takes that token if nobody else has it, and puts one on
 // the map if there isn't one; a token added for a player goes away when they choose another. The DM's own assignment
 // sticks until the player chooses again.
-function mpPicks(peers){const s=mp.sess;if(!s||!s.live)return false;let a=null,placed=false;
+function mpPicks(peers){const s=mp.sess;if(!s||!s.live)return false;let a=null,placed=false;const got=[];
   for(const p of peers){if(p.sameTab||!p.by||p.by===s.dm)continue;const pk=(p.presence||{}).pick;
     if(!Number.isInteger(pk)||pk<0||pk>=SHEETS.length||mp.pickSeen.get(p.peer)===pk)continue;mp.pickSeen.set(p.peer,pk);
     const cur=a||s.assign;if(cur[pk]===p.by)continue;if(cur[pk]&&cur[pk]!==p.by)continue;   // taken by someone else
-    a={...cur};Object.keys(a).forEach(k=>{if(a[k]===p.by)delete a[k]});a[pk]=p.by;
+    a={...cur};Object.keys(a).forEach(k=>{if(a[k]===p.by)delete a[k]});a[pk]=p.by;got.push(pk);
     const before=st.tokens.length;st.tokens=st.tokens.filter(t=>!(t.auto===p.by&&t.s!==pk));if(st.tokens.length!==before)placed=true;
     if(![st,...mp.rooms.values()].some(m=>m.tokens.some(t=>t.s===pk))){const[x,y]=mpFreeSpot();st.tokens.push({id:tokId(),s:pk,x,y,o:Math.floor(Math.random()*8),auto:p.by});placed=true}}
   if(a){mp.sess={...s,assign:a};mpWrite({...s,assign:a})}
+  // a picked token may stand in fog (a character the DM sent ahead into a dark cave): walk reveal clears around it, in its room
+  got.forEach(pk=>{for(const id of roomIds())inRoom(id,()=>{const t=st.tokens.find(t=>t.s===pk);if(t&&fogWalk(t,[t.x,t.y],[t.x,t.y]))save()})});
   return placed}
 // a free square near the other tokens (or the middle of the map)
 function mpFreeSpot(){const ts=st.tokens,cx=ts.length?ts.reduce((q,t)=>q+t.x,0)/ts.length:W/2,cy=ts.length?ts.reduce((q,t)=>q+t.y,0)/ts.length:H/2;
@@ -4148,7 +4159,7 @@ function portalGo(i,who,quiet){if(mp.role==='player'||!isPortal(i))return false;
   st.tokens=st.tokens.filter(t=>!movers.includes(t));
   // ...and arrive on the next one beside the tokens already there, replacing any copies of the same characters
   const sheets=new Set(movers.map(t=>t.s)),keep=s.tokens.filter(t=>!sheets.has(t.s)),sp=portalSpots(s,portalAnchor(o,s,false,from,fromName),movers.length,keep);
-  const arrived=movers.map((t,k)=>({...t,x:sp[k][0],y:sp[k][1]}));s.tokens=[...keep,...arrived];
+  const arrived=movers.map((t,k)=>({...t,x:sp[k][0],y:sp[k][1]}));if(mp.role==='dm'){mpIds({tokens:arrived});arrived.forEach(t=>roomAhead.add(t.id))}s.tokens=[...keep,...arrived];
   // the whole party went, or the last of it just did: the map follows. In a live session every map with a player on it
   // runs at once, so one token going through never moves the DM's screen (they switch with the room tabs or Follow);
   // only sending the whole party through from the map on screen does.
@@ -4659,7 +4670,7 @@ $('libtour').onclick=tourOpen;$('tour').onclick=()=>{menuShow(false);tourOpen()}
 $('libcave').onclick=caveOpen;$('cave').onclick=()=>{menuShow(false);caveOpen()};
 // read-only peek for the tests
 window.__terrain=()=>({cv:tcan,L:lastR.L,W,H});
-window.__mpMe=()=>mp.me;window.__entClock=v=>{entClock=v==null?null:+v};window.__rooms={clearTokens(){st.tokens=[];save()},addObj(o){st.objects.push(o);objDirty=true;save()},roll:r=>rollPost(r),rolls:()=>rolls.map(r=>r.l+'|'+(r.p||''))};   // tests
+window.__mpMe=()=>mp.me;window.__entClock=v=>{entClock=v==null?null:+v};window.__rooms={fogAll(){st.fog=fogAll('1');st.fogWalk=true;save()},clearTokens(){st.tokens=[];save()},addObj(o){st.objects.push(o);objDirty=true;save()},roll:r=>rollPost(r),rolls:()=>rolls.map(r=>r.l+'|'+(r.p||''))};   // tests
 window.__dustmap=()=>({rooms:roomIds(),myRoom:mp.myRoom,st,fog:fogGet(),litFires:litFires(fogView()).length,role:mp.role,cam:{...cam},Z,pings:pings.map(p=>({x:p.x,y:p.y,rgb:p.rgb||null})),blasts:blasts.map(b=>({x:b.x,y:b.y,r:b.r})),fuses:fuses.length,kills:kills.length,ents:ents.length,entStyle,throws:throws.length,hits:hits.length,th:thLog.slice(),tool,peers:mp.peers.length,busy:mp.busy,err:mp.err,again:mp.again,ks:kLive()?{n:kstep.n,path:kstep.path}:null,hist:hist.length,sel});
 libInit();mpInit();
 buildTools();buildObjs();buildToks();buildPaints();updUndo();sizeCanvas();syncUI();requestAnimationFrame(loop);
