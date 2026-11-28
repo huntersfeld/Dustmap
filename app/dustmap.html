@@ -830,7 +830,7 @@ let roomCtx=null;
 // multiplayer state (see the Play together section near the end)
 const mp={db:null,room:null,user:null,me:null,owner:false,edit:false,avail:false,sess:null,role:'off',
   meta:null,parts:new Map(),applied:null,tok:null,tokApplied:null,ready:{map:false,tok:false,sess:false,fog:false},
-  pushed:{map:null,tok:null,fog:null},rooms:new Map(),pushedR:new Map(),myRoom:null,roomsDoc:null,roomSubs:[],roomMoved:false,rev:0,fog:null,walkLast:new Map(),lastPos:new Map(),tokR:{},plMv:new Map(),ksSeen:new Map(),busy:false,again:false,timer:0,
+  pushed:{map:null,tok:null,fog:null},rooms:new Map(),pushedR:new Map(),myRoom:null,roomsDoc:null,roomSubs:[],roomMoved:false,rev:0,fog:null,walkLast:new Map(),lastPos:new Map(),tokR:{},tokForce:new Set(),plMv:new Map(),ksSeen:new Map(),busy:false,again:false,timer:0,
   peers:[],profiles:{},trails:new Map(),pingSeen:new Map(),mvSeen:new Map(),ghost:new Map(),
   pres:{},pickSeen:new Map(),chars:null,chSeen:new Map(),chPend:false,sent:'',myPing:0,myMv:0,pend:null,err:'',heldTok:null};
 let tool='select',paint={layer:'ground',t:3},tab='ground',paintMode='brush',groundPaint={layer:'ground',t:3},heightPaint={layer:'height',h:1,s:0},hillMode='brush',hillStyle=0,tokGroup='Party',objKind='saloon',bsize=6,objCells=new Set(['1,1']),objMix=false,mixKinds=new Set(),scatDens=70,scatSeed=1,objGap=2,boxSel=null,stampRot=0,objScat=false,scatCount=6,scatArea=4,tokMix=new Set(),tokScatter=false,tokSeed=1,tokGap=1;
@@ -1191,7 +1191,7 @@ function renderRegion(){let r=dRect;dRect=null;
   finally{W=FW;H=FH;OX=0;OY=0;REG=null}
   tctx.putImageData(img,x0,y0,ix0-x0,iy0-y0,ix1-ix0,iy1-iy0);
   for(let y=iy0;y<iy1;y++)for(let x=ix0;x<ix1;x++){const a=y*W+x,b=(y-y0)*w+(x-x0);lastR.L[a]=R.L[b];lastR.Hm[a]=R.Hm[b];lastR.Sm[a]=R.Sm[b];lastR.own[a]=R.own[b]}
-  lastR.sid=R.sid;const inner=o=>o.x>=ix0&&o.x<ix1&&o.y>=iy0&&o.y<iy1;
+  lastR.sid=R.sid;lastR.wh=null;const inner=o=>o.x>=ix0&&o.x<ix1&&o.y>=iy0&&o.y<iy1;
   lastGen=lastGen.filter(g=>!inner(g.o)).concat(gen.filter(g=>inner(g.o)));lastRenderT=performance.now()}
 function renderObjects(){if(ocan.width!==W||ocan.height!==H){ocan.width=W;ocan.height=H}const img=octx.createImageData(W,H);
   st.objects.filter(o=>o.k!=='landing'&&o.k!=='zone').sort((a,b)=>a.y-b.y).forEach(o=>drawObject(img.data,W,H,o));octx.putImageData(img,0,0);objDirty=false}
@@ -1611,7 +1611,7 @@ function draw(ts){
      pathPoly(p);if(op.kind==='poly'){ctx.closePath();ctx.lineWidth=2}else{ctx.lineCap='round';ctx.lineWidth=op.r*2*Z}ctx.strokeStyle='rgba(255,255,255,.4)';ctx.stroke()}}
    cv.classList.toggle('lift',hi>=0)}
   // token drag: show where it will land
-  if(drag&&drag.kind==='token'){const t=st.tokens[drag.i];const sx=altDown?t.x:Math.round(t.x/8)*8,sy=altDown?t.y:Math.round(t.y/8)*8;
+  if(drag&&drag.kind==='token'){const t=st.tokens[drag.i];const ws=walkRule()?walkSnap(t):null,sx=ws?ws[0]:altDown?t.x:Math.round(t.x/8)*8,sy=ws?ws[1]:altDown?t.y:Math.round(t.y/8)*8;
     const isC=(sx%16===8)&&(sy%16===8);if(isC){ctx.fillStyle='rgba(242,196,159,.18)';ctx.fillRect((sx-8)*Z,(sy-8)*Z,16*Z,16*Z)}
     ctx.beginPath();ctx.moveTo(sx*Z,sy*Z-7);ctx.lineTo(sx*Z+7,sy*Z);ctx.lineTo(sx*Z,sy*Z+7);ctx.lineTo(sx*Z-7,sy*Z);ctx.closePath();ctx.fillStyle='#f2c49f';ctx.fill();ctx.strokeStyle='#1d1b22';ctx.lineWidth=2;ctx.stroke()}
   // shape draft
@@ -1800,7 +1800,8 @@ cv.addEventListener('pointermove',e=>{if(boxSel){boxSel.b=toMap(e);return}
     return}
   if(!drag)return;
   if(drag.kind==='vertex'){markOp(st.ops[drag.i]);st.ops[drag.i].pts[drag.v]=clamp(p);markOp(st.ops[drag.i])}
-  else if(drag.kind==='token'){const t=st.tokens[drag.i],o=[t.x,t.y];t.x=Math.max(8,Math.min(W-8,p[0]+drag.off[0]));t.y=Math.max(30,Math.min(H-1,p[1]+drag.off[1]));if(drag.path)drag.path.push([t.x,t.y]);
+  else if(drag.kind==='token'){const t=st.tokens[drag.i],o=[t.x,t.y],nx=Math.max(8,Math.min(W-8,p[0]+drag.off[0])),ny=Math.max(30,Math.min(H-1,p[1]+drag.off[1]));
+    if(walkRule()){const r=walkDrag(o,[nx,ny]);t.x=r.p[0];t.y=r.p[1];if(r.why&&!drag.bumped)walkSay(r.why,r.o);drag.bumped=!!r.why}else{t.x=nx;t.y=ny}if(drag.path)drag.path.push([t.x,t.y]);
     if(fogWalk(t,o,[t.x,t.y]))mpChanged()}
   else if(drag.kind==='objs'){const dx=p[0]-drag.start[0],dy=p[1]-drag.start[1];if(Math.abs(dx)+Math.abs(dy)>.5)drag.moved=true;drag.list.forEach((i,k)=>{st.objects[i].x=Math.round(drag.orig[k][0]+dx);st.objects[i].y=Math.round(drag.orig[k][1]+dy)});objDirty=true}
   else if(drag.kind==='op'){const dx=p[0]-drag.start[0],dy=p[1]-drag.start[1];if(Math.abs(dx)+Math.abs(dy)>.5)drag.moved=true;
@@ -1821,7 +1822,8 @@ function up(){
   if(measure)measure.down=false;
   if(pointer&&pointer.down){pointer.down=false;pointer.end=performance.now();const h=pointer.trail[pointer.trail.length-1];pings.push({x:h.x,y:h.y,t0:pointer.end});mpPinged(h.x,h.y)}
   if(!drag)return;
-  if(drag.kind==='token'&&!altDown){const t=st.tokens[drag.i],o=[t.x,t.y];t.x=Math.round(t.x/8)*8;t.y=Math.round(t.y/8)*8;fogWalk(t,o,[t.x,t.y])}
+  if(drag.kind==='token'&&walkRule()){const t=st.tokens[drag.i];[t.x,t.y]=walkSnap(t)}
+  else if(drag.kind==='token'&&!altDown){const t=st.tokens[drag.i],o=[t.x,t.y];t.x=Math.round(t.x/8)*8;t.y=Math.round(t.y/8)*8;fogWalk(t,o,[t.x,t.y])}
   if(drag.kind==='token'){const t=st.tokens[drag.i];mpMoved(t);if(drag.path)zoneStep(t,[...drag.path,[t.x,t.y]]);portalStep(t,false,drag.from)}
   if(drag.kind==='objs'&&drag.moved)zoneSnapAll(drag.list)
   if((drag.kind==='op'||drag.kind==='objs')&&!drag.moved&&!drag.adopted){hist.pop();updUndo()}
@@ -1953,6 +1955,51 @@ window.addEventListener('keydown',e=>{const tg=e.target;if(tg.tagName==='INPUT'&
 // on presence (ks) so everyone sees the count and the path. Arrive like a dropped token: snapped, fog walk, doors.
 // A count starts over when another token is picked, the token is dragged or moved by someone else, or on Esc;
 // Enter clears it (done walking).
+// ---- players can't walk through walls ----
+// In a live session a player's token climbs or drops at most one height level per step (Hills and cliffs, −3 to +3), so a
+// cave wall (stone raised +2), a tall cliff or a deep pit stops it while a +1 hill doesn't. The face of a hill or cliff counts
+// as the higher ground it belongs to, a painted mesa counts as +2, and a locked door is solid. The DM moves anything anywhere.
+const walkRule=()=>mp.role==='player';
+const walkC=new WeakMap();
+// the terrain of the map being worked on: the one on screen, or (on the DM's page) a room that isn't
+function walkRaster(){if(!roomCtx&&lastR&&lastR.L.length===W*H)return lastR;
+  const k=JSON.stringify([st.ops,st.seed,st.rag,st.base||0,W,H]);let c=walkC.get(st);
+  if(!c||c.k!==k){c={k,R:rasterize(st.ops,st.seed,st.rag,st.base)};walkC.set(st,c)}return c.R}
+// the height a token standing on each pixel is at (kept with the terrain; a partial redraw drops it)
+function walkHeights(R){if(R.wh&&R.wh.length===W*H)return R.wh;const{Hm,Sm,L}=R,n=W*H,E=new Int8Array(n);
+  for(let i=0;i<n;i++)E[i]=Hm[i]+(L[i]===2?2:0);const out=E.slice();
+  for(let y=1;y<H;y++)for(let x=0;x<W;x++){const j=y*W+x;
+    // the same faces paintMap draws: up to 9 pixels below higher ground
+    for(let k=1;k<=9&&y-k>=0;k++){const up=j-k*W;if(Hm[up]===Hm[j])continue;if(Hm[up]<Hm[j])break;
+      const d=Hm[up]-Hm[j],s=Hm[up]>0?Sm[up]:Sm[j],len=s?Math.min(9,4*d):Math.min(9,3+2*d);if(k<=len&&E[up]>out[j])out[j]=E[up];break}
+    if(L[j]!==2)for(let k=1;k<=6&&y-k>=0;k++){const up=j-k*W;if(L[up]===2){if(E[up]>out[j])out[j]=E[up];break}}}   // a mesa's cliff
+  R.wh=out;return out}
+const walkDoors=()=>(st.objects||[]).filter(o=>o.k==='door'&&o.lock).map(o=>{const[w,h]=SIZE.door;return[o.x-w/2-2,o.y-h/2-2,o.x+w/2+2,o.y+h/2+2,o]});
+const walkIx=(x,y)=>Math.max(0,Math.min(H-1,Math.floor(y)))*W+Math.max(0,Math.min(W-1,Math.floor(x)));
+// walk from a toward b a pixel at a time: where it stops, and why ('' when it got there, 'up', 'down' or 'door')
+function walkLine(a,b){const E=walkHeights(walkRaster()),D=walkDoors(),inD=(x,y)=>D.some(r=>x>=r[0]&&x<=r[2]&&y>=r[1]&&y<=r[3]);
+  const fromDoor=inD(a[0],a[1]),door=(x,y)=>D.find(r=>x>=r[0]&&x<=r[2]&&y>=r[1]&&y<=r[3]),n=Math.max(1,Math.ceil(Math.max(Math.abs(b[0]-a[0]),Math.abs(b[1]-a[1]))));let cur=E[walkIx(a[0],a[1])],last=[a[0],a[1]];
+  for(let k=1;k<=n;k++){const x=a[0]+(b[0]-a[0])*k/n,y=a[1]+(b[1]-a[1])*k/n,h=E[walkIx(x,y)];
+    if(h-cur>1)return{p:last,why:'up'};if(cur-h>1)return{p:last,why:'down'};const dr=!fromDoor&&door(x,y);if(dr)return{p:last,why:'door',o:dr[4]};
+    cur=h;last=[x,y]}
+  return{p:[b[0],b[1]],why:''}}
+// a drag: go as far as the ground allows, then slide along the wall (across first or down first, whichever gets closer)
+function walkDrag(a,b){const r=walkLine(a,b);if(!r.why)return r;let best=r.p,bd=dist(r.p,b);
+  for(const xf of[true,false]){const m=xf?[b[0],r.p[1]]:[r.p[0],b[1]],r1=walkLine(r.p,m),r2=walkLine(r1.p,b),d=dist(r2.p,b);if(d<bd-.01){bd=d;best=r2.p}}
+  return{p:best,why:bd<.01?'':r.why,o:r.o}}
+// where a dropped token lands: the nearest grid point (every 8 pixels) it can walk to from where it is
+function walkSnap(t){const a=[t.x,t.y];let best=null,bd=1e9;
+  for(const fx of[Math.round,Math.floor,Math.ceil])for(const fy of[Math.round,Math.floor,Math.ceil]){
+    const q=[Math.max(8,Math.min(W-8,fx(t.x/8)*8)),Math.max(30,Math.min(H-1,fy(t.y/8)*8))],d=dist(a,q);if(d<bd&&!walkLine(a,q).why){bd=d;best=q}}
+  return best||a}
+// the DM's page: can a player's token get from a to b at all, around walls and locked doors?
+function walkReach(a,b){const E=walkHeights(walkRaster()),n=W*H,s=walkIx(a[0],a[1]),g=walkIx(b[0],b[1]);if(s===g)return true;
+  const door=new Uint8Array(n);walkDoors().forEach(r=>{for(let y=Math.max(0,Math.floor(r[1]));y<=Math.min(H-1,r[3]);y++)for(let x=Math.max(0,Math.floor(r[0]));x<=Math.min(W-1,r[2]);x++)door[y*W+x]=1});
+  const seen=new Uint8Array(n),q=new Int32Array(n);let h=0,e=0;q[e++]=s;seen[s]=1;
+  while(h<e){const i=q[h++],x=i%W;if(i===g)return true;
+    for(const j of[x>0?i-1:-1,x<W-1?i+1:-1,i>=W?i-W:-1,i+W<n?i+W:-1]){if(j<0||seen[j]||Math.abs(E[j]-E[i])>1||door[j]&&!door[i])continue;seen[j]=1;q[e++]=j}}
+  return false}
+function walkSay(why,o){portalSay(why==='door'?`The ${o?portalName(o).toLowerCase():'door'} won’t open.`:why==='up'?'Too steep to climb there.':'Too far to drop down there.')}
 const KDIR={ArrowUp:[0,-1],ArrowDown:[0,1],ArrowLeft:[-1,0],ArrowRight:[1,0],w:[0,-1],s:[0,1],a:[-1,0],d:[1,0]},KREP=150,KCOMBO=45,KPATH=60,KFADE=20000;
 let kstep=null,kwait=0,klast=0;const kheld=new Set(),kpend=new Set();
 const kName=e=>e.key.length===1?e.key.toLowerCase():e.key,kKeyOf=(t,i)=>t&&(t.id||'#'+i);
@@ -1968,6 +2015,7 @@ function kGo(){const ks=new Set([...kheld,...kpend]);kpend.clear();let dx=0,dy=0
 function kStep(dx,dy){const i=kTok(),t=st.tokens[i];if(!t)return false;
   const sx=Math.round(t.x/8)*8,sy=Math.round(t.y/8)*8;let nx=sx+dx*GRID,ny=sy+dy*GRID;
   if(nx<8||nx>W-8)nx=sx;if(ny<30||ny>H-1)ny=sy;if(nx===t.x&&ny===t.y)return false;   // the map's edge blocks that way
+  if(walkRule()){const r=walkLine([t.x,t.y],[nx,ny]);if(r.why){walkSay(r.why,r.o);return false}}   // a wall, a cliff or a locked door
   const key=kKeyOf(t,i),from=[t.x,t.y];kLive();
   if(!kstep||kstep.id!==key)kstep={id:key,n:0,path:[[sx,sy]],h:-1,drop:0};
   if(mp.role!=='player'&&kstep.h!==hist.length){push();kstep.h=hist.length}   // one undo takes back the whole walk
@@ -2575,9 +2623,11 @@ async function mpPushRoom(id,s){let P=mp.pushedR.get(id);if(!P){P={};mp.pushedR.
     for(let i=0;i<n;i++)await mp.db.doc(b+'parts/p'+i).set({rev,s:mj.slice(i*CHUNK,(i+1)*CHUNK)});
     await mp.db.doc(b+'map').set({rev,n,name:roomName(id)});P.map=mj}
   const tj=JSON.stringify(shown.map(t=>[t.id,t.s,t.x,t.y,t.o||0,t.rv||0,t.re||'']));
-  if(tj!==P.tok){const rev=mpRev();
+  const force=s.tokens.some(t=>mp.tokForce.has(t.id));
+  if(tj!==P.tok||force){const rev=mpRev();
     // a move the token's player made isn't a change they missed: their next step (sent before this arrives) still counts
-    s.tokens.forEach(t=>{const lp=mp.lastPos.get(t.id),pm=mp.plMv.get(t.id);if((!lp||lp[0]!==t.x||lp[1]!==t.y)&&!(pm&&pm[0]===t.x&&pm[1]===t.y))mp.tokR[t.id]=rev;mp.plMv.delete(t.id)});
+    // (a move the DM's page refused is forced: the player has to take the token back)
+    s.tokens.forEach(t=>{const lp=mp.lastPos.get(t.id),pm=mp.plMv.get(t.id);if(mp.tokForce.delete(t.id)||(!lp||lp[0]!==t.x||lp[1]!==t.y)&&!(pm&&pm[0]===t.x&&pm[1]===t.y))mp.tokR[t.id]=rev;mp.plMv.delete(t.id)});
     // positions as sent, taken before the write: a move made while it's in flight must still count as a change next time
     const sent=s.tokens.map(t=>[t.id,[t.x,t.y]]);
     await mp.db.doc(b+'tokens').set({rev,list:shown.map(t=>({id:t.id,s:t.s,x:t.x,y:t.y,o:t.o||0,r:mp.tokR[t.id]||0,...(t.rv?{rv:t.rv,re:t.re||'u'}:{})}))});
@@ -2631,7 +2681,10 @@ function mpPeers(ch){mp.peers=ch.peers;const now=performance.now(),ghost=new Map
       // a finished move is committed in the room the player is in
       if(mv&&typeof mv.id==='string'&&mp.mvSeen.get(key)!==mv.n){mp.mvSeen.set(key,mv.n);inRoom(rm,()=>{const t=st.tokens.find(t=>t.id===mv.id);
         if(t&&p.by&&p.by!==mp.me&&mpMayMove(t,p.by)&&fin(mv.x)&&fin(mv.y)&&fin(mv.base)&&+mv.base>=(mp.tokR[t.id]||0)){
-          const from=mp.walkLast.get(t.id)||[t.x,t.y];t.x=Math.max(8,Math.min(W-8,+mv.x));t.y=Math.max(30,Math.min(H-1,+mv.y));fogWalk(t,from,[t.x,t.y]);mp.walkLast.delete(t.id);mp.plMv.set(t.id,[t.x,t.y]);changed.add(lib.cur);stepped.push([t,from,zonePaths.get(t.id),lib.cur]);zonePaths.delete(t.id)}})}
+          const to=[Math.max(8,Math.min(W-8,+mv.x)),Math.max(30,Math.min(H-1,+mv.y))];
+          // a move through a wall or a locked door (an old page, or a hand-made one) doesn't count: send the token back where it was
+          if(!walkReach([t.x,t.y],to)){mp.walkLast.delete(t.id);zonePaths.delete(t.id);mp.plMv.delete(t.id);mp.tokForce.add(t.id);changed.add(lib.cur);return}
+          const from=mp.walkLast.get(t.id)||[t.x,t.y];t.x=to[0];t.y=to[1];fogWalk(t,from,[t.x,t.y]);mp.walkLast.delete(t.id);mp.plMv.set(t.id,[t.x,t.y]);changed.add(lib.cur);stepped.push([t,from,zonePaths.get(t.id),lib.cur]);zonePaths.delete(t.id)}})}
       const gi=inRoom(rm,()=>portalAsked(p,pr));if(gi)goDoor={...gi,rm}}}
   for(const l of ch.left){bmSeen.delete(l.peer);goSeen.delete(l.peer);mp.trails.delete(l.peer);mp.pingSeen.delete(l.peer);mp.mvSeen.delete(l.peer);mp.ksSeen.delete(l.peer);mp.pickSeen.delete(l.peer);mp.chSeen.delete(l.peer)}
   if(mp.role==='dm'&&mpPicks(ch.peers))commit=true;
@@ -4659,6 +4712,7 @@ $('libtour').onclick=tourOpen;$('tour').onclick=()=>{menuShow(false);tourOpen()}
 $('libcave').onclick=caveOpen;$('cave').onclick=()=>{menuShow(false);caveOpen()};
 // read-only peek for the tests
 window.__terrain=()=>({cv:tcan,L:lastR.L,W,H});
+window.__walk={rule:()=>walkRule(),level:(x,y)=>walkHeights(walkRaster())[walkIx(x,y)],reach:(a,b)=>walkReach(a,b),save(){objDirty=true;save()},moved(){mpMoved(st.tokens.find(t=>t.s===0))}};   // tests
 window.__mpMe=()=>mp.me;window.__entClock=v=>{entClock=v==null?null:+v};window.__rooms={clearTokens(){st.tokens=[];save()},addObj(o){st.objects.push(o);objDirty=true;save()},roll:r=>rollPost(r),rolls:()=>rolls.map(r=>r.l+'|'+(r.p||''))};   // tests
 window.__dustmap=()=>({rooms:roomIds(),myRoom:mp.myRoom,st,fog:fogGet(),litFires:litFires(fogView()).length,role:mp.role,cam:{...cam},Z,pings:pings.map(p=>({x:p.x,y:p.y,rgb:p.rgb||null})),blasts:blasts.map(b=>({x:b.x,y:b.y,r:b.r})),fuses:fuses.length,kills:kills.length,ents:ents.length,entStyle,throws:throws.length,hits:hits.length,th:thLog.slice(),tool,peers:mp.peers.length,busy:mp.busy,err:mp.err,again:mp.again,ks:kLive()?{n:kstep.n,path:kstep.path}:null,hist:hist.length,sel});
 libInit();mpInit();
