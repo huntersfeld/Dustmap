@@ -82,6 +82,8 @@ kbd{font-family:ui-monospace,monospace;font-size:11px;background:var(--bg);borde
 .tray{left:50%;transform:translateX(-50%);bottom:calc(12px + env(safe-area-inset-bottom,0px));padding:5px;max-width:calc(100% - 150px);display:flex}
 .trayin{display:flex;align-items:center;gap:3px;overflow-x:auto;scrollbar-width:thin;min-width:0}
 .tray .pane{display:flex;align-items:center;gap:3px;flex:none}
+/* the place-many / Place hidden buttons stay in view when a long row of swatches scrolls (Town has the most) */
+#pane-place{position:sticky;right:0;z-index:1;background:#26232c;box-shadow:-10px 0 10px -6px rgba(0,0,0,.6)}
 .sw{width:46px;height:46px;flex:none;border-radius:9px;display:grid;place-items:center;position:relative;border:2px solid transparent;background:transparent;cursor:pointer;padding:0;color:var(--fg)}
 .sw:hover{background:var(--raised)}
 .sw[aria-pressed="true"]{border-color:var(--accent);background:var(--raised)}
@@ -525,10 +527,11 @@ a.btn{text-decoration:none;color:var(--fg)}
     <div class="row zsize"><span class="note">Size</span>
       <button class="btn ghost sm" id="zwm" aria-label="Narrower">−</button><span id="zw">2</span><button class="btn ghost sm" id="zwp" aria-label="Wider">+</button><span class="note">wide</span>
       <button class="btn ghost sm" id="zhm" aria-label="Shorter">−</button><span id="zh">2</span><button class="btn ghost sm" id="zhp" aria-label="Taller">+</button><span class="note">tall</span></div>
-    <p class="note zhead">When a party token steps in or walks through:</p>
+    <p class="note zhead" id="zhead">When a party token steps in or walks through:</p>
     <div class="row"><label class="note" for="zrv">Reveal</label><select id="zrv"><option value="2">An area I mark</option><option value="1">The whole hidden patch it touches</option><option value="0">Nothing</option></select></div>
     <div class="row zmarkrow" id="zmarkrow"><button class="btn sm" id="zmark" aria-pressed="false">Mark area…</button><span class="note" id="zmarked"></span><button class="btn ghost sm" id="zclear">Clear</button></div>
     <div class="row zlinkrow"><button class="btn sm" id="zlink" aria-pressed="false">Link…</button><span class="note" id="zlinked"></span></div>
+    <div class="row" id="zenrow" hidden><label class="note" for="zen">Linked tokens</label><select id="zen"><option value="u">Spring up</option><option value="d">Drop in</option><option value="s">Appear in a puff of smoke</option></select></div>
     <p class="note" id="zfirenote" hidden>A linked fire is already lit. Select it and use Put it out so the trigger can light it.</p>
     <div class="row" id="zdrrow" hidden><label class="note" for="zdr">Linked doors</label><select id="zdr"><option value="lock">Lock them</option><option value="unlock">Unlock them</option><option value="go">Send the party through</option></select></div>
     <textarea id="zmsg" maxlength="160" placeholder="Message everyone sees (optional)" aria-label="Message everyone sees"></textarea>
@@ -3411,11 +3414,11 @@ function signInit(o){if(o.k==='sign'){o.v=0;o.txt=o.txt||'';o.lang=o.lang||'comm
  window.addEventListener('keydown',e=>{if(e.key!=='Enter'||e.target!==document.body&&e.target.tagName!=='CANVAS')return;if(tool==='select'&&sel&&sel.type==='obj'&&isSign(sel.i)&&mp.role!=='player'){e.preventDefault();signEdit(sel.i)}})}
 // ================= treasure and traps =================
 // Plain props for dungeons: a treasure chest (closed, open with gold, or iron-bound), a pile of gold, a pressure
-// plate (blank, or carved with a flame, a wave, a star or a skull: v % 5) and bones. A pressure plate does nothing
-// by itself; put a Trigger zone on it (zones can switch other zones on, so plates can be made to go in order).
+// plate (blank, or carved with a flame, a wave, a star or a skull: v % 5) and bones. A pressure plate is a trigger you
+// can see: it carries the same fields as a one-square Trigger zone (see trigger zones) and goes off when stepped on.
 OBJ.push({k:'chest',name:'Treasure chest',sub:'Loot. Closed, open with gold, or iron-bound',g:'Treasure & traps'},
   {k:'gold',name:'Gold pile',sub:'Coins and a gem or two',g:'Treasure & traps'},
-  {k:'plate',name:'Pressure plate',sub:'A stone plate. Put a Trigger zone on it to make it do something',g:'Treasure & traps'},
+  {k:'plate',name:'Pressure plate',sub:'A stone plate that goes off when the party steps on it: reveal, link doors, fires, dynamite or hidden tokens',g:'Treasure & traps'},
   {k:'bones',name:'Bones',sub:'The last adventurer who tried',g:'Treasure & traps'});
 Object.assign(SIZE,{chest:[14,11],gold:[12,7],plate:[14,14],bones:[14,9]});
 function lootSprite(k,v,put,R,E,LN,w,h){const gd=C.gold,gl=[250,224,140],gdd=[176,132,52],wd=C.wood,wdd=C.woodd,iron=C.metal,ironl=C.metall,bone=[236,228,206],boned=[190,178,152];
@@ -3987,7 +3990,7 @@ const hidSel=()=>tool==='select'&&mp.role!=='player'&&sel&&sel.type==='token'&&s
 $('thide').innerHTML=svgI('hide',2);$('thide').onclick=()=>{placeHidden=!placeHidden;syncUI()};
 function tokHide(i,on){if(mp.role==='player')return;const t=st.tokens[i];if(!t||!!t.hd===on)return;push();
   if(on){t.hd=1;delete t.rv;delete t.re}else tokUnhide(t,0);save();selKey='';syncUI()}
-function tokUnhide(t,delay){delete t.hd;t.rv=Date.now();t.re=entStyle;entStart(t,t.re,delay)}
+function tokUnhide(t,delay,e){delete t.hd;t.rv=Date.now();t.re=ENT[e]?e:entStyle;entStart(t,t.re,delay)}
 function tokRevealAll(){if(mp.role==='player')return;const l=st.tokens.filter(t=>t.hd);if(!l.length)return;push();
   l.sort((a,b)=>a.x-b.x).forEach((t,k)=>tokUnhide(t,k*ENT_GAP));save();selKey='';syncUI()}
 // ---- entrances ----
@@ -4314,35 +4317,43 @@ function portalLinkAt(p){const L=portLink;if(!L)return;const here=L.map===lib.cu
 //    rep  1 = every time a party token enters (default: once, then it's spent: done 1)
 //    ask  1 = ask the DM first (Fire / Skip)
 //    off  1 = switched off: it does nothing until a trigger it's linked to goes off (zones can link other zones,
-//         which switches them on and re-arms them; that's how pressure plates are made to go in order)}
+//         which switches them on and re-arms them; that's how pressure plates are made to go in order)
+//    tk   ids of linked tokens: linking one hides it from players, and when the zone goes off the hidden ones are
+//         revealed (see hidden tokens), left to right, with the entrance en ('u' springs up, 'd' drops in, 's' smoke)}
+// A Pressure plate ({k:'plate'}) is a trigger you can see: one square, the same fields (no w/h; its look stays in v),
+// the same editor. A plate nobody set up (nothing to reveal, link or say) does nothing, so old maps' plates stay quiet.
 // Torches and campfires can be put out ({off:1}), so a zone can light them.
 OBJ.push({k:'zone',name:'Trigger zone',sub:'An invisible area that does something when the party steps in. Only you see it.',g:'Doors & stairs'});SIZE.zone=[16,16];
 ICON.zone='M13 2L4 14h7l-1 8 9-12h-7z';
 ICON.flame='M12 22c4 0 7-3 7-7 0-4-3-6-4-10-2 2-3 4-3 6-1-1-2-2-2-4-3 3-5 5-5 8 0 4 3 7 7 7z';
 const ZMSG_MAX=160,ZMAX=20;
-const isZone=o=>!!o&&o.k==='zone';
-const zw=o=>Math.max(1,Math.min(ZMAX,Math.round(+o.w)||2)),zh=o=>Math.max(1,Math.min(ZMAX,Math.round(+o.h)||2));
+const isZone=o=>!!o&&o.k==='zone',isPlate=o=>!!o&&o.k==='plate',isTrig=o=>isZone(o)||isPlate(o);
+const zw=o=>isPlate(o)?1:Math.max(1,Math.min(ZMAX,Math.round(+o.w)||2)),zh=o=>isPlate(o)?1:Math.max(1,Math.min(ZMAX,Math.round(+o.h)||2));
 function osz(o){return isZone(o)?[zw(o)*GRID,zh(o)*GRID]:SIZE[o.k]}
 const zoneBox=o=>{const w=zw(o)*GRID,h=zh(o)*GRID;return[o.x-w/2,o.y-h/2,o.x+w/2,o.y+h/2]};
 const zoneIn=(o,x,y)=>{const b=zoneBox(o);return x>=b[0]&&x<b[2]&&y>=b[1]&&y<b[3]};
-const zoneLinkable=o=>!!o&&(isDyn(o)||isFire(o)||isPortalK(o.k)||isZone(o));
+const zoneLinkable=o=>!!o&&(isDyn(o)||isFire(o)||isPortalK(o.k)||isTrig(o));
 function zoneSprite(put,R){const c=[176,140,255],d=[96,70,160];   // tray icon: a dashed square with a spark
   for(let i=0;i<16;i++)if((i>>1)%2===0){put(i,0,c);put(i,15,c);put(0,i,c);put(15,i,c)}
   R(8,3,2,2,d);R(7,5,2,2,c);R(6,7,4,2,[230,214,255]);R(7,9,2,2,c);R(6,11,2,2,d)}
 // a zone sits on whole squares
-function zoneSnap(o){const w=zw(o),h=zh(o);o.w=w;o.h=h;o.x=Math.round((o.x-w*GRID/2)/GRID)*GRID+w*GRID/2;o.y=Math.round((o.y-h*GRID/2)/GRID)*GRID+h*GRID/2;
+function zoneSnap(o){const w=zw(o),h=zh(o);if(isZone(o)){o.w=w;o.h=h}o.x=Math.round((o.x-w*GRID/2)/GRID)*GRID+w*GRID/2;o.y=Math.round((o.y-h*GRID/2)/GRID)*GRID+h*GRID/2;
   o.x=Math.max(w*GRID/2,Math.min(W-w*GRID/2,o.x));o.y=Math.max(h*GRID/2,Math.min(H-h*GRID/2,o.y))}
-function zoneSnapAll(list){let n=0;list.forEach(i=>{const o=st.objects[i];if(isZone(o)){zoneSnap(o);n++}});if(n)save()}
-function zoneInit(o){if(!isZone(o))return o;if(!o.id)o.id=objId();o.v=0;o.w=zw(o);o.h=zh(o);
-  if(!o.nm)o.nm='Trigger '+(st.objects.filter(isZone).length);if(o.rv===undefined)o.rv=2;if(!Array.isArray(o.tg))o.tg=[];zoneSnap(o);return o}
+function zoneSnapAll(list){let n=0;list.forEach(i=>{const o=st.objects[i];if(isTrig(o)){zoneSnap(o);n++}});if(n)save()}
+function zoneInit(o){if(!isTrig(o))return o;if(!o.id)o.id=objId();const pl=isPlate(o);if(!pl){o.v=0;o.w=zw(o);o.h=zh(o)}
+  if(!o.nm)o.nm=pl?'Plate '+st.objects.filter(isPlate).length:'Trigger '+(st.objects.filter(isZone).length);if(o.rv===undefined)o.rv=pl?0:2;if(!Array.isArray(o.tg))o.tg=[];zoneSnap(o);return o}
+const trigName=o=>o.nm||(isPlate(o)?'Pressure plate':'Trigger zone');
+// a plate only counts as a trigger once it has something to do
+const trigLive=o=>isZone(o)||isPlate(o)&&!!o.id&&!!(String(o.msg||'').trim()||(o.tg||[]).length||(o.tk||[]).length||o.rv===1||o.rv===2&&zoneAreas(o).length);
 // the DM's page: zones are clickable, and are checked after everything else so a big one never hides what's in it
 function zoneHit(p){if(mp.role==='player'||fogPreview||!p)return-1;for(let i=st.objects.length-1;i>=0;i--)if(isZone(st.objects[i])&&zoneIn(st.objects[i],p[0],p[1]))return i;return-1}
 const zoneTargets=o=>(o.tg||[]).map(id=>st.objects.find(q=>q.id===id)).filter(zoneLinkable);
+const zoneTokens=o=>(Array.isArray(o.tk)?o.tk:[]).map(id=>st.tokens.find(t=>t.id===id)).filter(Boolean);
 // ---- going off ----
 // a party token moved along path (map points, standing point first): every zone it enters from outside goes off.
 // A token already inside that shuffles around doesn't set it off again.
 function zoneStep(t,path,byPlayer){if(mp.role==='player'||!portalParty(t)||!path||path.length<1)return;
-  const zs=st.objects.filter(o=>isZone(o)&&!o.done&&!o.off&&!zoneWait.some(w=>w.id===o.id));if(!zs.length)return;
+  const zs=st.objects.filter(o=>isTrig(o)&&trigLive(o)&&!o.done&&!o.off&&!zoneWait.some(w=>w.id===o.id));if(!zs.length)return;
   const pts=[];for(let k=0;k<path.length;k++){const a=path[k],b=path[k+1]||a,n=Math.max(1,Math.ceil(dist(a,b)/4));for(let j=0;j<(path[k+1]?n:1);j++)pts.push([a[0]+(b[0]-a[0])*j/n,a[1]+(b[1]-a[1])*j/n-4])}
   zs.forEach(o=>{if(zoneIn(o,pts[0][0],pts[0][1]))return;if(pts.some(q=>zoneIn(o,q[0],q[1])))zoneTrip(o,t)})}
 const zoneWait=[];   // zones waiting for the DM's Fire / Skip
@@ -4355,13 +4366,15 @@ function zoneFire(o,test){if(mp.role==='player'||!o||st.objects.indexOf(o)<0)ret
   const tg=zoneTargets(o),dyn=tg.filter(isDyn),fire=tg.filter(q=>isFire(q)&&q.off),doors=tg.filter(q=>isPortalK(q.k)),dr=o.dr||'lock';
   if(fire.length){fire.forEach(q=>delete q.off);said.push(`lit ${fire.length} fire${fire.length>1?'s':''}`)}
   if(doors.length&&dr!=='go'){doors.forEach(q=>{if(dr==='lock')q.lock=1;else delete q.lock});said.push(`${dr==='lock'?'locked':'unlocked'} ${doors.length} door${doors.length>1?'s':''}`)}
-  const zon=tg.filter(q=>isZone(q)&&q!==o&&(q.off||q.done));if(zon.length){zon.forEach(q=>{delete q.off;delete q.done});said.push(`switched on ${zon.length} trigger${zon.length>1?'s':''}`)}
+  const zon=tg.filter(q=>isTrig(q)&&q!==o&&(q.off||q.done));if(zon.length){zon.forEach(q=>{delete q.off;delete q.done});said.push(`switched on ${zon.length} trigger${zon.length>1?'s':''}`)}
+  const tks=zoneTokens(o).filter(t=>t.hd&&!tokPlayed(t)).sort((a,b)=>a.x-b.x);
+  if(tks.length){const e=ENT[o.en]?o.en:entStyle;tks.forEach((t,k)=>tokUnhide(t,k*ENT_GAP,e));said.push(`revealed ${tks.length} hidden token${tks.length>1?'s':''}`)}
   if(!o.rep&&!test)o.done=1;
   objDirty=true;save();
   if(dyn.length){dynLight(dyn);said.push(`lit ${dyn.length} fuse${dyn.length>1?'s':''}`)}
   const msg=String(o.msg||'').trim().slice(0,ZMSG_MAX);if(msg)bmEmit({f:2,x:Math.round(o.x),y:Math.round(o.y),m:msg});
   zoneFlash.push({id:o.id,t0:performance.now()});
-  portalSay(`“${o.nm||'Trigger zone'}” went off`+(said.length?': '+said.join(', '):'')+'.'+(msg?` Everyone sees: “${msg}”`:''));
+  portalSay(`“${trigName(o)}” went off`+(said.length?': '+said.join(', '):'')+'.'+(msg?` Everyone sees: “${msg}”`:''));
   if(doors.length&&dr==='go'){const id=doors[0].id,rm=lib.cur;setTimeout(()=>inRoom(rm,()=>{const j=st.objects.findIndex(q=>q.id===id);if(j>=0)portalGo(j)}),msg?900:150)}
   syncUI()}
 // rv 2: clear the squares the DM marked (ra: [[c0,r0,c1,r1],...], inclusive) and nothing else
@@ -4384,30 +4397,31 @@ function zoneReveal(o){if(!st.fog||st.fog.length!==st.cols*st.rows)return false;
 function zoneAskShow(){const card=$('zoneask');const w=zoneWait[0];if(!w){card.hidden=true;return}
   const away=mp.role==='dm'&&w.rm&&w.rm!==roomBase().id,m=away?roomGet(w.rm):roomBase().st,o=m&&m.objects.find(q=>q.id===w.id);
   if(!o){zoneWait.shift();return zoneAskShow()}
-  $('zatext').textContent=(away?`In “${roomName(w.rm)}”: `:'')+`${w.who} stepped into “${o.nm||'Trigger zone'}”.`+(zoneWait.length>1?` (${zoneWait.length-1} more waiting)`:'');card.hidden=false}
+  $('zatext').textContent=(away?`In “${roomName(w.rm)}”: `:'')+`${w.who} stepped ${isPlate(o)?'on':'into'} “${trigName(o)}”.`+(zoneWait.length>1?` (${zoneWait.length-1} more waiting)`:'');card.hidden=false}
 function zoneAnswer(go){const w=zoneWait.shift();if(w&&go)inRoom(w.rm,()=>{const o=st.objects.find(q=>q.id===w.id);if(o)zoneFire(o)});zoneAskShow()}
 // ---- the DM's editor ----
 let zoneEd=null,zoneLinking=false,zoneMarking=false,zoneMarkDrag=null;const zoneFlash=[];
-const zoneKey=o=>JSON.stringify([o.nm,o.w,o.h,o.x,o.y,o.rv,o.ra,o.tg,o.dr,o.msg,o.rep,o.ask,o.done,o.off]);
-const isZoneI=i=>i!=null&&i>=0&&isZone(st.objects[i]);
+const zoneKey=o=>JSON.stringify([o.nm,o.w,o.h,o.x,o.y,o.rv,o.ra,o.tg,o.tk,o.en,o.dr,o.msg,o.rep,o.ask,o.done,o.off,(o.tk||[]).map(id=>{const t=st.tokens.find(q=>q.id===id);return t&&t.hd})]);
+const isZoneI=i=>i!=null&&i>=0&&isTrig(st.objects[i]);   // zones and pressure plates share the editor
 function zoneEdit(i){if(!isZoneI(i)||mp.role==='player')return;signClose();portalClose();zoneClose();const o=zoneInit(st.objects[i]);
   zoneEd={i,before:JSON.stringify(st),start:zoneKey(o)};zoneSync();$('zoneedit').hidden=false;zonePlace()}
-function zoneSync(){if(!zoneEd)return;const o=st.objects[zoneEd.i];if(!isZone(o))return;
+function zoneSync(){if(!zoneEd)return;const o=st.objects[zoneEd.i];if(!isTrig(o))return;const pl=isPlate(o);
+  $('zoneedit').querySelector('.zsize').hidden=pl;$('zhead').textContent=pl?'When a party token steps on it:':'When a party token steps in or walks through:';$('zoneedit').setAttribute('aria-label',pl?'Edit pressure plate':'Edit trigger zone');
   if(document.activeElement!==$('zname'))$('zname').value=o.nm||'';if(document.activeElement!==$('zmsg'))$('zmsg').value=o.msg||'';
   $('zw').textContent=zw(o);$('zh').textContent=zh(o);$('zrv').value=String(o.rv===2?2:o.rv?1:0);$('zrep').value=o.rep?'1':'0';$('zask').checked=!!o.ask;$('zoff').checked=!!o.off;
-  const tg=zoneTargets(o),n=f=>tg.filter(f).length,parts=[],nd=n(isDyn),nf=n(isFire),np=n(q=>isPortalK(q.k)),nz=n(isZone);
-  if(nd)parts.push(`${nd} dynamite`);if(nf)parts.push(`${nf} fire${nf>1?'s':''}`);if(np)parts.push(`${np} door${np>1?'s':''}`);if(nz)parts.push(`${nz} trigger${nz>1?'s':''} (switched on)`);
-  $('zlinked').textContent=zoneLinking?'Click dynamite, doors, torches, campfires or other triggers on the map to link or unlink them.':parts.length?'Linked: '+parts.join(', ')+'.':'Nothing linked yet.';
+  const tg=zoneTargets(o),n=f=>tg.filter(f).length,parts=[],nd=n(isDyn),nf=n(isFire),np=n(q=>isPortalK(q.k)),nz=n(isTrig),nt=zoneTokens(o).length;
+  if(nd)parts.push(`${nd} dynamite`);if(nf)parts.push(`${nf} fire${nf>1?'s':''}`);if(np)parts.push(`${np} door${np>1?'s':''}`);if(nz)parts.push(`${nz} trigger${nz>1?'s':''} (switched on)`);if(nt)parts.push(`${nt} token${nt>1?'s':''} (hidden until it goes off)`);
+  $('zlinked').textContent=zoneLinking?'Click dynamite, doors, torches, campfires, other triggers or tokens on the map to link or unlink them. A linked token stays hidden until this goes off.':parts.length?'Linked: '+parts.join(', ')+'.':'Nothing linked yet.';
   $('zoneedit').classList.toggle('linking',zoneLinking);$('zoneedit').classList.toggle('marking',zoneMarking);
   const ar=zoneAreas(o),sq=ar.reduce((a,[c0,r0,c1,r1])=>a+(c1-c0+1)*(r1-r0+1),0);$('zmarkrow').hidden=o.rv!==2;$('zclear').hidden=zoneMarking||!ar.length;
   $('zmarked').textContent=zoneMarking?'Drag over the squares it reveals. Click an area to remove it.':ar.length?`${ar.length} area${ar.length>1?'s':''}, ${sq} square${sq>1?'s':''}.`:'Nothing marked yet.';
   $('zmark').textContent=zoneMarking?'Done marking':'Mark area…';$('zmark').setAttribute('aria-pressed',String(zoneMarking));
   $('zlink').textContent=zoneLinking?'Done linking':'Link…';$('zlink').setAttribute('aria-pressed',String(zoneLinking));
-  $('zdrrow').hidden=!np;$('zdr').value=o.dr||'lock';
+  $('zdrrow').hidden=!np;$('zdr').value=o.dr||'lock';$('zenrow').hidden=!nt;$('zen').value=ENT[o.en]?o.en:entStyle;
   $('zfirenote').hidden=!tg.some(q=>isFire(q)&&!q.off);
   $('zspent').hidden=!o.done}
 function zoneApply(fn){if(!zoneEd||!isZoneI(zoneEd.i))return;const o=st.objects[zoneEd.i];fn(o);
-  ['rep','ask','done','off'].forEach(k=>{if(!o[k])delete o[k]});if(Array.isArray(o.ra)&&!o.ra.length)delete o.ra;if(!o.msg)delete o.msg;if(!o.dr||o.dr==='lock')delete o.dr;
+  ['rep','ask','done','off'].forEach(k=>{if(!o[k])delete o[k]});if(Array.isArray(o.ra)&&!o.ra.length)delete o.ra;if(Array.isArray(o.tk)&&!o.tk.length){delete o.tk;delete o.en}if(!o.msg)delete o.msg;if(!o.dr||o.dr==='lock')delete o.dr;
   objDirty=true;zoneSync();save()}
 function zoneClose(){if(!zoneEd)return;const e=zoneEd;zoneEd=null;zoneLinking=false;zoneMarking=false;zoneMarkDrag=null;$('zoneedit').hidden=true;const o=st.objects[e.i];
   if(o&&zoneKey(o)!==e.start){hist.push(e.before);if(hist.length>80)hist.shift();updUndo()}
@@ -4419,7 +4433,7 @@ function zoneResize(dw,dh){zoneApply(o=>{const b=zoneBox(o);o.w=Math.max(1,Math.
 function zoneTick(){zonePlace();if(zoneEd&&!isZoneI(zoneEd.i))zoneClose();if(!$('zoneask').hidden&&mp.role==='player')$('zoneask').hidden=true}
 // ---- selection bar: zones, and torches / campfires that can be put out ----
 function zoneSelbar(bar,add){if(sel.type!=='obj')return;const i=sel.i,o=st.objects[i];if(!o)return;
-  if(isZone(o)){add('zone','Edit trigger','Enter','What it does when the party steps in',()=>zoneEdit(i));add('boom','Set it off now','','Test it: does everything it would do',()=>zoneFire(st.objects[i],true))}
+  if(isTrig(o)){add('zone',isPlate(o)?'Edit plate':'Edit trigger','Enter',isPlate(o)?'What it does when the party steps on it':'What it does when the party steps in',()=>zoneEdit(i));add('boom','Set it off now','','Test it: does everything it would do',()=>zoneFire(st.objects[i],true))}
   if(isFire(o))add('flame',o.off?'Light it':'Put it out','',o.off?'A trigger zone can light it too':'Starts dark; link it to a trigger zone to light it',()=>{push();if(o.off)delete o.off;else o.off=1;objDirty=true;save();selKey='';syncUI()})}
 // ---- marking the area a zone reveals: drag a box of squares; a click on a marked area removes it ----
 const zoneCell=p=>[Math.max(0,Math.min(st.cols-1,Math.floor(p[0]/GRID))),Math.max(0,Math.min(st.rows-1,Math.floor(p[1]/GRID)))];
@@ -4446,11 +4460,19 @@ function zoneDraw(){if(mp.role==='player'||fogPreview)return;const now=performan
     ctx.fillStyle='rgba(29,27,34,.85)';ctx.beginPath();ctx.roundRect(x+3,y+3,Math.min(tw,Math.max(w-6,18)),16,4);ctx.fill();
     ctx.save();ctx.beginPath();ctx.rect(x+3,y+3,Math.max(w-6,18),16);ctx.clip();ctx.fillStyle=spent?'#bbb':'#e6dcff';
     ctx.fillText('⚡',x+6,y+15);ctx.fillText(t,x+18,y+15);ctx.restore()});
+  // pressure plates that do something: a dashed square on the plate and its name over it
+  st.objects.forEach(o=>{if(!isPlate(o)||!(trigLive(o)||o===ed||o===sl))return;const spent=!!o.done||!!o.off,x=(o.x-GRID/2)*Z,y=(o.y-GRID/2)*Z,w=GRID*Z;
+    const fl=zoneFlash.find(f=>f.id===o.id),fa=fl?Math.max(0,1-(now-fl.t0)/900):0;if(fa>0){ctx.fillStyle=`rgba(150,110,255,${fa*.5})`;ctx.fillRect(x,y,w,w)}
+    ctx.setLineDash([4,3]);ctx.strokeStyle='rgba(29,27,34,.7)';ctx.lineWidth=3;ctx.strokeRect(x,y,w,w);ctx.strokeStyle=spent?'rgba(200,200,210,.6)':'#c8b4ff';ctx.lineWidth=1.5;ctx.strokeRect(x,y,w,w);ctx.setLineDash([]);
+    ctx.font='600 11px "Work Sans", system-ui, sans-serif';const t=(o.ask?'? ':'')+'⚡ '+trigName(o)+(o.off?' (off)':spent?' (spent)':o.rep?' ↻':''),tw=ctx.measureText(t).width+10;
+    ctx.fillStyle='rgba(29,27,34,.85)';ctx.beginPath();ctx.roundRect(x+w/2-tw/2,y-19,tw,16,4);ctx.fill();ctx.fillStyle=spent?'#bbb':'#e6dcff';ctx.fillText(t,x+w/2-tw/2+5,y-7)});
   zoneFlash.splice(0,zoneFlash.length,...zoneFlash.filter(f=>now-f.t0<900));
   // links of the selected (or open) zone
   const z=ed||sl;if(!z)return;const cx=z.x*Z,cy=z.y*Z;if(z.rv===2)zoneAreaDraw(z,z===ed&&zoneMarking?zoneMarkDrag:null);
   zoneTargets(z).forEach(q=>{const qx=q.x*Z,qy=q.y*Z;ctx.setLineDash([4,4]);ctx.strokeStyle='rgba(29,27,34,.7)';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(qx,qy);ctx.stroke();
-    ctx.strokeStyle='#c8b4ff';ctx.lineWidth=1.5;ctx.stroke();ctx.setLineDash([]);const[w,h]=osz(q);ctx.strokeStyle='#c8b4ff';ctx.lineWidth=2;ctx.strokeRect((q.x-w/2-2)*Z,(q.y-h/2-2)*Z,(w+4)*Z,(h+4)*Z)})}
+    ctx.strokeStyle='#c8b4ff';ctx.lineWidth=1.5;ctx.stroke();ctx.setLineDash([]);const[w,h]=osz(q);ctx.strokeStyle='#c8b4ff';ctx.lineWidth=2;ctx.strokeRect((q.x-w/2-2)*Z,(q.y-h/2-2)*Z,(w+4)*Z,(h+4)*Z)});
+  zoneTokens(z).forEach(t=>{const tx=t.x*Z,ty=(t.y-12)*Z;ctx.setLineDash([4,4]);ctx.strokeStyle='rgba(29,27,34,.7)';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(tx,ty);ctx.stroke();
+    ctx.strokeStyle='#ffb4d8';ctx.lineWidth=1.5;ctx.stroke();ctx.setLineDash([]);ctx.strokeStyle='#ffb4d8';ctx.lineWidth=2;ctx.strokeRect((t.x-13)*Z,(t.y-31)*Z,26*Z,34*Z)})}
 {$('zname').oninput=e=>zoneApply(o=>{o.nm=e.target.value.slice(0,40)});
  $('zmsg').oninput=e=>zoneApply(o=>{o.msg=e.target.value.slice(0,ZMSG_MAX)});
  $('zrv').onchange=e=>{zoneApply(o=>{o.rv=+e.target.value});const o=zoneEd&&st.objects[zoneEd.i];if(o&&o.rv===2&&!zoneAreas(o).length){zoneMarking=true;zoneLinking=false;zoneSync()}};
@@ -4460,6 +4482,7 @@ function zoneDraw(){if(mp.role==='player'||fogPreview)return;const now=performan
  $('zask').onchange=e=>zoneApply(o=>{o.ask=e.target.checked?1:0});
  $('zoff').onchange=e=>zoneApply(o=>{o.off=e.target.checked?1:0});
  $('zdr').onchange=e=>zoneApply(o=>{o.dr=e.target.value});
+ $('zen').onchange=e=>zoneApply(o=>{o.en=ENT[e.target.value]?e.target.value:'u'});
  $('zwm').onclick=()=>zoneResize(-1,0);$('zwp').onclick=()=>zoneResize(1,0);$('zhm').onclick=()=>zoneResize(0,-1);$('zhp').onclick=()=>zoneResize(0,1);
  $('zlink').onclick=()=>{zoneLinking=!zoneLinking;zoneMarking=false;zoneSync()};
  $('zrearm').onclick=()=>zoneApply(o=>{o.done=0});
@@ -4472,11 +4495,15 @@ function zoneDraw(){if(mp.role==='player'||fogPreview)return;const now=performan
    if(zoneMarking&&e.button===0){e.stopImmediatePropagation();e.preventDefault();const p=toMap(e),c=zoneCell(p);zoneMarkDrag={a:c,b:c};return}
    if(!zoneLinking||e.button!==0){if(e.button===0)zoneClose();return}
    e.stopImmediatePropagation();e.preventDefault();const p=toMap(e);let j=-1;
+   // a token: link it (it goes hidden until the trigger reveals it) or unlink it
+   for(let i=st.tokens.length-1;i>=0;i--){const t=st.tokens[i];if(!(p[0]>t.x-11&&p[0]<t.x+11&&p[1]>t.y-28&&p[1]<t.y+1))continue;if(tokPlayed(t))return;
+     if(!t.id)t.id=tokId();zoneApply(o=>{const l=(Array.isArray(o.tk)?o.tk:[]).filter(id=>st.tokens.some(x=>x.id===id));
+       if(l.includes(t.id))o.tk=l.filter(id=>id!==t.id);else{o.tk=[...l,t.id];if(!o.en)o.en=entStyle;if(!t.hd){t.hd=1;delete t.rv;delete t.re}}});return}
    for(const zz of[false,true]){for(let i=st.objects.length-1;i>=0;i--){const q=st.objects[i];if(!zoneLinkable(q)||isZone(q)!==zz||q===st.objects[zoneEd.i])continue;const[w,h]=osz(q),m=zz?0:3;if(Math.abs(p[0]-q.x)<=w/2+m&&Math.abs(p[1]-q.y)<=h/2+m){j=i;break}}if(j>=0)break}
    if(j<0)return;const q=st.objects[j];if(!q.id)q.id=objId();zoneApply(o=>{const tg=(o.tg||[]).filter(id=>st.objects.some(x=>x.id===id));o.tg=tg.includes(q.id)?tg.filter(id=>id!==q.id):[...tg,q.id]})},true);
  // a zone the Objects tool just placed sits on whole squares, gets an id and opens its editor
  let zoneN=0;cv.addEventListener('pointerdown',()=>{zoneN=st.objects.length},true);
- cv.addEventListener('pointerdown',()=>{if(tool!=='object'||st.objects.length<=zoneN)return;const fresh=st.objects.slice(zoneN).filter(isZone);if(!fresh.length)return;
+ cv.addEventListener('pointerdown',()=>{if(tool!=='object'||st.objects.length<=zoneN)return;const fresh=st.objects.slice(zoneN).filter(isTrig);if(!fresh.length)return;
    fresh.forEach(zoneInit);objDirty=true;save();if(st.objects.length-zoneN===1)zoneEdit(zoneN)});
  cv.addEventListener('dblclick',e=>{if(tool!=='select'||mp.role==='player')return;const p=toMap(e),h=hit(p);if(h&&h.type==='obj'&&isZoneI(h.i)){e.preventDefault();setObjSel([h.i]);zoneEdit(h.i);syncUI()}});
  window.addEventListener('keydown',e=>{if(e.key!=='Enter'||e.target!==document.body&&e.target.tagName!=='CANVAS')return;if(tool==='select'&&sel&&sel.type==='obj'&&isZoneI(sel.i)&&mp.role!=='player'){e.preventDefault();zoneEdit(sel.i)}})}
@@ -4582,6 +4609,7 @@ function caveMap(){const G=16,q=(c,r)=>[c*G,r*G],P=a=>a.map(([c,r])=>q(c,r)),ctr
   const id=s=>'cave-'+s;
   const Z=(nm,c,r,w,h,o={})=>({k:'zone',x:(c+w/2)*G,y:(r+h/2)*G,v:0,w,h,id:id(o.id||nm.toLowerCase().replace(/[^a-z]+/g,'-')),nm,rv:o.ra?2:0,...(o.ra?{ra:o.ra}:{}),tg:(o.tg||[]).map(id),
     ...(o.dr?{dr:o.dr}:{}),...(o.msg?{msg:o.msg}:{}),...(o.rep?{rep:1}:{}),...(o.ask?{ask:1}:{}),...(o.off?{off:1}:{})});
+  const PL=(nm,c,r,v,o)=>{const z=Z(nm,c,r,1,1,o);delete z.w;delete z.h;return{...z,k:'plate',v}};
   const DART='Wrong plate! Darts hiss out of the walls. DC 13 Dex save or take 2d4 piercing.';
   const objects=[
     // DM key, hidden for good in the top-left pocket
@@ -4617,7 +4645,6 @@ function caveMap(){const G=16,q=(c,r)=>[c*G,r*G],P=a=>a.map(([c,r])=>q(c,r)),ctr
     // F
     O('door',41,33,0,{id:id('hall-out'),to:'here',at:id('hall-out-land')}),O('landing',42,33,0,{id:id('hall-land')}),
     O('torch',42,22,0,{id:id('ht1'),off:1}),O('torch',52,22,0,{id:id('ht2'),off:1}),O('torch',42,38,0,{id:id('ht3'),off:1}),O('torch',48,38,0,{id:id('ht4'),off:1}),
-    O('plate',44,24,1),O('plate',49,36,2),O('plate',50,24,3),O('plate',46,29,4),O('plate',47,33,0),
     O('crystals',51,23,0),O('bones',47,29,0),O('banner',45,21,0),O('banner',49,21,0),O('skulls',41,26,0),O('bones',45,34,3),O('rubble',52,31,2),
     S(44,31,'First the fire that lights the dark,\nthen the water that drowns the spark,\nlast the stone that holds a star.\nStep wrong and the walls will bite.',{lang:'dwarvish',tr:1,v:0}),
     O('door',52,29,0,{id:id('vault-door'),to:'here',at:id('vault-land'),lock:1}),O('landing',51,29,0,{id:id('vault-out-land')}),
@@ -4634,19 +4661,20 @@ function caveMap(){const G=16,q=(c,r)=>[c*G,r*G],P=a=>a.map(([c,r])=>q(c,r)),ctr
     Z('Grotto',27,23,3,2,{ra:[[21,0,38,25]],msg:'Crystals glow violet on every wall. The floor is sticky with web.'}),
     Z('Lake shore',40,8,2,3,{ra:[[39,0,59,20]],msg:'The tunnel opens on black, still water. Far off, a thread of daylight.'}),
     Z('Sealed in',43,30,2,7,{ra:[[39,21,53,39]],tg:['hall-out','ht1','ht2','ht3','ht4'],dr:'lock',msg:'The stone door grinds shut behind you! Torches flare to life along the walls.'}),
-    Z('Flame plate',44,24,1,1,{id:'p1',rv:0,tg:['p2'],msg:'Click. The flame plate sinks into the floor and stays down.'}),
-    Z('Wave plate',49,36,1,1,{id:'p2',rv:0,off:1,tg:['p3'],msg:'Click. The wave plate sinks. Somewhere, water gurgles.'}),
-    Z('Star plate',50,24,1,1,{id:'p3',rv:0,off:1,tg:['vault-door','hall-out','vt1','vt2'],dr:'unlock',msg:'Click. A deep grinding shakes the hall: the vault door and the way back both swing open!'}),
-    Z('Skull plate',46,29,1,1,{rep:1,msg:DART}),
-    Z('Blank plate',47,33,1,1,{rep:1,msg:DART}),
-    Z('Vault',57,25,2,9,{ra:[[54,21,59,39]],msg:'Gold glitters in the torchlight, and something in the corner sits up.'})];
+    // the pressure plates are triggers themselves
+    PL('Flame plate',44,24,1,{id:'p1',tg:['p2'],msg:'Click. The flame plate sinks into the floor and stays down.'}),
+    PL('Wave plate',49,36,2,{id:'p2',off:1,tg:['p3'],msg:'Click. The wave plate sinks. Somewhere, water gurgles.'}),
+    PL('Star plate',50,24,3,{id:'p3',off:1,tg:['vault-door','hall-out','vt1','vt2'],dr:'unlock',msg:'Click. A deep grinding shakes the hall: the vault door and the way back both swing open!'}),
+    PL('Skull plate',46,29,4,{rep:1,msg:DART}),
+    PL('Blank plate',47,33,0,{rep:1,msg:DART}),
+    {...Z('Vault',57,25,2,9,{ra:[[54,21,59,39]],msg:'Gold glitters in the torchlight, and something in the corner sits up.'}),tk:[id('warden')],en:'u'}];
   const T=(s,c,r,o=0)=>{const[x,y]=ctr(c,r);return{s,x,y,o}};
   const tokens=[T(0,7,34,0),T(1,8,34,3),T(2,7,35,5),T(3,8,35,2),
     T(8,6,15,1),T(4,9,16,2),T(5,14,17,4),T(6,12,21,6),T(7,16,15,3),T(11,19,23,5),
     T(70,24,31,1),T(71,32,36,4),T(76,30,31,2),
     T(55,26,6,0),T(56,33,12,3),T(57,26,13,5),T(52,32,4,2),T(53,24,9,6),
     T(44,43,4,1),T(45,45,17,4),T(46,56,12,2),T(48,53,16,6),
-    T(72,57,30,3)];
+    {...T(72,57,30,3),id:id('warden'),hd:1}];   // the Vault Warden waits hidden; the Vault zone brings it up
   // fog: everything but the adit starts hidden; each room's zone reveals the squares marked for it (ra)
   const cols=60,rows=40;let fog='';for(let r=0;r<rows;r++)for(let c=0;c<cols;c++)fog+=c<=16&&r>=26?'0':'1';
   return{v:3,cols,rows,base:7,seed:7171,rag:5,ops,objects,tokens,skip:[],fog,fogWalk:true,fogWalkR:3}}
