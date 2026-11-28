@@ -427,6 +427,7 @@ a.btn{text-decoration:none;color:var(--fg)}
         <hr class="dmonly">
         <label class="mi check" for="grid"><input type="checkbox" id="grid" checked> Grid <kbd>G</kbd></label>
         <label class="mi check" for="anim"><input type="checkbox" id="anim" checked> Animate tokens</label>
+        <label class="mi check" for="trail" data-tip="Movement trail" data-sub="The path and distance as a token walks with the keys. Only changes what you see"><input type="checkbox" id="trail"> Movement trail</label>
         <button class="mi" id="snap" role="menuitem">Snapshot</button>
         <hr class="dmonly">
         <button class="mi warn dmonly" id="clear" role="menuitem">Clear map</button>
@@ -1985,9 +1986,14 @@ function kStep(dx,dy){const i=kTok(),t=st.tokens[i];if(!t)return false;
 // the count belongs to one token at one spot: drop it once that's no longer true
 function kLive(){if(!kstep)return null;const i=kTok(),t=st.tokens[i],e=kstep.path[kstep.path.length-1];
   if(!t||kKeyOf(t,i)!==kstep.id||t.x!==e[0]||t.y!==e[1])kstep=null;return kstep}
+// Movement trail (the path and count drawn while a token walks) is each person's own choice, off unless they turn it on in
+// the menu. It only changes what that page draws: the walk is still counted and still goes on presence for anyone who has it on.
+let showTrail=false,stepDraws=0;try{showTrail=localStorage.getItem('dustmap-trail')==='1'}catch(e){}
+$('trail').checked=showTrail;$('trail').onchange=e=>{showTrail=e.target.checked;e.target.blur();   // so the arrow keys go back to walking
+  try{localStorage.setItem('dustmap-trail',showTrail?'1':'0')}catch(e){}};
 const kTxt=n=>`${n} square${n===1?'':'s'} · ${n*5} ft`;
 // path: [[x,y]...] map px standing points; n: steps taken; rgb "r,g,b"; a: opacity
-function drawSteps(path,n,rgb,who,a){if(!path.length)return;ctx.save();ctx.globalAlpha=a;ctx.lineCap='round';ctx.lineJoin='round';
+function drawSteps(path,n,rgb,who,a){if(!showTrail||!path.length)return;stepDraws++;ctx.save();ctx.globalAlpha=a;ctx.lineCap='round';ctx.lineJoin='round';
   const P=path.map(q=>[q[0]*Z,(q[1]-4)*Z]);
   if(P.length>1){ctx.beginPath();P.forEach((q,k)=>k?ctx.lineTo(...q):ctx.moveTo(...q));ctx.strokeStyle='rgba(30,24,30,.55)';ctx.lineWidth=6;ctx.stroke();
     ctx.strokeStyle=`rgba(${rgb},.9)`;ctx.lineWidth=2.5;ctx.setLineDash([7,6]);ctx.stroke();ctx.setLineDash([])}
@@ -4660,7 +4666,7 @@ $('libcave').onclick=caveOpen;$('cave').onclick=()=>{menuShow(false);caveOpen()}
 // read-only peek for the tests
 window.__terrain=()=>({cv:tcan,L:lastR.L,W,H});
 window.__mpMe=()=>mp.me;window.__entClock=v=>{entClock=v==null?null:+v};window.__rooms={clearTokens(){st.tokens=[];save()},addObj(o){st.objects.push(o);objDirty=true;save()},roll:r=>rollPost(r),rolls:()=>rolls.map(r=>r.l+'|'+(r.p||''))};   // tests
-window.__dustmap=()=>({rooms:roomIds(),myRoom:mp.myRoom,st,fog:fogGet(),litFires:litFires(fogView()).length,role:mp.role,cam:{...cam},Z,pings:pings.map(p=>({x:p.x,y:p.y,rgb:p.rgb||null})),blasts:blasts.map(b=>({x:b.x,y:b.y,r:b.r})),fuses:fuses.length,kills:kills.length,ents:ents.length,entStyle,throws:throws.length,hits:hits.length,th:thLog.slice(),tool,peers:mp.peers.length,busy:mp.busy,err:mp.err,again:mp.again,ks:kLive()?{n:kstep.n,path:kstep.path}:null,hist:hist.length,sel});
+window.__dustmap=()=>({rooms:roomIds(),myRoom:mp.myRoom,st,fog:fogGet(),litFires:litFires(fogView()).length,role:mp.role,cam:{...cam},Z,pings:pings.map(p=>({x:p.x,y:p.y,rgb:p.rgb||null})),blasts:blasts.map(b=>({x:b.x,y:b.y,r:b.r})),fuses:fuses.length,kills:kills.length,ents:ents.length,entStyle,throws:throws.length,hits:hits.length,th:thLog.slice(),tool,peers:mp.peers.length,busy:mp.busy,err:mp.err,again:mp.again,ks:kLive()?{n:kstep.n,path:kstep.path}:null,trail:showTrail,stepDraws,hist:hist.length,sel});
 libInit();mpInit();
 buildTools();buildObjs();buildToks();buildPaints();updUndo();sizeCanvas();syncUI();requestAnimationFrame(loop);
 setTimeout(buildPaints,0);
