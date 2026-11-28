@@ -29,6 +29,13 @@ try{
     await tap(p,'ArrowRight');await tap(p,'ArrowRight');await tap(p,'ArrowDown');
     d=await S(p);let t=d.st.tokens[i];if(t.x!==x0+32||t.y!==y0+16)fail(`arrows: expected ${x0+32},${y0+16} got ${t.x},${t.y}`);
     if(!d.ks||d.ks.n!==2)fail('right, right, down is one straight step and one diagonal (2), got '+JSON.stringify(d.ks));
+    // the movement trail is off by default: the walk counts but nothing is drawn, until it's turned on in the menu (and that sticks)
+    if(d.trail||await p.isChecked('#trail'))fail('movement trail should start off');
+    {const n0=d.stepDraws;await p.waitForTimeout(200);if((await S(p)).stepDraws!==n0)fail('trail drawn while it is off')}
+    await p.click('#more');await p.click('label[for=trail]');await p.click('#more');await p.evaluate(()=>document.activeElement.blur());await p.waitForTimeout(200);
+    if(!(await S(p)).trail||await p.evaluate(()=>localStorage.getItem('dustmap-trail'))!=='1')fail('menu did not turn the trail on');
+    {const n0=(await S(p)).stepDraws;await p.waitForTimeout(200);if(!((await S(p)).stepDraws>n0))fail('trail not drawn once on')}
+    if(!(await p.isHidden('#menu')))fail('menu should close');if(((await S(p)).ks||{}).n!==2)fail('the menu lost the walk');
     // WASD
     await tap(p,'a');await tap(p,'w');d=await S(p);t=d.st.tokens[i];if(t.x!==x0+16||t.y!==y0)fail('WASD did not step');
     if(d.ks.n!==1)fail('after WASD the token is one square from the start, count should be 1, got '+d.ks.n);
@@ -140,7 +147,9 @@ try{
    for(let k=0;k<10;k++){await p1.keyboard.press('ArrowRight');await p1.waitForTimeout(150)}
    await until(async()=>(await S(dm)).st.tokens.find(t=>t.id===w0.id).x===bx,'walk back')}
   await p1.keyboard.press('ArrowUp');await until(async()=>{const t=(await S(dm)).st.tokens.find(t=>t.id===w0.id);return t.y===wy},'later step lands');
-  // the DM sees the player's count via presence
+  // the DM sees the player's count via presence, drawn once the DM turns the trail on (it's each person's own setting)
+  {const n0=(await S(dm)).stepDraws;await dm.waitForTimeout(200);if((await S(dm)).stepDraws!==n0)fail('DM drew a trail with it off')}
+  await dm.evaluate(()=>{const c=document.getElementById('trail');c.checked=true;c.dispatchEvent(new Event('change'))});
   const pn=((await S(p1)).ks||{}).n;await until(()=>{const pr=[...pres.values()].find(q=>q.by==='u_p1');let o=pr&&pr.presence;if(typeof o==='string')o=JSON.parse(o);return o&&o.ks&&o.ks.n===pn&&o.ks.id===w0.id},'count on presence');
   await dm.waitForTimeout(300);{const t=(await S(dm)).st.tokens.find(t=>t.id===w0.id),c=await scr(dm,t.x,t.y);await dm.screenshot({path:path.join(OUT,'keyboard_steps_dm_sees.png'),clip:{x:Math.max(0,c[0]-220),y:Math.max(0,c[1]-160),width:440,height:280}})}
   // nobody else's token moved
