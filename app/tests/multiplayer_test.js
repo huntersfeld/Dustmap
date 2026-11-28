@@ -73,7 +73,7 @@ try{
   const moved=(await S(p1)).st.tokens.find(t=>t.id===wiz.id);
   if(moved.x===wiz.x&&moved.y===wiz.y)fail('player could not drag their token');
   await until(async()=>{const t=(await S(dm)).st.tokens.find(t=>t.id===wiz.id);return t.x===moved.x&&t.y===moved.y},'DM page took the player move');
-  await until(()=>{const t=(store.get('live/tokens')||{list:[]}).list.find(t=>t.id===wiz.id);return t&&t.x===moved.x&&t.y===moved.y},'move saved to the shared tokens');
+  await until(()=>{const t=(store.get('rm/'+(store.get('live/rooms')||{}).lobby+'/tokens')||{list:[]}).list.find(t=>t.id===wiz.id);return t&&t.x===moved.x&&t.y===moved.y},'move saved to the shared tokens');
   // ...and not someone else's
   await dragMap(p1,[har.x,har.y-10],[har.x+48,har.y-10]);
   if((await S(p1)).st.tokens.find(t=>t.id===har.id).x!==har.x)fail('player moved a token that is not theirs');

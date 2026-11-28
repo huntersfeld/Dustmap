@@ -66,15 +66,16 @@ try{
   await dragMap(p1,[mine.x,mine.y-10],[dx,dy-10]);
   await until(async()=>!(await S(dm)).st.tokens.some(t=>t.s===0),'the token leaves the home map');
   await until(async()=>{const t=(await dmMap(dm,'Cellar')).tokens.find(t=>t.s===0);return t&&beside(t,18,2)},'it waits in the Cellar beside the door');
-  if(await curName(dm)!==home)fail('one player going through should not move the session');
-  await until(async()=>!(await S(p1)).st.tokens.some(t=>t.s===0),'the player sees their token go');
-  await until(async()=>/went through the door/.test(await p1.textContent('#portmsg')),'players are told who went through');
+  if(await curName(dm)!==home)fail('one player going through should not move the DM');
   if((await S(dm)).st.tokens.filter(t=>t.s>0&&t.s<4).length!==3)fail('the rest of the party should stay');
+  // the player is in a room of their own straight away: the Cellar, with their token beside the door
+  await until(async()=>{const s=(await S(p1)).st;return s.cols===20&&s.rows===14},'player gets the Cellar');
+  await until(async()=>{const t=(await S(p1)).st.tokens.find(t=>t.s===0);return t&&beside(t,18,2)},'player token stands beside the cellar door');
+  // the DM has a tab for each room
+  await until(async()=>(await dm.locator('#roomtabs .roomtab').count())===2,'two room tabs');
   // the DM follows
   await dm.click('#portmsg button:has-text("Follow")');
   await until(async()=>await curName(dm)==='Cellar','DM follows to the Cellar');
-  await until(async()=>{const s=(await S(p1)).st;return s.cols===20&&s.rows===14},'player gets the Cellar');
-  await until(async()=>{const t=(await S(p1)).st.tokens.find(t=>t.s===0);return t&&beside(t,18,2)},'player token stands beside the cellar door');
   await p1.screenshot({path:path.join(OUT,'portals_mp_player_cellar.png')});
 
   // landing spots stay in the shared map data but are never drawn for players
@@ -85,9 +86,9 @@ try{
   // the player clicks the cellar door beside their token: it goes home on its own; the DM follows
   await clickMap(p1,296,40);
   await until(async()=>{const t=(await dmMap(dm,home)).tokens.find(t=>t.s===0);return t&&beside(t,...cell(dx,dy))},'clicking the door beside the token sends it home');
-  if(await curName(dm)!=='Cellar')fail('the session stays while party tokens remain in the Cellar');
-  await dm.click('#portmsg button:has-text("Follow")');
+  if(await curName(dm)!=='Cellar')fail('the DM stays in the Cellar');
   await until(async()=>{const s=(await S(p1)).st;return s.cols===W/16},'player gets the home map back');
+  await dm.click('#portmsg button:has-text("Follow")');await until(async()=>await curName(dm)===home,'DM follows home');
   await until(async()=>{const t=(await S(p1)).st.tokens.find(t=>t.s===0);return t&&beside(t,...cell(dx,dy))},'player arrives beside the home door');
 
   // a locked door: stepping on it or clicking it does nothing for players

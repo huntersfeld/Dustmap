@@ -128,7 +128,7 @@ try{
   await p1.mouse.click(640,430);for(let k=0;k<4;k++){await p1.keyboard.press('ArrowRight');await p1.waitForTimeout(60)}await p1.keyboard.press('s');await p1.waitForTimeout(120);
   let pw=(await S(p1)).st.tokens.find(t=>t.id===w0.id);if(pw.x!==wx+64||pw.y!==wy+16)fail(`player keys: expected ${wx+64},${wy+16} got ${pw.x},${pw.y}`);
   await until(async()=>{const t=(await S(dm)).st.tokens.find(t=>t.id===w0.id);return t&&t.x===wx+64&&t.y===wy+16},'DM page took every quick step');
-  await until(()=>{const t=(store.get('live/tokens')||{list:[]}).list.find(t=>t.id===w0.id);return t&&t.x===wx+64&&t.y===wy+16},'shared tokens updated');
+  await until(()=>{const t=(store.get('rm/'+(store.get('live/rooms')||{}).lobby+'/tokens')||{list:[]}).list.find(t=>t.id===w0.id);return t&&t.x===wx+64&&t.y===wy+16},'shared tokens updated');
   await p1.waitForTimeout(600);pw=(await S(p1)).st.tokens.find(t=>t.id===w0.id);if(pw.x!==wx+64)fail('player token jumped back after the DM push');
   if(((await S(p1)).ks||{}).n!==4)fail('player count should be 4 (the last right + down is a diagonal), got '+JSON.stringify((await S(p1)).ks));
   // more steps after the shared doc caught up still land
@@ -150,7 +150,7 @@ try{
     for(let y=72;y<d.st.rows*16-16;y+=16)for(let x=24;x<d.st.cols*16-24;x+=16)if(d.st.tokens.every(o=>o===t||Math.hypot(o.x-x,o.y-y)>48)){t.x=x;t.y=y;return}},w0.id);await dm.evaluate(()=>{window.dispatchEvent(new Event('focus'))});
   await dm.mouse.click(...await scr(dm,(await S(dm)).st.tokens.find(t=>t.id===w0.id).x,(await S(dm)).st.tokens.find(t=>t.id===w0.id).y-10));await dm.waitForTimeout(100);
   const dmY=(await S(dm)).st.tokens.find(t=>t.id===w0.id).y;await dm.keyboard.press('ArrowDown');await dm.waitForTimeout(150);const dmT=(await S(dm)).st.tokens.find(t=>t.id===w0.id);if(!(await S(dm)).sel||(await S(dm)).st.tokens[(await S(dm)).sel.i].id!==w0.id)fail('DM could not select the wizard');if(dmT.y!==dmY+16)fail('DM arrow did not step the selected player token: '+JSON.stringify(dmT));
-  await until(async()=>{const t=(await S(p1)).st.tokens.find(t=>t.id===w0.id);return t.x===dmT.x&&t.y===dmT.y},'player sees the DM move',5000).catch(async e=>{console.log('dm',dmT,'p1',(await S(p1)).st.tokens.find(t=>t.id===w0.id),'store',(store.get('live/tokens')||{list:[]}).list.find(t=>t.id===w0.id),await p1.evaluate(()=>0));throw e});
+  await until(async()=>{const t=(await S(p1)).st.tokens.find(t=>t.id===w0.id);return t.x===dmT.x&&t.y===dmT.y},'player sees the DM move',5000).catch(async e=>{console.log('dm',dmT,'p1',(await S(p1)).st.tokens.find(t=>t.id===w0.id),'store',(store.get('rm/'+(store.get('live/rooms')||{}).lobby+'/tokens')||{list:[]}).list.find(t=>t.id===w0.id),await p1.evaluate(()=>0));throw e});
   if((await S(p1)).ks)fail('player count should reset when the DM moves their token');
   await p1.keyboard.press('ArrowRight');await until(async()=>{const t=(await S(dm)).st.tokens.find(t=>t.id===w0.id);return t.x===dmT.x+16&&t.y===dmT.y},'player step from the new spot');
   for(const p of pages)if(p.errs.length)fail(p.id+' page errors: '+p.errs.join('; '));
